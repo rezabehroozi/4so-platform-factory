@@ -79,28 +79,59 @@ def _base(*,ready:bool,blockers:list[str])->dict:
     return {"authority":AUTHORITY,"ready":ready,"blockers":blockers,"requiredInputs":[],"nextActionCode":"","nextCommand":[],"physicalCertified":False}
 
 
+def canonical_artifact_source_sha(root:Path,path:Path,current_sha:str,label:str)->str:
+    value=core.load(path,label)
+    source_sha=str(value.get("sourceCommitSHA") or "").strip().lower() if isinstance(value,dict) else ""
+    if not core.COMMIT.fullmatch(source_sha):
+        raise RuntimeError(label+"_SOURCE_INVALID")
+    core.validate_evidence_only_source_lineage(root,source_sha,current_sha,label)
+    return source_sha
+
+
 def _existing_state_handoff(root:Path)->dict|None:
-    try: source_sha=git_source_commit(root)
+    try: current_sha=git_source_commit(root)
     except RuntimeError: return None
     progress=root/PROGRESS_REL; evidence=root/EVIDENCE_REL
-    state=Path(f".state/c7w-external-interop-{source_sha[:12]}"); absolute=Path(os.path.abspath(root/state))
-    if evidence.exists() or evidence.is_symlink():
+    progress_present=progress.exists() or progress.is_symlink()
+    evidence_present=evidence.exists() or evidence.is_symlink()
+    certified_sha=current_sha
+
+    if evidence_present:
         if evidence.is_symlink() or not evidence.is_file():
-            out=_base(ready=False,blockers=["MCP_EXTERNAL_CANONICAL_EVIDENCE_INVALID"]); out.update({"sourceCommitSHA":source_sha,"workingDirectory":str(root),"nextActionCode":"INSPECT_C7W_CANONICAL_EVIDENCE","nextCommand":["git","status","--short","--",str(PROGRESS_REL),str(EVIDENCE_REL)],"detail":"canonical final C7W evidence exists at an unsafe path; restore that evidence before any state recovery or new campaign"}); return out
+            out=_base(ready=False,blockers=["MCP_EXTERNAL_CANONICAL_EVIDENCE_INVALID"]); out.update({"sourceCommitSHA":current_sha,"workingDirectory":str(root),"nextActionCode":"INSPECT_C7W_CANONICAL_EVIDENCE","nextCommand":["git","status","--short","--",str(PROGRESS_REL),str(EVIDENCE_REL)],"detail":"canonical final C7W evidence exists at an unsafe path; restore that evidence before any state recovery or new campaign"}); return out
+        try:
+            certified_sha=canonical_artifact_source_sha(root,evidence,current_sha,"MCP_EXTERNAL_PREFLIGHT_EVIDENCE")
+        except RuntimeError as exc:
+            out=_base(ready=False,blockers=[str(exc).split()[0] if str(exc).strip() else "MCP_EXTERNAL_CANONICAL_EVIDENCE_INVALID"]); out.update({"sourceCommitSHA":current_sha,"workingDirectory":str(root),"nextActionCode":"INSPECT_C7W_CANONICAL_EVIDENCE","nextCommand":["git","status","--short","--",str(PROGRESS_REL),str(EVIDENCE_REL)],"detail":"canonical final C7W evidence source lineage is invalid; restore exact evidence before any Git/C9 handoff"}); return out
+    elif progress_present:
         if progress.is_symlink() or not progress.is_file():
-            out=_base(ready=False,blockers=["MCP_EXTERNAL_CANONICAL_EVIDENCE_WITHOUT_PROGRESS"]); out.update({"sourceCommitSHA":source_sha,"workingDirectory":str(root),"nextActionCode":"INSPECT_C7W_CANONICAL_EVIDENCE","nextCommand":["git","status","--short","--",str(PROGRESS_REL),str(EVIDENCE_REL)],"detail":"canonical final C7W evidence exists without a safe canonical progress snapshot; restore both artifacts before any C9 handoff"}); return out
+            out=_base(ready=False,blockers=["MCP_EXTERNAL_CANONICAL_PROGRESS_INVALID"]); out.update({"sourceCommitSHA":current_sha,"workingDirectory":str(root),"nextActionCode":"INSPECT_C7W_CANONICAL_PROGRESS","nextCommand":["git","status","--short","--",str(PROGRESS_REL)],"detail":"canonical C7W progress exists at an unsafe path; restore that progress before campaign recovery"}); return out
+        try:
+            certified_sha=canonical_artifact_source_sha(root,progress,current_sha,"MCP_EXTERNAL_PREFLIGHT_PROGRESS")
+        except RuntimeError as exc:
+            out=_base(ready=False,blockers=[str(exc).split()[0] if str(exc).strip() else "MCP_EXTERNAL_CANONICAL_PROGRESS_INVALID"]); out.update({"sourceCommitSHA":current_sha,"workingDirectory":str(root),"nextActionCode":"INSPECT_C7W_CANONICAL_PROGRESS","nextCommand":["git","status","--short","--",str(PROGRESS_REL)],"detail":"canonical C7W progress source lineage is invalid; restore source-bound progress before campaign recovery"}); return out
+
+    state=Path(f".state/c7w-external-interop-{certified_sha[:12]}"); absolute=Path(os.path.abspath(root/state))
+    identity={"sourceCommitSHA":current_sha}
+    if certified_sha!=current_sha:
+        identity["certifiedSourceCommitSHA"]=certified_sha
+
+    if evidence_present:
+        if not progress_present or progress.is_symlink() or not progress.is_file():
+            out=_base(ready=False,blockers=["MCP_EXTERNAL_CANONICAL_EVIDENCE_WITHOUT_PROGRESS"]); out.update({**identity,"workingDirectory":str(root),"nextActionCode":"INSPECT_C7W_CANONICAL_EVIDENCE","nextCommand":["git","status","--short","--",str(PROGRESS_REL),str(EVIDENCE_REL)],"detail":"canonical final C7W evidence exists without a safe canonical progress snapshot; restore both artifacts before any C9 handoff"}); return out
         if not absolute.exists() and not absolute.is_symlink():
-            out=_base(ready=False,blockers=["MCP_EXTERNAL_LOCAL_STATE_MISSING_WITH_CANONICAL_EVIDENCE"]); out.update({"sourceCommitSHA":source_sha,"stateDir":str(state),"workingDirectory":str(root),"nextActionCode":"RESTORE_C7W_LOCAL_STATE","nextCommand":["git","status","--short","--",str(PROGRESS_REL),str(EVIDENCE_REL)],"detail":"canonical C7W final evidence exists but the source-bound private state is missing; bulk receipt/audit revalidation is required before Git/C9 handoff"}); return out
+            out=_base(ready=False,blockers=["MCP_EXTERNAL_LOCAL_STATE_MISSING_WITH_CANONICAL_EVIDENCE"]); out.update({**identity,"stateDir":str(state),"workingDirectory":str(root),"nextActionCode":"RESTORE_C7W_LOCAL_STATE","nextCommand":["git","status","--short","--",str(PROGRESS_REL),str(EVIDENCE_REL)],"detail":"canonical C7W final evidence exists but the certified-source private state is missing; bulk receipt/audit revalidation is required before Git/C9 handoff"}); return out
         if absolute.is_symlink() or not absolute.is_dir():
-            out=_base(ready=False,blockers=["MCP_EXTERNAL_LOCAL_STATE_DIR_INVALID"]); out.update({"sourceCommitSHA":source_sha,"stateDir":str(state),"workingDirectory":str(root),"nextActionCode":"INSPECT_C7W_LOCAL_STATE","nextCommand":[],"detail":"the source-bound C7W state path exists but is not a safe directory; repair local state before final evidence revalidation"}); return out
-        out=_base(ready=False,blockers=["MCP_EXTERNAL_CANONICAL_EVIDENCE_REVALIDATION_REQUIRED"]); out.update({"sourceCommitSHA":source_sha,"stateDir":str(state),"workingDirectory":str(root),"nextActionCode":"RUN_C7W_STATUS","nextCommand":runner.runner_command(state,"status"),"detail":"canonical final C7W evidence exists; run status to rebuild the independent bulk seal from source-bound receipts/audits and compare it with persisted evidence before any Git/C9 handoff"}); return out
+            out=_base(ready=False,blockers=["MCP_EXTERNAL_LOCAL_STATE_DIR_INVALID"]); out.update({**identity,"stateDir":str(state),"workingDirectory":str(root),"nextActionCode":"INSPECT_C7W_LOCAL_STATE","nextCommand":[],"detail":"the certified-source C7W state path exists but is not a safe directory; repair local state before final evidence revalidation"}); return out
+        out=_base(ready=False,blockers=["MCP_EXTERNAL_CANONICAL_EVIDENCE_REVALIDATION_REQUIRED"]); out.update({**identity,"stateDir":str(state),"workingDirectory":str(root),"nextActionCode":"RUN_C7W_STATUS","nextCommand":runner.runner_command(state,"status"),"detail":"canonical final C7W evidence exists; run status against the certified-source state to rebuild the independent bulk seal and compare it with persisted evidence before any Git/C9 handoff"}); return out
+
     artifacts=[rel for rel,path in ((PROGRESS_REL,progress),) if path.exists() or path.is_symlink()]
     if not absolute.exists() and not absolute.is_symlink():
         if not artifacts: return None
-        out=_base(ready=False,blockers=["MCP_EXTERNAL_LOCAL_STATE_MISSING_WITH_CANONICAL_EVIDENCE"]); out.update({"sourceCommitSHA":source_sha,"stateDir":str(state),"workingDirectory":str(root),"nextActionCode":"RESTORE_C7W_LOCAL_STATE","nextCommand":["git","status","--short","--",*[str(rel) for rel in artifacts]],"detail":"canonical C7W progress exists but the source-bound private state directory is missing; restore or inspect local state before any new campaign"}); return out
+        out=_base(ready=False,blockers=["MCP_EXTERNAL_LOCAL_STATE_MISSING_WITH_CANONICAL_EVIDENCE"]); out.update({**identity,"stateDir":str(state),"workingDirectory":str(root),"nextActionCode":"RESTORE_C7W_LOCAL_STATE","nextCommand":["git","status","--short","--",*[str(rel) for rel in artifacts]],"detail":"canonical C7W progress exists but the certified-source private state directory is missing; restore or inspect local state before any new campaign"}); return out
     if absolute.is_symlink() or not absolute.is_dir():
-        out=_base(ready=False,blockers=["MCP_EXTERNAL_LOCAL_STATE_DIR_INVALID"]); out.update({"sourceCommitSHA":source_sha,"stateDir":str(state),"workingDirectory":str(root),"nextActionCode":"INSPECT_C7W_LOCAL_STATE","nextCommand":[],"detail":"the source-bound C7W state path exists but is not a safe directory; repair the local state path before campaign recovery"}); return out
-    out=_base(ready=False,blockers=["MCP_EXTERNAL_EXISTING_STATE_REQUIRES_STATUS"]); out.update({"sourceCommitSHA":source_sha,"stateDir":str(state),"workingDirectory":str(root),"nextActionCode":"RUN_C7W_STATUS","nextCommand":runner.runner_command(state,"status"),"detail":"source-bound C7W state already exists; inspect canonical status/recovery first without re-requesting endpoint, OAuth or token inputs"}); return out
+        out=_base(ready=False,blockers=["MCP_EXTERNAL_LOCAL_STATE_DIR_INVALID"]); out.update({**identity,"stateDir":str(state),"workingDirectory":str(root),"nextActionCode":"INSPECT_C7W_LOCAL_STATE","nextCommand":[],"detail":"the certified-source C7W state path exists but is not a safe directory; repair the local state path before campaign recovery"}); return out
+    out=_base(ready=False,blockers=["MCP_EXTERNAL_EXISTING_STATE_REQUIRES_STATUS"]); out.update({**identity,"stateDir":str(state),"workingDirectory":str(root),"nextActionCode":"RUN_C7W_STATUS","nextCommand":runner.runner_command(state,"status"),"detail":"source-bound C7W state already exists; inspect canonical status/recovery first without re-requesting endpoint, OAuth or token inputs"}); return out
 
 
 def _failure(code:str,source_sha:str="")->dict:
