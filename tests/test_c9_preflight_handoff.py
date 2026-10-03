@@ -74,6 +74,7 @@ class C9PreflightHandoffTests(unittest.TestCase):
         self.assertEqual("PROVIDE_C9_ENVIRONMENT_INPUTS", result["nextActionCode"])
         self.assertIn(sealer.browser_authority.ENV_AUTHORITY, result["requiredInputs"])
         self.assertEqual(["gcc", "ld", "ldd", "readelf"], result["missingHostTools"])
+        self.assertEqual(["gcc", "ld", "ldd", "readelf"], result["requiredHostTools"])
         self.assertEqual([], result["nextCommand"])
         self.assertIn("UI_BROWSER_AUTHORITY_MISSING", result["blockers"])
 
@@ -98,17 +99,45 @@ class C9PreflightHandoffTests(unittest.TestCase):
         self.assertEqual([], result["nextCommand"])
         self.assertEqual(mod.C9_COMMAND_TEMPLATE, result["nextCommandTemplate"])
 
-    def test_toolchain_blocker_requests_admitted_archive(self):
-        result = mod.enrich(
-            {
-                "ready": False,
-                "requiredHost": "linux-amd64-exact-toolchain",
-                "blockers": ["FINAL_EXACT_RELEASE_TOOLCHAIN_ARCHIVE_MISSING"],
-                "physicalCertified": False,
-            }
-        )
-        self.assertEqual("PROVIDE_C9_ENVIRONMENT_INPUTS", result["nextActionCode"])
-        self.assertIn("vendor/toolchains/<admitted-go-archive>", result["requiredInputs"])
+    def test_toolchain_archive_blocker_requests_admitted_archive(self):
+        for code in (
+            "FINAL_EXACT_RELEASE_TOOLCHAIN_ARCHIVE_MISSING",
+            "FINAL_EXACT_RELEASE_TOOLCHAIN_ARCHIVE_MISMATCH",
+        ):
+            with self.subTest(code=code):
+                result = mod.enrich(
+                    {
+                        "ready": False,
+                        "requiredHost": "linux-amd64-exact-toolchain",
+                        "blockers": [code],
+                        "physicalCertified": False,
+                    }
+                )
+                self.assertEqual("PROVIDE_C9_ENVIRONMENT_INPUTS", result["nextActionCode"])
+                self.assertIn("vendor/toolchains/<admitted-go-archive>", result["requiredInputs"])
+
+    def test_toolchain_lock_authority_blocker_is_source_defect_not_archive_input(self):
+        for code in (
+            "FINAL_EXACT_RELEASE_TOOLCHAIN_AUTHORITY_INVALID",
+            "FINAL_EXACT_RELEASE_TOOLCHAIN_NOT_ADMITTED",
+            "FINAL_EXACT_RELEASE_TOOLCHAIN_PATH_INVALID",
+            "FINAL_EXACT_RELEASE_TOOLCHAIN_LOCK_INVALID",
+        ):
+            with self.subTest(code=code):
+                result = mod.enrich(
+                    {
+                        "ready": False,
+                        "requiredHost": "linux-amd64-exact-toolchain",
+                        "blockers": [code],
+                        "physicalCertified": False,
+                    }
+                )
+                self.assertEqual("INSPECT_C9_SOURCE_AUTHORITY", result["nextActionCode"])
+                self.assertEqual([], result["requiredInputs"])
+                self.assertEqual(
+                    ["git", "status", "--short", "--", "lab/release-build-toolchain-lock.json"],
+                    result["nextCommand"],
+                )
 
 
 if __name__ == "__main__":
