@@ -130,6 +130,53 @@ def _source_failure(root: Path, exc: RuntimeError) -> dict:
     return out
 
 
+def _existing_evidence_failure(code: str, source_sha: str) -> dict:
+    out = enrich(
+        {
+            "authority": sealer.ENVIRONMENT_PREFLIGHT_AUTHORITY,
+            "ready": False,
+            "requiredHost": "linux-amd64-exact-toolchain",
+            "missingHostTools": [],
+            "blockers": [code],
+            "physicalCertified": False,
+        }
+    )
+    out.update(
+        {
+            "nextActionCode": "INSPECT_C9_EXISTING_EVIDENCE",
+            "nextCommand": ["git", "status", "--short", "--", FINAL_EVIDENCE_REL.as_posix()],
+            "requiredInputs": [],
+            "sourceCommitSHA": source_sha,
+            "resumeExistingEvidence": True,
+            "detail": f"{code}; the canonical final evidence exists but is not safe to resume; inspect or restore that exact evidence rather than starting a new C9 run",
+        }
+    )
+    return out
+
+
+def validate_existing_evidence(root: Path, evidence: Path, current_sha: str) -> dict:
+    try:
+        if evidence.is_symlink() or not evidence.is_file():
+            raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_INVALID")
+        info = evidence.stat()
+        if info.st_size <= 0 or info.st_size > 1024 * 1024:
+            raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_INVALID")
+        value = json.loads(evidence.read_text(encoding="utf-8"))
+    except RuntimeError:
+        raise
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_INVALID") from exc
+    if not isinstance(value, dict) or set(value) != sealer.FINAL_EVIDENCE_KEYS:
+        raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_FIELDS_INVALID")
+    sealed_sha = str(value.get("sourceCommitSHA") or "").strip().lower()
+    try:
+        sealer.validate_final_evidence_lineage(root, sealed_sha, current_sha, evidence)
+    except RuntimeError as exc:
+        code = str(exc).split()[0] if str(exc).strip() else "FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_INVALID"
+        raise RuntimeError(code) from exc
+    return value
+
+
 def preflight(root: Path) -> dict:
     root = root.resolve()
     evidence = root / FINAL_EVIDENCE_REL
@@ -138,6 +185,12 @@ def preflight(root: Path) -> dict:
         source_sha = sealer.git_source_for_resume(root, evidence) if resume else sealer.git_source(root)
     except RuntimeError as exc:
         return _source_failure(root, exc)
+    if resume:
+        try:
+            validate_existing_evidence(root, evidence, source_sha)
+        except RuntimeError as exc:
+            code = str(exc).split()[0] if str(exc).strip() else "FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_INVALID"
+            return _existing_evidence_failure(code, source_sha)
     out = enrich(sealer.exact_release_environment_preflight(root))
     out["sourceCommitSHA"] = source_sha
     out["resumeExistingEvidence"] = resume
