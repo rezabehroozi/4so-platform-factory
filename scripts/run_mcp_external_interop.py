@@ -57,6 +57,32 @@ def paths(state:Path)->dict[str,Path]:
     }
 
 
+def complete_bulk_artifacts_present(state:Path)->bool:
+    p=paths(state)
+    for client in core.CLIENTS:
+        for parent in (p["receipts"],p["audits"]):
+            path=parent/(client+".json")
+            if path.is_symlink() or not path.is_file():
+                return False
+    return True
+
+
+def captured_artifact_recovery_handoff(value:dict,state:Path)->dict:
+    out=dict(value)
+    out.update({
+        "authority":AUTHORITY,
+        "action":"STATUS",
+        "stateDir":str(state),
+        "recoveryRequired":True,
+        "recoveryReason":"CAPTURED_ARTIFACT_PROGRESS_RECONCILIATION",
+        "nextActionCode":"RUN_C7W_SEAL",
+        "nextCommand":runner_command(state,"seal"),
+        "detail":"all four receipt/audit artifact pairs already exist; reconcile canonical progress from independently verified captured evidence instead of repeating external client execution",
+        "physicalCertified":False,
+    })
+    return out
+
+
 def require_canonical_matrix(root:Path,candidate:Path)->Path:
     root=root.resolve()
     raw=Path(candidate)
@@ -350,6 +376,36 @@ def progress_status(matrix:Path,state:Path,progress_path:Path,*,require_live:boo
     }
 
 
+def recover_complete_progress_from_bulk(matrix:Path,campaign_path:Path,bulk:dict,progress_path:Path)->dict:
+    if bulk.get("authority")!=core.AUTHORITY or bulk.get("certifiedClientCount")!=len(core.CLIENTS) or bulk.get("externalCertificationPass") is not True:
+        raise RuntimeError("MCP_EXTERNAL_LOCAL_RECOVERY_BULK_EVIDENCE_INVALID")
+    rows=bulk.get("clients")
+    if not isinstance(rows,list) or [row.get("clientId") for row in rows if isinstance(row,dict)]!=list(core.CLIENTS):
+        raise RuntimeError("MCP_EXTERNAL_LOCAL_RECOVERY_BULK_CLIENT_SET_INVALID")
+    matrix_value=core.load(matrix,"MATRIX")
+    spec=core.validate_matrix_contract(matrix_value,"MCP_EXTERNAL_MATRIX")
+    campaign=core.verify_campaign(campaign_path,matrix,spec,require_live=False)
+    expected=admission.base_progress(matrix,campaign_path,campaign,spec)
+    bulk_by={row["clientId"]:row for row in rows}
+    if progress_path.exists():
+        existing=core.load(progress_path,"PROGRESS")
+        existing_by=admission.validate_existing(existing,expected)
+        admission.validate_existing_campaign_rows(existing_by,expected,campaign,spec)
+        for client,row in existing_by.items():
+            if bulk_by.get(client)!=row:
+                raise RuntimeError(f"MCP_EXTERNAL_LOCAL_RECOVERY_PROGRESS_BULK_DRIFT {client}")
+    expected["clients"]=rows
+    expected["certifiedClientCount"]=len(core.CLIENTS)
+    expected["complete"]=True
+    expected["externalCertificationPass"]=True
+    expected["serverAuditWitnessPass"]=True
+    validated=admission.validate_existing(expected,expected)
+    admission.validate_existing_campaign_rows(validated,expected,campaign,spec)
+    if list(validated)!=list(core.CLIENTS):
+        raise RuntimeError("MCP_EXTERNAL_LOCAL_RECOVERY_PROGRESS_INVALID")
+    return expected
+
+
 def admit(args:argparse.Namespace)->dict:
     root=Path.cwd().resolve()
     args.matrix=require_canonical_matrix(root,args.matrix)
@@ -416,11 +472,23 @@ def seal(args:argparse.Namespace)->dict:
     campaign=core.load(p["campaign"],"ACTIVE_CAMPAIGN")
     require_active_campaign_source(root,campaign)
     progress=progress_status(args.matrix,state,args.progress_out,require_live=False)
+    value=None
     if not progress["complete"]:
-        raise RuntimeError(f"MCP_EXTERNAL_LOCAL_SEAL_PROGRESS_INCOMPLETE next={progress.get('nextClient') or 'unknown'}")
+        if not complete_bulk_artifacts_present(state):
+            raise RuntimeError(f"MCP_EXTERNAL_LOCAL_SEAL_PROGRESS_INCOMPLETE next={progress.get('nextClient') or 'unknown'}")
+        value=core.seal(args.matrix,p["campaign"],p["receipts"],p["audits"])
+        with admission.progress_lock(args.progress_out):
+            current=progress_status(args.matrix,state,args.progress_out,require_live=False)
+            if not current["complete"]:
+                recovered=recover_complete_progress_from_bulk(args.matrix,p["campaign"],value,args.progress_out)
+                core.write_json_atomic_replace(args.progress_out,recovered,"MCP_EXTERNAL_INTEROP_PROGRESS")
+        progress=progress_status(args.matrix,state,args.progress_out,require_live=False)
+        if not progress["complete"]:
+            raise RuntimeError("MCP_EXTERNAL_LOCAL_RECOVERY_PROGRESS_INCOMPLETE")
     persisted_progress=core.load(args.progress_out,"PROGRESS")
     projected=admission.final_evidence(persisted_progress,args.progress_out)
-    value=core.seal(args.matrix,p["campaign"],p["receipts"],p["audits"])
+    if value is None:
+        value=core.seal(args.matrix,p["campaign"],p["receipts"],p["audits"])
     if value!=projected:
         raise RuntimeError("MCP_EXTERNAL_LOCAL_SEAL_PROGRESS_BULK_DRIFT")
     core.write_json_once_or_identical(args.evidence_out,value,"MCP_EXTERNAL_INTEROP_EVIDENCE")
@@ -460,6 +528,8 @@ def status(args:argparse.Namespace)->dict:
                 historical={"complete":False}
             if historical["complete"]:
                 value=historical
+            elif complete_bulk_artifacts_present(state):
+                return captured_artifact_recovery_handoff(historical,state)
             else:
                 p=paths(state)
                 campaign=core.load(p["campaign"],"EXPIRED_CAMPAIGN")
@@ -506,6 +576,8 @@ def status(args:argparse.Namespace)->dict:
             raise RuntimeError("MCP_EXTERNAL_LOCAL_EVIDENCE_DRIFT")
         value.update(git_handoff(root,args.evidence_out,args.progress_out))
     else:
+        if complete_bulk_artifacts_present(state):
+            return captured_artifact_recovery_handoff(value,state)
         if value.get("campaignPrepared"):
             p=paths(state)
             campaign=core.load(p["campaign"],"ACTIVE_CAMPAIGN")
