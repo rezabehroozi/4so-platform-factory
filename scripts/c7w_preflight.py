@@ -20,6 +20,8 @@ except ModuleNotFoundError:
 
 AUTHORITY="MCP_EXTERNAL_PREFLIGHT_HANDOFF_V1"
 PRIVATE_INPUT_REL=Path(".state/private")
+DEFAULT_OAUTH_BINDING_REL=PRIVATE_INPUT_REL/"c7w-oauth-client-bindings.json"
+OAUTH_CLIENT_ID_INPUTS=[f"C7W_{client.upper()}_OAUTH_CLIENT_ID" for client in core.CLIENTS]
 PROGRESS_REL=Path("lab/mcp-external-client-interop-progress.json")
 EVIDENCE_REL=Path("lab/mcp-external-client-interoperability-evidence.json")
 
@@ -52,6 +54,17 @@ def private_input_path(root:Path,path:Path)->Path:
     if absolute.is_symlink() or not absolute.is_file():
         raise RuntimeError("MCP_EXTERNAL_PRIVATE_INPUT_PATH_INVALID")
     return absolute
+
+
+def oauth_binding_materializer_command()->list[str]:
+    return [
+        sys.executable,
+        "scripts/prepare_c7w_oauth_bindings.py",
+        "--root",
+        ".",
+        "--out",
+        str(DEFAULT_OAUTH_BINDING_REL),
+    ]
 
 
 def _missing_inputs(endpoint:str,oauth_client_map:Path|None,token_env:str)->list[str]:
@@ -204,6 +217,16 @@ def preflight(root:Path,matrix:Path,endpoint:str,oauth_client_map:Path|None,toke
 
     missing=_missing_inputs(endpoint,oauth_client_map,token_env)
     if missing:
+        if missing==["C7W_OAUTH_CLIENT_MAP"]:
+            out=_base(ready=False,blockers=["MCP_EXTERNAL_PREFLIGHT_OAUTH_BINDINGS_MISSING"])
+            out.update({
+                "nextActionCode":"PREPARE_C7W_OAUTH_BINDINGS",
+                "requiredInputs":list(OAUTH_CLIENT_ID_INPUTS),
+                "nextCommand":oauth_binding_materializer_command(),
+                "outputPath":str(DEFAULT_OAUTH_BINDING_REL),
+                "detail":"materialize the private four-client OAuth binding document from the already-provisioned client IDs; values stay in environment/private state and are never emitted",
+            })
+            return out
         out=_base(ready=False,blockers=["MCP_EXTERNAL_PREFLIGHT_INPUTS_MISSING"])
         out.update({
             "nextActionCode":"PROVIDE_C7W_INPUTS",
