@@ -452,7 +452,12 @@ def status(args:argparse.Namespace)->dict:
         except RuntimeError as exc:
             if "MCP_EXTERNAL_CAMPAIGN_EXPIRED" not in str(exc):
                 raise
-            historical=progress_status(args.matrix,state,args.progress_out,require_live=False)
+            try:
+                historical=progress_status(args.matrix,state,args.progress_out,require_live=False)
+            except RuntimeError as historical_exc:
+                if "MCP_EXTERNAL_CAMPAIGN_EXPIRED" not in str(historical_exc):
+                    raise
+                historical={"complete":False}
             if historical["complete"]:
                 value=historical
             else:
