@@ -27,6 +27,20 @@ class C7WPreflightTests(unittest.TestCase):
         self.assertEqual([],out["nextCommand"])
         self.assertFalse(out["physicalCertified"])
 
+    def test_missing_oauth_map_with_other_inputs_ready_returns_private_materializer_handoff(self):
+        with tempfile.TemporaryDirectory() as td, mock.patch.dict(os.environ,{"TOKEN":"admin-token"},clear=True):
+            root=Path(td)
+            out=mod.preflight(root,ROOT/"lab/mcp-external-client-interop-matrix.json","https://mcp.example.test/mcp",None,"TOKEN")
+        self.assertFalse(out["ready"])
+        self.assertEqual("PREPARE_C7W_OAUTH_BINDINGS",out["nextActionCode"])
+        self.assertEqual([
+            "C7W_CHATGPT_OAUTH_CLIENT_ID","C7W_CLAUDE_OAUTH_CLIENT_ID",
+            "C7W_GEMINI_OAUTH_CLIENT_ID","C7W_GROK_OAUTH_CLIENT_ID",
+        ],out["requiredInputs"])
+        self.assertIn("scripts/prepare_c7w_oauth_bindings.py",out["nextCommand"])
+        self.assertIn(".state/private/c7w-oauth-client-bindings.json",out["nextCommand"])
+        self.assertNotIn("admin-token",str(out))
+
     def test_existing_source_state_routes_to_status_without_secrets_or_network(self):
         with tempfile.TemporaryDirectory() as td, mock.patch.dict(os.environ,{},clear=True):
             root=Path(td)
