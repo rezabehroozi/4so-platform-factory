@@ -34,7 +34,7 @@ def git_source_commit(root:Path)->str:
     return value
 
 
-def private_input_path(root:Path,path:Path)->Path:
+def private_path(root:Path,path:Path,*,require_file:bool)->Path:
     root=Path(os.path.abspath(root)); boundary=Path(os.path.abspath(root/PRIVATE_INPUT_REL)); raw=Path(path)
     absolute=Path(os.path.abspath(raw if raw.is_absolute() else root/raw))
     try: absolute.relative_to(boundary)
@@ -43,17 +43,21 @@ def private_input_path(root:Path,path:Path)->Path:
         if candidate==root: break
         if candidate.exists() and candidate.is_symlink(): raise RuntimeError("MCP_EXTERNAL_PRIVATE_INPUT_PATH_INVALID")
         if candidate==boundary: break
-    if absolute.is_symlink() or not absolute.is_file(): raise RuntimeError("MCP_EXTERNAL_PRIVATE_INPUT_PATH_INVALID")
+    if absolute.is_symlink() or (require_file and not absolute.is_file()): raise RuntimeError("MCP_EXTERNAL_PRIVATE_INPUT_PATH_INVALID")
     return absolute
+
+
+def private_input_path(root:Path,path:Path)->Path:
+    return private_path(root,path,require_file=True)
 
 
 def oauth_binding_materializer_command(endpoint:str,token_env:str)->list[str]:
     return [sys.executable,"scripts/prepare_c7w_oauth_bindings.py","--root",".","--out",str(DEFAULT_OAUTH_BINDING_REL),"--preflight-endpoint",str(endpoint),"--preflight-token-env",str(token_env)]
 
 
-def execution_binding_materializer_command(root:Path,source_sha:str,endpoint:str,oauth_client_map:Path,token_env:str)->list[str]:
+def execution_binding_materializer_command(root:Path,source_sha:str,endpoint:str,oauth_client_map:Path,token_env:str,output:Path=DEFAULT_EXECUTION_BINDING_REL)->list[str]:
     return [
-        sys.executable,"scripts/c7w_execution_bindings.py","--root",str(root),"--out",str(DEFAULT_EXECUTION_BINDING_REL),
+        sys.executable,"scripts/c7w_execution_bindings.py","--root",str(root),"--out",str(output),
         "--source-commit",source_sha,"--preflight-endpoint",str(endpoint),"--preflight-oauth-client-map",str(oauth_client_map),"--preflight-token-env",str(token_env),
     ]
 
@@ -111,7 +115,7 @@ def _failure(code:str,source_sha:str="")->dict:
     return out
 
 
-def preflight(root:Path,matrix:Path,endpoint:str,oauth_client_map:Path|None,token_env:str)->dict:
+def preflight(root:Path,matrix:Path,endpoint:str,oauth_client_map:Path|None,token_env:str,execution_binding_path:Path|None=None)->dict:
     root=Path(os.path.abspath(root)); existing=_existing_state_handoff(root)
     if existing is not None: return existing
     missing=_missing_inputs(endpoint,oauth_client_map,token_env)
@@ -119,18 +123,21 @@ def preflight(root:Path,matrix:Path,endpoint:str,oauth_client_map:Path|None,toke
         if missing==["C7W_OAUTH_CLIENT_MAP"]:
             out=_base(ready=False,blockers=["MCP_EXTERNAL_PREFLIGHT_OAUTH_BINDINGS_MISSING"]); out.update({"nextActionCode":"PREPARE_C7W_OAUTH_BINDINGS","requiredInputs":list(OAUTH_CLIENT_ID_INPUTS),"nextCommand":oauth_binding_materializer_command(endpoint,token_env),"outputPath":str(DEFAULT_OAUTH_BINDING_REL),"detail":"materialize the private four-client OAuth binding document from the already-provisioned client IDs; values stay in environment/private state and are never emitted"}); return out
         out=_base(ready=False,blockers=["MCP_EXTERNAL_PREFLIGHT_INPUTS_MISSING"]); out.update({"nextActionCode":"PROVIDE_C7W_INPUTS","requiredInputs":missing,"detail":"provide only the missing C7W endpoint/OAuth/admin-token inputs; token values are never emitted"}); return out
-    source_sha=""; endpoint_value=""; oauth_path=None; execution_path=root/DEFAULT_EXECUTION_BINDING_REL
+    source_sha=""; endpoint_value=""; oauth_path=None
+    execution_raw=Path(execution_binding_path or DEFAULT_EXECUTION_BINDING_REL)
     try:
+        execution_path=private_path(root,execution_raw,require_file=False)
         matrix_path=runner.require_canonical_matrix(root,matrix); oauth_path=private_input_path(root,oauth_client_map); runner.require_c7w_source_freeze(root); source_sha=git_source_commit(root); endpoint_value=campaign.endpoint(endpoint)
         matrix_doc=core.load(matrix_path,"MATRIX"); core.validate_matrix_contract(matrix_doc,"MCP_EXTERNAL_MATRIX"); bindings,binding_sha=campaign.load_oauth_bindings(oauth_path)
     except RuntimeError as exc:
         code=str(exc).split()[0] if str(exc).strip() else "MCP_EXTERNAL_PREFLIGHT_UNKNOWN"; return _failure(code,source_sha)
     if not execution_path.exists() and not execution_path.is_symlink():
-        out=_base(ready=False,blockers=["MCP_EXTERNAL_PREFLIGHT_EXECUTION_BINDINGS_MISSING"]); out.update({"sourceCommitSHA":source_sha,"workingDirectory":str(root),"nextActionCode":"PREPARE_C7W_EXECUTION_BINDINGS","requiredInputs":list(EXECUTION_BINDING_INPUTS),"nextCommand":execution_binding_materializer_command(root,source_sha,endpoint_value,oauth_path,token_env),"outputPath":str(DEFAULT_EXECUTION_BINDING_REL),"detail":"materialize the three non-secret runtime resource IDs required to replace C7W packet placeholders before any live endpoint execution"}); return out
+        out=_base(ready=False,blockers=["MCP_EXTERNAL_PREFLIGHT_EXECUTION_BINDINGS_MISSING"]); out.update({"sourceCommitSHA":source_sha,"workingDirectory":str(root),"nextActionCode":"PREPARE_C7W_EXECUTION_BINDINGS","requiredInputs":list(EXECUTION_BINDING_INPUTS),"nextCommand":execution_binding_materializer_command(root,source_sha,endpoint_value,oauth_path,token_env,execution_path),"outputPath":str(execution_path),"detail":"materialize the three non-secret runtime resource IDs required to replace C7W packet placeholders before any live endpoint execution"}); return out
     try:
+        execution_path=private_input_path(root,execution_path)
         execution_doc,execution_sha=execution_bindings.load(execution_path,source_sha)
     except RuntimeError as exc:
-        code=str(exc).split()[0] if str(exc).strip() else "MCP_EXTERNAL_EXECUTION_BINDINGS_INVALID"; out=_failure(code,source_sha); out.update({"workingDirectory":str(root),"nextCommand":execution_binding_materializer_command(root,source_sha,endpoint_value,oauth_path,token_env),"outputPath":str(DEFAULT_EXECUTION_BINDING_REL)}); return out
+        code=str(exc).split()[0] if str(exc).strip() else "MCP_EXTERNAL_EXECUTION_BINDINGS_INVALID"; out=_failure(code,source_sha); out.update({"workingDirectory":str(root),"nextCommand":execution_binding_materializer_command(root,source_sha,endpoint_value,oauth_path,token_env,execution_path),"outputPath":str(execution_path)}); return out
     try:
         live=campaign.live_preflight(endpoint_value); runtime=campaign.runtime_identity_readback(endpoint_value,token_env,source_sha); trusted=campaign.trusted_client_readback(endpoint_value,bindings,token_env)
     except RuntimeError as exc:
@@ -143,6 +150,6 @@ def preflight(root:Path,matrix:Path,endpoint:str,oauth_client_map:Path|None,toke
 
 
 def main()->int:
-    parser=argparse.ArgumentParser(); parser.add_argument("--root",type=Path,default=Path(".")); parser.add_argument("--matrix",type=Path,default=runner.CANONICAL_MATRIX_REL); parser.add_argument("--endpoint",default=os.environ.get("C7W_MCP_ENDPOINT","")); raw_map=os.environ.get("C7W_OAUTH_CLIENT_MAP","").strip(); parser.add_argument("--oauth-client-map",type=Path,default=Path(raw_map) if raw_map else None); parser.add_argument("--token-env",default=os.environ.get("C7W_PLATFORM_ADMIN_TOKEN_ENV","C7W_PLATFORM_ADMIN_TOKEN")); args=parser.parse_args(); result=preflight(args.root,args.matrix,args.endpoint,args.oauth_client_map,args.token_env); print(json.dumps(result,sort_keys=True)); return 0 if result.get("ready") is True else 2
+    parser=argparse.ArgumentParser(); parser.add_argument("--root",type=Path,default=Path(".")); parser.add_argument("--matrix",type=Path,default=runner.CANONICAL_MATRIX_REL); parser.add_argument("--endpoint",default=os.environ.get("C7W_MCP_ENDPOINT","")); raw_map=os.environ.get("C7W_OAUTH_CLIENT_MAP","").strip(); parser.add_argument("--oauth-client-map",type=Path,default=Path(raw_map) if raw_map else None); parser.add_argument("--execution-bindings",type=Path); parser.add_argument("--token-env",default=os.environ.get("C7W_PLATFORM_ADMIN_TOKEN_ENV","C7W_PLATFORM_ADMIN_TOKEN")); args=parser.parse_args(); result=preflight(args.root,args.matrix,args.endpoint,args.oauth_client_map,args.token_env,args.execution_bindings); print(json.dumps(result,sort_keys=True)); return 0 if result.get("ready") is True else 2
 
 if __name__=="__main__": raise SystemExit(main())
