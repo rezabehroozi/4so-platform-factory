@@ -148,6 +148,7 @@ def admitted_toolchain_spec(root:Path)->dict:
         proc=subprocess.run(
             ["git","show","HEAD:lab/release-build-toolchain-lock.json"],
             cwd=root,
+            env=release_build_environment(),
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             check=False,
@@ -282,7 +283,7 @@ def require_cgo_toolchain_identity(root:Path,env:dict[str,str],toolchain_spec:di
 
 
 def git_head(root:Path)->str:
-    p=subprocess.run(["git","rev-parse","HEAD"],cwd=root,text=True,capture_output=True,check=False)
+    p=subprocess.run(["git","rev-parse","HEAD"],cwd=root,env=release_build_environment(),text=True,capture_output=True,check=False)
     value=p.stdout.strip().lower() if p.returncode==0 else ""
     if not COMMIT.fullmatch(value):
         raise RuntimeError("RELEASE_BINARY_BUILD_SOURCE_SHA_UNAVAILABLE")
