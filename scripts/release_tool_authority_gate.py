@@ -51,6 +51,34 @@ def literal_assignment(source:str,name:str):
     return None
 
 
+def function_call_lines(source:str,function_name:str)->dict[str,int]:
+    try:
+        tree=ast.parse(source)
+    except (SyntaxError,ValueError):
+        return {}
+    fn=next((node for node in tree.body if isinstance(node,(ast.FunctionDef,ast.AsyncFunctionDef)) and node.name==function_name),None)
+    if fn is None:
+        return {}
+    calls:dict[str,int]={}
+    for node in ast.walk(fn):
+        if not isinstance(node,ast.Call):
+            continue
+        name=""
+        if isinstance(node.func,ast.Name):
+            name=node.func.id
+        elif isinstance(node.func,ast.Attribute) and isinstance(node.func.value,ast.Name):
+            name=f"{node.func.value.id}.{node.func.attr}"
+        if name:
+            calls[name]=min(calls.get(name,node.lineno),node.lineno)
+    return calls
+
+
+def ordered_calls(calls:dict[str,int],names:tuple[str,...])->bool:
+    if any(name not in calls for name in names):
+        return False
+    return all(calls[left]<calls[right] for left,right in zip(names,names[1:]))
+
+
 def c7w_execution_errors(root:Path)->list[tuple[str,str]]:
     gate=root/"scripts/c7w_execution_authority_gate.py"
     if gate.is_symlink() or not gate.is_file():
@@ -119,6 +147,15 @@ def validate(root:Path)->list[tuple[str,str]]:
     host_markers=("normalized_machine","FINAL_EXACT_RELEASE_LINUX_AMD64_HOST_REQUIRED",'"observedArchitecture"','"requiredArchitecture"')
     if any(marker not in sealer for marker in host_markers) or "require_release_build_host" not in builder:
         errors.append(("RELEASE_HOST_ARCHITECTURE_GUARD_INVALID","exact release must fail closed outside linux/amd64 in both builder and C9"))
+
+    execute_calls=function_call_lines(sealer,"execute")
+    resume_calls=function_call_lines(sealer,"resume_existing_evidence")
+    if not ordered_calls(execute_calls,("git_source","exact_source_admission","require_exact_release_host","require_exact_release_environment")):
+        errors.append(("FINAL_EXACT_RELEASE_ADMISSION_ORDER_INVALID","fresh seal must admit exact source before host/environment work"))
+    if not ordered_calls(resume_calls,("exact_source_admission","require_exact_release_host","require_exact_release_environment")):
+        errors.append(("FINAL_EXACT_RELEASE_ADMISSION_ORDER_INVALID","resume must re-admit sealed source before host/environment work"))
+    if not ordered_calls(execute_calls,("admission.verify","safe_toolchain_archive","stage_toolchain_archive","extract_toolchain")):
+        errors.append(("FINAL_EXACT_RELEASE_ADMISSION_ORDER_INVALID","detached exact-source admission must precede toolchain extraction"))
 
     preflight_markers=(
         'AUTHORITY = "FINAL_EXACT_RELEASE_PREFLIGHT_HANDOFF_V1"',
