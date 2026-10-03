@@ -152,8 +152,9 @@ def admitted_toolchain_spec(root:Path)->dict:
     return spec
 
 
-def require_go_binary_identity(root:Path,go_binary:str,env:dict[str,str])->None:
-    exact=admitted_toolchain_spec(root).get("exactCompiler")
+def require_go_binary_identity(root:Path,go_binary:str,env:dict[str,str],toolchain_spec:dict|None=None)->None:
+    spec=toolchain_spec if toolchain_spec is not None else admitted_toolchain_spec(root)
+    exact=spec.get("exactCompiler")
     if not isinstance(exact,dict):
         raise RuntimeError("RELEASE_BINARY_BUILD_TOOLCHAIN_LOCK_INVALID")
     version=str(exact.get("version") or "").strip()
@@ -240,8 +241,9 @@ def command_first_line(command:list[str],root:Path,env:dict[str,str])->str:
     return lines[0]
 
 
-def require_cgo_toolchain_identity(root:Path,env:dict[str,str])->None:
-    exact=admitted_toolchain_spec(root).get("exactCGOToolchain")
+def require_cgo_toolchain_identity(root:Path,env:dict[str,str],toolchain_spec:dict|None=None)->None:
+    spec=toolchain_spec if toolchain_spec is not None else admitted_toolchain_spec(root)
+    exact=spec.get("exactCGOToolchain")
     if not isinstance(exact,dict):
         raise RuntimeError("RELEASE_BINARY_BUILD_TOOLCHAIN_LOCK_INVALID")
     observed={
@@ -309,8 +311,9 @@ def build(root:Path,go_binary:str,source_commit:str="",version:str="")->dict:
     if not go_binary:
         raise RuntimeError("RELEASE_BINARY_BUILD_GO_INVALID")
     base_env=release_build_environment()
-    require_go_binary_identity(root,go_binary,base_env)
-    require_cgo_toolchain_identity(root,base_env)
+    toolchain_spec=admitted_toolchain_spec(root)
+    require_go_binary_identity(root,go_binary,base_env,toolchain_spec)
+    require_cgo_toolchain_identity(root,base_env,toolchain_spec)
     out_dir=root/"bin"/"linux-amd64"
     if out_dir.is_symlink() or (out_dir.exists() and not out_dir.is_dir()):
         raise RuntimeError("RELEASE_BINARY_BUILD_OUTPUT_DIR_INVALID")
