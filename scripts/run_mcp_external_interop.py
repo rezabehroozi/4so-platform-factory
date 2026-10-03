@@ -58,6 +58,9 @@ def paths(state:Path)->dict[str,Path]:
 
 def require_c7w_source_freeze(root:Path)->None:
     root=root.resolve()
+    top=subprocess.run(["git","rev-parse","--show-toplevel"],cwd=root,text=True,capture_output=True,check=False)
+    if top.returncode!=0 or Path(top.stdout.strip()).resolve()!=root:
+        raise RuntimeError("MCP_EXTERNAL_LOCAL_GIT_ROOT_INVALID")
     branch=subprocess.run(["git","symbolic-ref","--quiet","--short","HEAD"],cwd=root,text=True,capture_output=True,check=False)
     if branch.returncode!=0 or branch.stdout.strip()!="main":
         raise RuntimeError("MCP_EXTERNAL_LOCAL_BRANCH_NOT_MAIN")
