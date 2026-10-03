@@ -17,7 +17,7 @@ C9_ADMISSION_OUT ?= .state/final-exact-release-admission.json
 
 BUILD_LDFLAGS := -s -w -buildid= -X platform.4so.io/factory/internal/buildinfo.Version=$(VERSION) -X platform.4so.io/factory/internal/buildinfo.SourceCommit=$(SOURCE_COMMIT)
 
-.PHONY: runtime-status runtime-resume runtime-watchdog runtime-self-test autopilot-durable autopilot-agent autopilot-context autopilot-context-full c7w-prepare c7w-admit c7w-status c7w-seal c9-admission c9-seal validate test test-postgres-integration vet race build build-release run smoke smoke-ui agent-evidence browser-triage-profile persian-ui-lint release verify-release release-readiness upstream-admission-validate upstream-admission-plan upstream-acquisition-self-test upstream-acquisition-preflight autopilot-preflight autopilot-self-test autopilot-test autopilot-release-test autopilot-real-test autopilot clean
+.PHONY: runtime-status runtime-resume runtime-watchdog runtime-self-test autopilot-durable autopilot-agent autopilot-context autopilot-context-full c7w-prepare c7w-admit c7w-status c7w-seal c9-preflight c9-admission c9-seal validate test test-postgres-integration vet race build build-release run smoke smoke-ui agent-evidence browser-triage-profile persian-ui-lint release verify-release release-readiness upstream-admission-validate upstream-admission-plan upstream-acquisition-self-test upstream-acquisition-preflight autopilot-preflight autopilot-self-test autopilot-test autopilot-release-test autopilot-real-test autopilot clean
 
 validate:
 	$(PYTHON) scripts/validate_repository.py .
@@ -172,6 +172,9 @@ c7w-status:
 
 c7w-seal:
 	$(PYTHON) scripts/run_mcp_external_interop.py --state-dir "$(C7W_STATE_DIR)" seal
+
+c9-preflight:
+	$(PYTHON) scripts/c9_preflight.py --root .
 
 c9-admission:
 	@mkdir -p "$(dir $(C9_ADMISSION_OUT))"
