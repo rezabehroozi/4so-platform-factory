@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -18,6 +19,26 @@ except ModuleNotFoundError:
     from scripts import seal_mcp_external_interop as core
 
 AUTHORITY="MCP_EXTERNAL_PREFLIGHT_HANDOFF_V1"
+
+
+def git_source_commit(root:Path)->str:
+    root=Path(os.path.abspath(root))
+    proc=subprocess.run(["git","rev-parse","HEAD"],cwd=root,text=True,capture_output=True,check=False)
+    value=proc.stdout.strip().lower() if proc.returncode==0 else ""
+    if not core.COMMIT.fullmatch(value):
+        raise RuntimeError("MCP_EXTERNAL_SOURCE_COMMIT_UNAVAILABLE")
+    return value
+
+
+def root_input_path(root:Path,path:Path)->Path:
+    root=Path(os.path.abspath(root))
+    raw=Path(path)
+    absolute=Path(os.path.abspath(raw if raw.is_absolute() else root/raw))
+    try:
+        absolute.relative_to(root)
+    except ValueError as exc:
+        raise RuntimeError("MCP_EXTERNAL_PREFLIGHT_INPUT_PATH_OUTSIDE_ROOT") from exc
+    return absolute
 
 
 def _missing_inputs(endpoint:str,oauth_client_map:Path|None,token_env:str)->list[str]:
@@ -52,6 +73,11 @@ def _failure(code:str,source_sha:str="")->dict:
             "nextCommand":["git","status","--short"],
             "detail":"restore canonical main and the C7W evidence-only source boundary before live interoperability work",
         })
+    elif code.startswith("MCP_EXTERNAL_PREFLIGHT_INPUT_PATH_"):
+        out.update({
+            "nextActionCode":"REPAIR_C7W_INPUT_PATHS",
+            "detail":"keep matrix and private OAuth binding inputs inside the explicit repository root",
+        })
     elif code.startswith("MCP_EXTERNAL_OAUTH_BINDINGS_"):
         out.update({
             "nextActionCode":"REPAIR_C7W_OAUTH_BINDINGS",
@@ -77,7 +103,7 @@ def _failure(code:str,source_sha:str="")->dict:
 
 
 def preflight(root:Path,matrix:Path,endpoint:str,oauth_client_map:Path|None,token_env:str)->dict:
-    root=root.resolve()
+    root=Path(os.path.abspath(root))
     missing=_missing_inputs(endpoint,oauth_client_map,token_env)
     if missing:
         out=_base(ready=False,blockers=["MCP_EXTERNAL_PREFLIGHT_INPUTS_MISSING"])
@@ -90,12 +116,14 @@ def preflight(root:Path,matrix:Path,endpoint:str,oauth_client_map:Path|None,toke
 
     source_sha=""
     try:
+        matrix_path=root_input_path(root,matrix)
+        oauth_path=root_input_path(root,oauth_client_map)
         runner.require_c7w_source_freeze(root)
-        source_sha=campaign.source_commit_sha("")
+        source_sha=git_source_commit(root)
         endpoint_value=campaign.endpoint(endpoint)
-        matrix_doc=core.load(matrix,"MATRIX")
+        matrix_doc=core.load(matrix_path,"MATRIX")
         core.validate_matrix_contract(matrix_doc,"MCP_EXTERNAL_MATRIX")
-        bindings,binding_sha=campaign.load_oauth_bindings(oauth_client_map)
+        bindings,binding_sha=campaign.load_oauth_bindings(oauth_path)
         live=campaign.live_preflight(endpoint_value)
         runtime=campaign.runtime_identity_readback(endpoint_value,token_env,source_sha)
         trusted=campaign.trusted_client_readback(endpoint_value,bindings,token_env)
@@ -107,13 +135,15 @@ def preflight(root:Path,matrix:Path,endpoint:str,oauth_client_map:Path|None,toke
     command=[
         sys.executable,
         "scripts/run_mcp_external_interop.py",
+        "--matrix",
+        str(matrix_path),
         "--state-dir",
         str(state),
         "prepare",
         "--endpoint",
         endpoint_value,
         "--oauth-client-map",
-        str(oauth_client_map),
+        str(oauth_path),
         "--token-env",
         str(token_env),
         "--source-commit-sha",
@@ -124,13 +154,16 @@ def preflight(root:Path,matrix:Path,endpoint:str,oauth_client_map:Path|None,toke
         "sourceCommitSHA":source_sha,
         "runtimeVersion":runtime["version"],
         "endpoint":endpoint_value,
+        "matrixPath":str(matrix_path),
+        "oauthClientMapPath":str(oauth_path),
         "oauthClientBindingsSha256":binding_sha,
         "trustedClientCount":len(trusted),
         "livePreflightAuthority":live.get("authority"),
         "stateDir":str(state),
+        "workingDirectory":str(root),
         "nextActionCode":"RUN_C7W_PREPARE",
         "nextCommand":command,
-        "detail":"C7W source, live endpoint, runtime identity and four trusted-client bindings are ready; create the source-bound campaign",
+        "detail":"C7W source, live endpoint, runtime identity and four trusted-client bindings are ready; create the source-bound campaign from workingDirectory",
     })
     return out
 
