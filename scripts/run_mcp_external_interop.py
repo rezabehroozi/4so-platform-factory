@@ -316,14 +316,19 @@ def prepare(args:argparse.Namespace)->dict:
     return result
 
 
-def progress_status(matrix:Path,state:Path,progress_path:Path)->dict:
+def progress_status(matrix:Path,state:Path,progress_path:Path,*,require_live:bool=True)->dict:
     matrix=require_canonical_matrix(Path.cwd(),matrix)
     p=paths(state)
     if not p["campaign"].is_file() or p["campaign"].is_symlink():
         if progress_path.exists() or progress_path.is_symlink():
             raise RuntimeError("MCP_EXTERNAL_LOCAL_CAMPAIGN_MISSING_WITH_CANONICAL_PROGRESS")
         return {"certified":[],"missing":list(core.CLIENTS),"complete":False,"nextClient":core.CLIENTS[0],"campaignPrepared":False}
-    spec,_,campaign=admission.matrix_contract(matrix,p["campaign"])
+    if require_live:
+        spec,_,campaign=admission.matrix_contract(matrix,p["campaign"])
+    else:
+        matrix_value=core.load(matrix,"MATRIX")
+        spec=core.validate_matrix_contract(matrix_value,"MCP_EXTERNAL_MATRIX")
+        campaign=core.verify_campaign(p["campaign"],matrix,spec,require_live=False)
     expected=admission.base_progress(matrix,p["campaign"],campaign,spec)
     if not progress_path.exists():
         certified=[]
@@ -410,7 +415,7 @@ def seal(args:argparse.Namespace)->dict:
     p=paths(state)
     campaign=core.load(p["campaign"],"ACTIVE_CAMPAIGN")
     require_active_campaign_source(root,campaign)
-    progress=progress_status(args.matrix,state,args.progress_out)
+    progress=progress_status(args.matrix,state,args.progress_out,require_live=False)
     if not progress["complete"]:
         raise RuntimeError(f"MCP_EXTERNAL_LOCAL_SEAL_PROGRESS_INCOMPLETE next={progress.get('nextClient') or 'unknown'}")
     persisted_progress=core.load(args.progress_out,"PROGRESS")
@@ -447,27 +452,31 @@ def status(args:argparse.Namespace)->dict:
         except RuntimeError as exc:
             if "MCP_EXTERNAL_CAMPAIGN_EXPIRED" not in str(exc):
                 raise
-            p=paths(state)
-            campaign=core.load(p["campaign"],"EXPIRED_CAMPAIGN")
-            campaign_id=str(campaign.get("campaignId") or "").strip()
-            suffix=hashlib.sha256(campaign_id.encode("utf-8")).hexdigest()[:12] if campaign_id else "expired"
-            replacement=f".state/c7w-external-interop-replacement-{suffix}"
-            return {
-                "authority":AUTHORITY,
-                "action":"STATUS",
-                "stateDir":str(state),
-                "campaignPrepared":False,
-                "complete":False,
-                "recoveryRequired":True,
-                "recoveryReason":"CAMPAIGN_EXPIRED",
-                "nextActionCode":"PREPARE_REPLACEMENT_C7W_CAMPAIGN",
-                "nextCommand":runner_command(Path(replacement),"prepare"),
-                "replacementStateDir":replacement,
-                "replacementAdmitRequiresCampaignSupersede":args.progress_out.exists(),
-                "followupAdmitEnvironment":{"C7W_ALLOW_CAMPAIGN_SUPERSEDE":"true"} if args.progress_out.exists() else {},
-                "detail":"the source-bound C7W campaign expired; prepare a fresh campaign and explicitly supersede only the incomplete canonical progress on the first admission",
-                "physicalCertified":False,
-            }
+            historical=progress_status(args.matrix,state,args.progress_out,require_live=False)
+            if historical["complete"]:
+                value=historical
+            else:
+                p=paths(state)
+                campaign=core.load(p["campaign"],"EXPIRED_CAMPAIGN")
+                campaign_id=str(campaign.get("campaignId") or "").strip()
+                suffix=hashlib.sha256(campaign_id.encode("utf-8")).hexdigest()[:12] if campaign_id else "expired"
+                replacement=f".state/c7w-external-interop-replacement-{suffix}"
+                return {
+                    "authority":AUTHORITY,
+                    "action":"STATUS",
+                    "stateDir":str(state),
+                    "campaignPrepared":False,
+                    "complete":False,
+                    "recoveryRequired":True,
+                    "recoveryReason":"CAMPAIGN_EXPIRED",
+                    "nextActionCode":"PREPARE_REPLACEMENT_C7W_CAMPAIGN",
+                    "nextCommand":runner_command(Path(replacement),"prepare"),
+                    "replacementStateDir":replacement,
+                    "replacementAdmitRequiresCampaignSupersede":args.progress_out.exists(),
+                    "followupAdmitEnvironment":{"C7W_ALLOW_CAMPAIGN_SUPERSEDE":"true"} if args.progress_out.exists() else {},
+                    "detail":"the source-bound C7W campaign expired; prepare a fresh campaign and explicitly supersede only the incomplete canonical progress on the first admission",
+                    "physicalCertified":False,
+                }
         if (args.evidence_out.exists() or args.evidence_out.is_symlink()) and not value["complete"]:
             raise RuntimeError("MCP_EXTERNAL_LOCAL_EVIDENCE_WITH_INCOMPLETE_PROGRESS")
     else:
@@ -477,8 +486,15 @@ def status(args:argparse.Namespace)->dict:
     value.update({"authority":AUTHORITY,"action":"STATUS","stateDir":str(state),"physicalCertified":False})
     if value["complete"]:
         p=paths(state)
+        if not args.evidence_out.exists():
+            value.update({
+                "nextActionCode":"RUN_C7W_SEAL",
+                "nextCommand":runner_command(state,"seal"),
+                "detail":"all four named clients are admitted; resume the independent bulk seal to reconstruct or persist final C7W evidence",
+            })
+            return value
         if not args.evidence_out.is_file() or args.evidence_out.is_symlink():
-            raise RuntimeError("MCP_EXTERNAL_LOCAL_COMPLETE_WITHOUT_EVIDENCE")
+            raise RuntimeError("MCP_EXTERNAL_LOCAL_COMPLETE_EVIDENCE_INVALID")
         rebuilt=core.seal(args.matrix,p["campaign"],p["receipts"],p["audits"])
         persisted=core.load(args.evidence_out,"EVIDENCE")
         if rebuilt!=persisted:
