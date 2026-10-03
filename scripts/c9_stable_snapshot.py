@@ -5,9 +5,14 @@ from __future__ import annotations
 from contextlib import contextmanager
 import hashlib
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import stat
+import subprocess
 import tempfile
+import zipfile
+
+C9_SOURCE_EXCLUDE=frozenset({".git","bin","dist","release","__pycache__",".pytest_cache",".state",".tmpbin"})
+C9_GENERATED_METADATA=frozenset({"ARTIFACT-MANIFEST.json","BUILD-PROVENANCE.json","SBOM.spdx.json","DERIVED-AGENT-KNOWLEDGE.json"})
 
 
 def _open_stable_regular(path:Path,label:str)->tuple[Path,int,os.stat_result]:
@@ -128,6 +133,96 @@ def stable_file_bytes(path:Path,label:str,*,max_bytes:int)->bytes:
         return b"".join(chunks)
     finally:
         os.close(fd)
+
+
+def _clean_git_env()->dict[str,str]:
+    env=os.environ.copy()
+    for key in list(env):
+        if key.startswith("GIT_"):
+            env.pop(key,None)
+    return env
+
+
+def _exact_git_tree(root:Path,source_sha:str)->tuple[dict[str,tuple[str,str]],str]:
+    root=root.resolve(); source_sha=str(source_sha or "").strip().lower()
+    if len(source_sha)!=40 or any(ch not in "0123456789abcdef" for ch in source_sha):
+        raise RuntimeError("FINAL_EXACT_RELEASE_SOURCE_SHA_INVALID")
+    env=_clean_git_env()
+    top=subprocess.run(["git","rev-parse","--show-toplevel"],cwd=root,env=env,text=True,capture_output=True,check=False)
+    fmt=subprocess.run(["git","rev-parse","--show-object-format"],cwd=root,env=env,text=True,capture_output=True,check=False)
+    tree=subprocess.run(["git","ls-tree","-r","-z","--full-tree",source_sha],cwd=root,env=env,capture_output=True,check=False)
+    if top.returncode!=0 or Path(top.stdout.strip()).resolve()!=root or fmt.returncode!=0 or tree.returncode!=0:
+        raise RuntimeError("FINAL_EXACT_RELEASE_SOURCE_TREE_UNAVAILABLE")
+    object_format=fmt.stdout.strip().lower()
+    if object_format not in {"sha1","sha256"}:
+        raise RuntimeError("FINAL_EXACT_RELEASE_SOURCE_OBJECT_FORMAT_INVALID")
+    rows={}
+    for raw in tree.stdout.split(b"\x00"):
+        if not raw:
+            continue
+        try:
+            meta,path_raw=raw.split(b"\t",1)
+            mode,obj_type,oid=meta.decode("ascii",errors="strict").split(" ")
+            path_text=path_raw.decode("utf-8",errors="strict")
+        except (ValueError,UnicodeDecodeError) as exc:
+            raise RuntimeError("FINAL_EXACT_RELEASE_SOURCE_TREE_ENTRY_INVALID") from exc
+        pure=PurePosixPath(path_text)
+        if pure.is_absolute() or not pure.parts or ".." in pure.parts or any(part in {"","."} for part in pure.parts):
+            raise RuntimeError("FINAL_EXACT_RELEASE_SOURCE_TREE_ENTRY_INVALID")
+        if any(part in C9_SOURCE_EXCLUDE for part in pure.parts) or path_text in C9_GENERATED_METADATA:
+            continue
+        if pure.name.startswith(".durable-"):
+            raise RuntimeError("FINAL_EXACT_RELEASE_SOURCE_TREE_ENTRY_INVALID")
+        if obj_type!="blob" or mode not in {"100644","100755"}:
+            raise RuntimeError(f"FINAL_EXACT_RELEASE_SOURCE_TREE_ENTRY_INVALID {path_text}")
+        if path_text in rows:
+            raise RuntimeError("FINAL_EXACT_RELEASE_SOURCE_TREE_DUPLICATE")
+        rows[path_text]=(oid,mode)
+    if not rows:
+        raise RuntimeError("FINAL_EXACT_RELEASE_SOURCE_TREE_EMPTY")
+    return rows,object_format
+
+
+def _git_blob_oid(raw:bytes,object_format:str)->str:
+    h=hashlib.new(object_format)
+    h.update(f"blob {len(raw)}\0".encode("ascii")); h.update(raw)
+    return h.hexdigest()
+
+
+def verify_release_archive_exact_source(
+    root:Path,
+    release:Path,
+    source_sha:str,
+    *,
+    expected_digest:str,
+    expected_size:int,
+)->None:
+    tree,object_format=_exact_git_tree(root,source_sha)
+    prefix=release.stem+"/"
+    try:
+        with verified_open(
+            release,
+            "FINAL_EXACT_RELEASE_SOURCE_ARCHIVE",
+            expected_digest=expected_digest,
+            expected_size=expected_size,
+        ) as raw, zipfile.ZipFile(raw,"r") as archive:
+            names=set(archive.namelist())
+            for rel,(wanted_oid,wanted_mode) in tree.items():
+                archive_name=prefix+rel
+                if archive_name not in names:
+                    raise RuntimeError(f"FINAL_EXACT_RELEASE_SOURCE_FILE_MISSING {rel}")
+                info=archive.getinfo(archive_name)
+                payload=archive.read(archive_name)
+                if _git_blob_oid(payload,object_format)!=wanted_oid:
+                    raise RuntimeError(f"FINAL_EXACT_RELEASE_SOURCE_BLOB_DRIFT {rel}")
+                actual_mode=stat.S_IMODE((info.external_attr>>16)&0xFFFF)
+                expected_mode=0o755 if wanted_mode=="100755" else 0o644
+                if actual_mode!=expected_mode:
+                    raise RuntimeError(f"FINAL_EXACT_RELEASE_SOURCE_MODE_DRIFT {rel}")
+    except RuntimeError:
+        raise
+    except (zipfile.BadZipFile,KeyError,OSError) as exc:
+        raise RuntimeError("FINAL_EXACT_RELEASE_SOURCE_ARCHIVE_INVALID") from exc
 
 
 def _source_drift_error(target:Path)->str:
