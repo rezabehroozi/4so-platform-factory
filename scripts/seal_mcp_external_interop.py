@@ -498,7 +498,7 @@ def validate_request_ids(row:dict,client:str)->dict[str,str]:
         raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_REQUEST_IDS_INVALID {client}")
     out={str(k):str(v or "").strip() for k,v in values.items()}
     if any(not REQUEST_ID.fullmatch(v) for v in out.values()) or len(set(out.values()))!=len(AUDITED_CHECKS):
-        raise RuntimeError(f"{label}_REQUEST_IDS_INVALID {client}")
+        raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_REQUEST_IDS_INVALID {client}")
     return out
 
 def verify_receipt(path:Path,client:str,required:list[str],protocol:str,campaign:dict,*,require_live:bool=True)->dict:
