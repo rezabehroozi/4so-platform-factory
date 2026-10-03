@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 import os
+import platform
 import re
 import stat
 import subprocess
@@ -27,6 +28,20 @@ TARGETS=(
     ("openchoreo-runtime","./cmd/openchoreo-runtime","0"),
     ("dapr-runtime","./cmd/dapr-runtime","0"),
 )
+
+
+def normalized_machine()->str:
+    raw=str(platform.machine() or "").strip().lower()
+    if raw in {"x86_64","amd64"}:
+        return "amd64"
+    if raw in {"aarch64","arm64"}:
+        return "arm64"
+    return raw or "unknown"
+
+
+def require_release_build_host()->None:
+    if not sys.platform.startswith("linux") or normalized_machine()!="amd64":
+        raise RuntimeError("RELEASE_BINARY_BUILD_LINUX_AMD64_HOST_REQUIRED")
 
 
 def release_build_environment()->dict[str,str]:
@@ -193,8 +208,7 @@ def build_plan(root:Path,go_binary:str,source_commit:str,version:str)->list[tupl
 
 def build(root:Path,go_binary:str,source_commit:str="",version:str="")->dict:
     root=root.resolve()
-    if not sys.platform.startswith("linux"):
-        raise RuntimeError("RELEASE_BINARY_BUILD_LINUX_HOST_REQUIRED")
+    require_release_build_host()
     source_commit,version=release_identity(root,source_commit,version)
     go_binary=str(go_binary or "").strip()
     if not go_binary:
