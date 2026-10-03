@@ -4,6 +4,7 @@ ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/"scripts"))
 S=importlib.util.spec_from_file_location("seal_mcp_external_interop",ROOT/"scripts"/"seal_mcp_external_interop.py"); core=importlib.util.module_from_spec(S); S.loader.exec_module(core); sys.modules["seal_mcp_external_interop"]=core
 B=importlib.util.spec_from_file_location("c7w_execution_bindings",ROOT/"scripts"/"c7w_execution_bindings.py"); bindings=importlib.util.module_from_spec(B); B.loader.exec_module(bindings); sys.modules["c7w_execution_bindings"]=bindings
+I=importlib.util.spec_from_file_location("c7w_request_identity",ROOT/"scripts"/"c7w_request_identity.py"); request_identity=importlib.util.module_from_spec(I); I.loader.exec_module(request_identity); sys.modules["c7w_request_identity"]=request_identity
 P=importlib.util.spec_from_file_location("packet",ROOT/"scripts"/"prepare_mcp_external_client_execution.py"); mod=importlib.util.module_from_spec(P); P.loader.exec_module(mod)
 class PacketTests(unittest.TestCase):
     def test_packet_covers_all_checks_without_secrets_or_false_runtime_claims(self):
@@ -23,6 +24,7 @@ class PacketTests(unittest.TestCase):
         self.assertFalse(out["secretsIncluded"]); self.assertFalse(out["runtimeCertified"]); self.assertFalse(out["physicalCertified"])
         self.assertEqual("chatgpt-oauth-client",out["oauthClientId"]); self.assertEqual("chatgpt-oauth-client",out["receiptRequirements"]["oauthClientId"])
         self.assertEqual(bindings.AUTHORITY,out["executionBindingAuthority"]); self.assertEqual(resources,out["executionBindings"]); self.assertEqual(bindings.credential_contract(),out["credentialProfileContract"])
+        self.assertEqual(request_identity.AUTHORITY,out["requestIdentityAuthority"]); self.assertEqual(request_identity.AUTHORITY,out["receiptRequirements"]["requestIdentityAuthority"])
         self.assertEqual(campaign["sourceCommitSHA"],out["sourceCommitSHA"]); self.assertEqual(campaign["runtimeVersion"],out["runtimeVersion"]); self.assertEqual(campaign["sourceCommitSHA"],out["requestMeta"]["io.4so/sourceCommitSHA"])
         runtime_check=next(x for x in out["checks"] if x["id"]=="authorization-filtered-tools-list"); self.assertEqual(campaign["sourceCommitSHA"],runtime_check["expect"]["sourceCommitSHA"]); self.assertIn("serverInfo.sourceCommitSHA",runtime_check["captureRuntimeIdentityFrom"]["sourceCommitSHA"])
         audited=[x for x in out["checks"] if x.get("serverAudit")]; self.assertEqual(set(core.AUDITED_CHECKS),{x["id"] for x in audited}); self.assertTrue(all("X-Request-ID" in x["request"]["captureRequestIdFrom"][0] for x in audited)); self.assertTrue(all(x["request"]["headers"]["MCP-Protocol-Version"]=="2026-07-28" for x in audited)); self.assertTrue(all(x["request"]["headers"]["Mcp-Interop-Binding"]==out["interopBindingDigest"] for x in audited))
@@ -34,6 +36,7 @@ class PacketTests(unittest.TestCase):
         self.assertNotIn("<unique-jsonrpc-id>",json.dumps(out))
         challenge_sha=next(x for x in campaign["clients"] if x["clientId"]=="chatgpt")["challengeSha256"]
         for row in rpc_rows:
-            self.assertEqual(bindings.jsonrpc_id(campaign["campaignId"],"chatgpt",challenge_sha,row["id"]),row["request"]["jsonRpc"]["id"])
+            self.assertEqual(request_identity.jsonrpc_id(campaign["campaignId"],"chatgpt",challenge_sha,row["id"]),row["request"]["jsonRpc"]["id"])
+        self.assertEqual({row["id"]:row["request"]["jsonRpc"]["id"] for row in rpc_rows},request_identity.validate_packet_ids(out))
         text=json.dumps(out); self.assertNotIn("<foreign-project-id>",text); self.assertNotIn("<same-project-operation-id>",text); self.assertNotIn("<request-created-by-same-subject>",text)
 if __name__=="__main__": unittest.main()
