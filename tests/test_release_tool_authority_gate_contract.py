@@ -28,6 +28,10 @@ class ReleaseToolAuthorityGateContractTests(unittest.TestCase):
             "dapr-runtime",
             "validate_existing_evidence",
             "INSPECT_C9_EXISTING_EVIDENCE",
+            "exact_source_admission",
+            "MCP_EXTERNAL_INTEROP_PENDING",
+            "RUN_C7W_PREFLIGHT",
+            "admissionReady",
         ):
             self.assertIn(marker,gate)
 
