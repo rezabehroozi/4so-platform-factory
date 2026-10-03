@@ -1,4 +1,6 @@
 import importlib.util
+import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -21,6 +23,19 @@ class C7WExecutionBindingSourceAuthorityTests(unittest.TestCase):
         with mock.patch.object(mod,"git_head",return_value="a"*40):
             with self.assertRaisesRegex(RuntimeError,"MCP_EXTERNAL_EXECUTION_BINDINGS_SOURCE_UNAVAILABLE"):
                 mod.source_commit_sha(Path("/repo"),"not-a-commit")
+
+    def test_git_head_rejects_repository_subdirectory_as_root(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            subprocess.run(["git","init","-b","main"],cwd=root,check=True,capture_output=True)
+            subprocess.run(["git","config","user.email","test@example.invalid"],cwd=root,check=True)
+            subprocess.run(["git","config","user.name","Test"],cwd=root,check=True)
+            (root/"seed.txt").write_text("seed\n")
+            subprocess.run(["git","add","seed.txt"],cwd=root,check=True)
+            subprocess.run(["git","commit","-m","seed"],cwd=root,check=True,capture_output=True)
+            child=root/"child"; child.mkdir()
+            with self.assertRaisesRegex(RuntimeError,"MCP_EXTERNAL_EXECUTION_BINDINGS_GIT_ROOT_INVALID"):
+                mod.git_head(child)
 
 
 if __name__=="__main__":
