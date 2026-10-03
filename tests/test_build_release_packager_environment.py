@@ -26,6 +26,7 @@ class ReleasePackagerEnvironmentTests(unittest.TestCase):
         clean_env = {"PATH": "/safe", "GOWORK": "off", "GOFLAGS": ""}
         with (
             mock.patch.dict(os.environ, {"GO": "/opt/exact-go/bin/go"}, clear=True),
+            mock.patch.object(mod.release_binary_builder, "require_release_build_host") as host_gate,
             mock.patch.object(mod.release_binary_builder, "release_build_environment", return_value=clean_env.copy()) as build_env,
             mock.patch.object(mod.release_binary_builder, "require_go_binary_identity") as go_identity,
             mock.patch.object(mod.release_binary_builder, "require_cgo_toolchain_identity") as cgo_identity,
@@ -35,6 +36,7 @@ class ReleasePackagerEnvironmentTests(unittest.TestCase):
         self.assertEqual("/opt/exact-go/bin/go", go_binary)
         self.assertEqual("/safe", env["PATH"])
         self.assertEqual("/opt/exact-go/bin/go", env["GO"])
+        host_gate.assert_called_once_with()
         build_env.assert_called_once_with()
         go_identity.assert_called_once_with(root, "/opt/exact-go/bin/go", mock.ANY)
         cgo_identity.assert_called_once_with(root, mock.ANY)
