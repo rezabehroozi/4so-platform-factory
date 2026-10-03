@@ -166,7 +166,29 @@ class C9PreflightHandoffTests(unittest.TestCase):
             result = mod.preflight(Path(td))
         self.assertTrue(result["ready"])
         self.assertEqual(source_sha, result["sourceCommitSHA"])
+        self.assertFalse(result["resumeExistingEvidence"])
         self.assertEqual("RUN_C9_SEAL", result["nextActionCode"])
+
+    def test_preflight_uses_resume_source_boundary_when_final_evidence_exists(self):
+        source_sha = "b" * 40
+        env = {
+            "authority": sealer.ENVIRONMENT_PREFLIGHT_AUTHORITY,
+            "ready": True,
+            "requiredHost": "linux-amd64-exact-toolchain",
+            "missingHostTools": [],
+            "blockers": [],
+            "physicalCertified": False,
+        }
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); out=root/"lab"/"final-exact-release-evidence.json"; out.parent.mkdir(); out.write_text("{}\n")
+            with mock.patch.object(sealer,"git_source",side_effect=AssertionError("fresh-source path must not run for existing evidence")), \
+                 mock.patch.object(sealer,"git_source_for_resume",return_value=source_sha), \
+                 mock.patch.object(sealer,"exact_release_environment_preflight",return_value=env):
+                result=mod.preflight(root)
+        self.assertTrue(result["ready"])
+        self.assertTrue(result["resumeExistingEvidence"])
+        self.assertEqual(source_sha,result["sourceCommitSHA"])
+        self.assertEqual("RUN_C9_SEAL",result["nextActionCode"])
 
 
 if __name__ == "__main__":
