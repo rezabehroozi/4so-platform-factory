@@ -65,7 +65,7 @@ class C7WPreflightTests(unittest.TestCase):
                 mock.patch.dict(os.environ,{"TOKEN":"secret"},clear=False),
                 mock.patch.object(mod.runner,"require_c7w_source_freeze"),
                 mock.patch.object(mod.runner,"require_canonical_matrix",return_value=canonical),
-                mock.patch.object(mod.campaign,"source_commit_sha",return_value="a"*40),
+                mock.patch.object(mod,"git_source_commit",return_value="a"*40),
                 mock.patch.object(mod.core,"load",return_value={"authority":mod.core.MATRIX_AUTHORITY,"spec":{}}),
                 mock.patch.object(mod.core,"validate_matrix_contract",return_value={}),
                 mock.patch.object(mod.campaign,"endpoint",return_value="https://mcp.example.test/mcp"),
