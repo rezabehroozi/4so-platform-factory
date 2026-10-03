@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import os
 import tempfile
 import unittest
@@ -43,6 +44,17 @@ class C9PreflightHandoffTests(unittest.TestCase):
             mock.patch.object(sealer.shutil, "which", return_value="/usr/bin/tool"),
         )
         return stack
+
+    def minimal_evidence(self, source_sha):
+        value={key:None for key in sealer.FINAL_EVIDENCE_KEYS}
+        value.update({
+            "apiVersion":"platform.4so.io/v1alpha1",
+            "kind":"FinalExactReleaseEvidence",
+            "authority":sealer.AUTHORITY,
+            "sourceCommitSHA":source_sha,
+            "physicalCertified":False,
+        })
+        return value
 
     def test_ready_preflight_emits_direct_native_c9_command(self):
         with tempfile.TemporaryDirectory() as td:
@@ -180,15 +192,39 @@ class C9PreflightHandoffTests(unittest.TestCase):
             "physicalCertified": False,
         }
         with tempfile.TemporaryDirectory() as td:
-            root=Path(td); out=root/"lab"/"final-exact-release-evidence.json"; out.parent.mkdir(); out.write_text("{}\n")
+            root=Path(td); out=root/"lab"/"final-exact-release-evidence.json"; out.parent.mkdir(); out.write_text(json.dumps(self.minimal_evidence(source_sha))+"\n")
             with mock.patch.object(sealer,"git_source",side_effect=AssertionError("fresh-source path must not run for existing evidence")), \
                  mock.patch.object(sealer,"git_source_for_resume",return_value=source_sha), \
+                 mock.patch.object(sealer,"validate_final_evidence_lineage",return_value=None), \
                  mock.patch.object(sealer,"exact_release_environment_preflight",return_value=env):
                 result=mod.preflight(root)
         self.assertTrue(result["ready"])
         self.assertTrue(result["resumeExistingEvidence"])
         self.assertEqual(source_sha,result["sourceCommitSHA"])
         self.assertEqual("RUN_C9_SEAL",result["nextActionCode"])
+
+    def test_preflight_rejects_malformed_existing_evidence_before_environment(self):
+        source_sha="c"*40
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); out=root/"lab"/"final-exact-release-evidence.json"; out.parent.mkdir(); out.write_text("{not-json\n")
+            with mock.patch.object(sealer,"git_source_for_resume",return_value=source_sha), \
+                 mock.patch.object(sealer,"exact_release_environment_preflight",side_effect=AssertionError("environment must not run for malformed final evidence")):
+                result=mod.preflight(root)
+        self.assertFalse(result["ready"])
+        self.assertEqual(["FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_INVALID"],result["blockers"])
+        self.assertEqual("INSPECT_C9_EXISTING_EVIDENCE",result["nextActionCode"])
+        self.assertEqual(["git","status","--short","--","lab/final-exact-release-evidence.json"],result["nextCommand"])
+
+    def test_preflight_rejects_existing_evidence_field_drift_before_environment(self):
+        source_sha="d"*40
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); out=root/"lab"/"final-exact-release-evidence.json"; out.parent.mkdir(); out.write_text("{}\n")
+            with mock.patch.object(sealer,"git_source_for_resume",return_value=source_sha), \
+                 mock.patch.object(sealer,"exact_release_environment_preflight",side_effect=AssertionError("environment must not run for field-drifted final evidence")):
+                result=mod.preflight(root)
+        self.assertFalse(result["ready"])
+        self.assertEqual(["FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_FIELDS_INVALID"],result["blockers"])
+        self.assertEqual("INSPECT_C9_EXISTING_EVIDENCE",result["nextActionCode"])
 
 
 if __name__ == "__main__":
