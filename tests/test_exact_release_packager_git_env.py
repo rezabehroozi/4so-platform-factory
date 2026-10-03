@@ -45,6 +45,18 @@ class ExactReleasePackagerGitEnvironmentTests(unittest.TestCase):
         self.assertIn("env",seen[0])
         self.assertFalse(any(key.startswith("GIT_") for key in seen[0]["env"]))
 
+    def test_binary_builder_source_head_ignores_inherited_git_authority(self):
+        seen=[]
+        def fake_run(command,**kwargs):
+            seen.append(kwargs)
+            return SimpleNamespace(returncode=0,stdout="c"*40+"\n")
+        injected={"GIT_DIR":"/tmp/evil.git","GIT_WORK_TREE":"/tmp/evil-tree","GIT_INDEX_FILE":"/tmp/evil-index"}
+        with mock.patch.dict(os.environ,injected,clear=False), mock.patch.object(builder.subprocess,"run",side_effect=fake_run):
+            self.assertEqual("c"*40,builder.git_head(Path("/repo")))
+        self.assertEqual(1,len(seen))
+        self.assertIn("env",seen[0])
+        self.assertFalse(any(key.startswith("GIT_") for key in seen[0]["env"]))
+
 
 if __name__=="__main__":
     unittest.main()
