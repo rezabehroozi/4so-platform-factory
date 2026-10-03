@@ -174,7 +174,15 @@ def reconcile(endpoint_url:str,bindings:dict[str,str],token_env:str)->dict:
     plan=reconcile_plan(before,bindings)
     created=[]
     for row in plan["create"]:
-        created_row=create_row(endpoint_url,row,token_env)
+        try:
+            created_row=create_row(endpoint_url,row,token_env)
+        except RuntimeError as exc:
+            # A concurrent reconciler may have created the exact ACTIVE client
+            # after our initial read. Only API conflict is recoverable, and the
+            # final live readback below must independently prove the desired row.
+            if "status=409" not in str(exc):
+                raise
+            continue
         created.append(str(created_row.get("provider") or row["provider"]).strip().lower())
 
     after=fetch_rows(endpoint_url,token_env)
