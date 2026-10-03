@@ -111,6 +111,31 @@ def load_oauth_bindings(path:Path)->tuple[dict[str,str],str]:
         raise RuntimeError("MCP_EXTERNAL_OAUTH_BINDINGS_CLIENT_ID_REUSE")
     return out,digest
 
+
+def resolve_trusted_client_rows(rows:list,bindings:dict[str,str])->dict[str,dict]:
+    if not isinstance(rows,list):
+        raise RuntimeError("MCP_EXTERNAL_TRUSTED_CLIENT_READBACK_CONTRACT_INVALID")
+    resolved={}; trusted_ids=set()
+    for client in CLIENTS:
+        wanted=str(bindings.get(client) or "").strip()
+        active=[
+            row for row in rows
+            if isinstance(row,dict)
+            and str(row.get("clientId") or "").strip()==wanted
+            and row.get("state")=="ACTIVE"
+        ]
+        if len(active)!=1:
+            raise RuntimeError(f"MCP_EXTERNAL_TRUSTED_CLIENT_READBACK_IDENTITY_INVALID {client}")
+        row=active[0]
+        trusted_id=str(row.get("id") or "").strip(); revision=row.get("revision")
+        provider=str(row.get("provider") or "").strip().lower()
+        if provider!=client or not trusted_id or type(revision) is not int or revision<=0 or trusted_id in trusted_ids:
+            raise RuntimeError(f"MCP_EXTERNAL_TRUSTED_CLIENT_READBACK_IDENTITY_INVALID {client}")
+        trusted_ids.add(trusted_id)
+        resolved[client]={"oauthClientId":wanted,"trustedClientId":trusted_id,"trustedClientRevision":revision,"trustedClientProvider":client}
+    return resolved
+
+
 def trusted_client_readback(endpoint_url:str,bindings:dict[str,str],token_env:str)->dict[str,dict]:
     token_env=str(token_env or "").strip()
     token=str(os.getenv(token_env) or "").strip() if token_env else ""
@@ -132,20 +157,7 @@ def trusted_client_readback(endpoint_url:str,bindings:dict[str,str],token_env:st
         rows=json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError,json.JSONDecodeError) as exc:
         raise RuntimeError("MCP_EXTERNAL_TRUSTED_CLIENT_READBACK_JSON_INVALID") from exc
-    if not isinstance(rows,list):
-        raise RuntimeError("MCP_EXTERNAL_TRUSTED_CLIENT_READBACK_CONTRACT_INVALID")
-    resolved={}
-    for client in CLIENTS:
-        wanted=bindings[client]
-        matches=[row for row in rows if isinstance(row,dict) and str(row.get("clientId") or "").strip()==wanted]
-        if len(matches)!=1:
-            raise RuntimeError(f"MCP_EXTERNAL_TRUSTED_CLIENT_READBACK_IDENTITY_INVALID {client}")
-        row=matches[0]
-        trusted_id=str(row.get("id") or "").strip(); revision=row.get("revision")
-        if row.get("state")!="ACTIVE" or str(row.get("provider") or "").strip().lower()!=client or not trusted_id or type(revision) is not int or revision<=0:
-            raise RuntimeError(f"MCP_EXTERNAL_TRUSTED_CLIENT_READBACK_IDENTITY_INVALID {client}")
-        resolved[client]={"oauthClientId":wanted,"trustedClientId":trusted_id,"trustedClientRevision":revision,"trustedClientProvider":client}
-    return resolved
+    return resolve_trusted_client_rows(rows,bindings)
 
 def live_preflight(endpoint_url:str)->dict:
     ep=endpoint(endpoint_url); parsed=urlsplit(ep); base=f"{parsed.scheme}://{parsed.netloc}"
