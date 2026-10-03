@@ -58,6 +58,34 @@ class C9StablePublicationSnapshotTests(unittest.TestCase):
             self.assertEqual("sha256:"+hashlib.sha256(raw).hexdigest(),digest)
             self.assertEqual(len(raw),size)
 
+    def test_verified_open_reads_from_the_locked_descriptor_snapshot(self):
+        with tempfile.TemporaryDirectory() as td:
+            path=Path(td)/"go.tgz"
+            raw=b"locked-toolchain-archive"
+            path.write_bytes(raw)
+            digest="sha256:"+hashlib.sha256(raw).hexdigest()
+            with mod.stable_snapshot.verified_open(
+                path,
+                "TEST_TOOLCHAIN",
+                expected_digest=digest,
+                expected_size=len(raw),
+            ) as fh:
+                self.assertEqual(raw,fh.read())
+
+    def test_verified_open_rejects_digest_drift_before_extraction(self):
+        with tempfile.TemporaryDirectory() as td:
+            path=Path(td)/"go.tgz"
+            raw=b"locked-toolchain-archive"
+            path.write_bytes(raw)
+            with self.assertRaisesRegex(RuntimeError,"SNAPSHOT_MISMATCH"):
+                with mod.stable_snapshot.verified_open(
+                    path,
+                    "TEST_TOOLCHAIN",
+                    expected_digest="sha256:"+"0"*64,
+                    expected_size=len(raw),
+                ):
+                    pass
+
 
 if __name__=="__main__":
     unittest.main()
