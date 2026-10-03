@@ -76,13 +76,70 @@ def release_build_environment()->dict[str,str]:
     return env
 
 
+def load_json_snapshot(path:Path,label:str,max_bytes:int)->dict:
+    absolute=Path(os.path.abspath(path))
+    if absolute.is_symlink():
+        raise RuntimeError(f"{label}_FILE_INVALID")
+    flags=os.O_RDONLY|getattr(os,"O_CLOEXEC",0)|getattr(os,"O_BINARY",0)|getattr(os,"O_NOFOLLOW",0)
+    try:
+        fd=os.open(absolute,flags)
+    except OSError as exc:
+        raise RuntimeError(f"{label}_FILE_INVALID") from exc
+    try:
+        before=os.fstat(fd)
+        try:
+            named=os.stat(absolute,follow_symlinks=False)
+        except OSError as exc:
+            raise RuntimeError(f"{label}_FILE_INVALID") from exc
+        if (
+            not stat.S_ISREG(before.st_mode)
+            or not stat.S_ISREG(named.st_mode)
+            or not os.path.samestat(before,named)
+            or before.st_size<=0
+            or before.st_size>max_bytes
+        ):
+            raise RuntimeError(f"{label}_FILE_INVALID")
+
+        def read_once()->bytes:
+            chunks=[]; total=0
+            while True:
+                chunk=os.read(fd,min(1024*1024,max_bytes+1-total))
+                if not chunk:
+                    break
+                chunks.append(chunk); total+=len(chunk)
+                if total>max_bytes:
+                    raise RuntimeError(f"{label}_FILE_INVALID")
+            return b"".join(chunks)
+
+        first=read_once()
+        middle=os.fstat(fd)
+        os.lseek(fd,0,os.SEEK_SET)
+        second=read_once()
+        after=os.fstat(fd)
+        try:
+            named_after=os.stat(absolute,follow_symlinks=False)
+        except OSError as exc:
+            raise RuntimeError(f"{label}_FILE_CHANGED_DURING_READ") from exc
+        stable_identity=os.path.samestat(before,middle) and os.path.samestat(before,after) and os.path.samestat(before,named_after)
+        stable_meta=(before.st_size,before.st_mtime_ns,before.st_ctime_ns)==(middle.st_size,middle.st_mtime_ns,middle.st_ctime_ns)==(after.st_size,after.st_mtime_ns,after.st_ctime_ns)
+        if not stat.S_ISREG(named_after.st_mode) or not stable_identity or not stable_meta or first!=second or len(first)!=before.st_size:
+            raise RuntimeError(f"{label}_FILE_CHANGED_DURING_READ")
+        try:
+            value=json.loads(first.decode("utf-8"))
+        except (UnicodeDecodeError,json.JSONDecodeError) as exc:
+            raise RuntimeError(f"{label}_JSON_INVALID") from exc
+        if not isinstance(value,dict):
+            raise RuntimeError(f"{label}_JSON_INVALID")
+        return value
+    finally:
+        os.close(fd)
+
+
 def admitted_toolchain_spec(root:Path)->dict:
     lock_path=root/"lab"/"release-build-toolchain-lock.json"
     try:
-        if lock_path.is_symlink() or not lock_path.is_file() or lock_path.stat().st_size<=0 or lock_path.stat().st_size>1024*1024:
-            raise RuntimeError("invalid lock")
-        lock=json.loads(lock_path.read_text(encoding="utf-8"))
-    except (OSError,UnicodeDecodeError,json.JSONDecodeError,RuntimeError) as exc:
+        lock=load_json_snapshot(lock_path,"RELEASE_BINARY_BUILD_TOOLCHAIN_LOCK",1024*1024)
+    except RuntimeError as exc:
         raise RuntimeError("RELEASE_BINARY_BUILD_TOOLCHAIN_LOCK_INVALID") from exc
     spec=lock.get("spec") if isinstance(lock,dict) else None
     if (
