@@ -47,6 +47,25 @@ class C7WPreflightTests(unittest.TestCase):
         self.assertEqual("status",out["nextCommand"][-1])
         self.assertNotIn("C7W_PLATFORM_ADMIN_TOKEN",str(out))
 
+    def test_missing_local_state_with_canonical_progress_stops_before_new_inputs(self):
+        with tempfile.TemporaryDirectory() as td, mock.patch.dict(os.environ,{},clear=True):
+            root=Path(td)
+            self.git(root,"init","-b","main")
+            self.git(root,"config","user.email","test@example.invalid")
+            self.git(root,"config","user.name","Test")
+            (root/"seed.txt").write_text("seed\n")
+            self.git(root,"add","seed.txt"); self.git(root,"commit","-m","seed")
+            source_sha=self.git(root,"rev-parse","HEAD")
+            lab=root/"lab"; lab.mkdir(); (lab/"mcp-external-client-interop-progress.json").write_text("{}\n")
+            with mock.patch.object(mod.campaign,"live_preflight",side_effect=AssertionError("network must not run when canonical progress outlives local state")):
+                out=mod.preflight(root,ROOT/"lab/mcp-external-client-interop-matrix.json","",None,"C7W_PLATFORM_ADMIN_TOKEN")
+        self.assertFalse(out["ready"])
+        self.assertEqual("RESTORE_C7W_LOCAL_STATE",out["nextActionCode"])
+        self.assertEqual([],out["requiredInputs"])
+        self.assertEqual(source_sha,out["sourceCommitSHA"])
+        self.assertIn("lab/mcp-external-client-interop-progress.json",out["nextCommand"])
+        self.assertNotIn("C7W_PLATFORM_ADMIN_TOKEN",str(out))
+
     def test_source_freeze_failure_is_not_misclassified_as_environment_input(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td); private=root/".state"/"private"; private.mkdir(parents=True); oauth=private/"oauth.json"; oauth.write_text("{}")
