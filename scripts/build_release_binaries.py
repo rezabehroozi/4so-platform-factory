@@ -76,7 +76,7 @@ def release_build_environment()->dict[str,str]:
     return env
 
 
-def load_json_snapshot(path:Path,label:str,max_bytes:int)->dict:
+def load_json_snapshot_bytes(path:Path,label:str,max_bytes:int)->tuple[dict,bytes]:
     absolute=Path(os.path.abspath(path))
     if absolute.is_symlink():
         raise RuntimeError(f"{label}_FILE_INVALID")
@@ -130,15 +130,31 @@ def load_json_snapshot(path:Path,label:str,max_bytes:int)->dict:
             raise RuntimeError(f"{label}_JSON_INVALID") from exc
         if not isinstance(value,dict):
             raise RuntimeError(f"{label}_JSON_INVALID")
-        return value
+        return value,first
     finally:
         os.close(fd)
 
 
+def load_json_snapshot(path:Path,label:str,max_bytes:int)->dict:
+    value,_=load_json_snapshot_bytes(path,label,max_bytes)
+    return value
+
+
 def admitted_toolchain_spec(root:Path)->dict:
+    root=root.resolve()
     lock_path=root/"lab"/"release-build-toolchain-lock.json"
     try:
-        lock=load_json_snapshot(lock_path,"RELEASE_BINARY_BUILD_TOOLCHAIN_LOCK",1024*1024)
+        lock,snapshot_bytes=load_json_snapshot_bytes(lock_path,"RELEASE_BINARY_BUILD_TOOLCHAIN_LOCK",1024*1024)
+        proc=subprocess.run(
+            ["git","show","HEAD:lab/release-build-toolchain-lock.json"],
+            cwd=root,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+        head_blob=proc.stdout if proc.returncode==0 else b""
+        if proc.returncode!=0 or not head_blob or snapshot_bytes!=head_blob:
+            raise RuntimeError("RELEASE_BINARY_BUILD_TOOLCHAIN_LOCK_HEAD_MISMATCH")
     except RuntimeError as exc:
         raise RuntimeError("RELEASE_BINARY_BUILD_TOOLCHAIN_LOCK_INVALID") from exc
     spec=lock.get("spec") if isinstance(lock,dict) else None
