@@ -27,6 +27,7 @@ def validate(root:Path)->list[tuple[str,str]]:
     verifier=read_required(root,"scripts/verify_release_build_toolchain.py",errors)
     exact_packager=read_required(root,"scripts/package_release_exact.py",errors)
     sealer=read_required(root,"scripts/seal_final_exact_release.py",errors)
+    preflight=read_required(root,"scripts/c9_preflight.py",errors)
     makefile=read_required(root,"Makefile",errors)
 
     builder_markers=(
@@ -90,6 +91,21 @@ def validate(root:Path)->list[tuple[str,str]]:
     )
     if any(marker not in sealer for marker in host_markers) or "require_release_build_host" not in builder:
         errors.append(("RELEASE_HOST_ARCHITECTURE_GUARD_INVALID","exact release must fail closed outside linux/amd64 in both builder and C9"))
+
+    preflight_markers=(
+        'AUTHORITY = "FINAL_EXACT_RELEASE_PREFLIGHT_HANDOFF_V1"',
+        "sealer.exact_release_environment_preflight",
+        '"RUN_C9_ON_EXACT_LINUX_HOST"',
+        '"PROVIDE_C9_ENVIRONMENT_INPUTS"',
+        '"RUN_C9_SEAL"',
+        '"requiredInputs"',
+        '"physicalCertified"',
+    )
+    missing=[marker for marker in preflight_markers if marker not in preflight]
+    if missing:
+        errors.append(("FINAL_EXACT_RELEASE_PREFLIGHT_HANDOFF_INVALID",",".join(missing)))
+    if 'c9-preflight:' not in makefile or 'scripts/c9_preflight.py --root .' not in makefile:
+        errors.append(("FINAL_EXACT_RELEASE_PREFLIGHT_ENTRYPOINT_INVALID","Makefile c9-preflight must use scripts/c9_preflight.py"))
 
     return errors
 
