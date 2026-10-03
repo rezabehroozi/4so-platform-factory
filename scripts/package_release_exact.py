@@ -38,6 +38,7 @@ def exact_source_sha(root:Path)->str:
     proc=subprocess.run(
         ["git","rev-parse","HEAD"],
         cwd=root,
+        env=release_binary_builder.release_build_environment(),
         text=True,
         capture_output=True,
         check=False,
