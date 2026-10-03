@@ -24,12 +24,43 @@ TARGETS=(
     ("dapr-runtime","./cmd/dapr-runtime","0"),
 )
 
+
+def release_build_environment()->dict[str,str]:
+    env=os.environ.copy()
+    dangerous_exact={
+        "CC","CXX","GCCGO","GOROOT","GOTOOLDIR",
+        "LD_PRELOAD","LD_LIBRARY_PATH","LIBRARY_PATH","COMPILER_PATH",
+        "CPATH","C_INCLUDE_PATH","CPLUS_INCLUDE_PATH",
+        "PKG_CONFIG","PKG_CONFIG_PATH","PKG_CONFIG_LIBDIR","PKG_CONFIG_SYSROOT_DIR",
+        "BASH_ENV","ENV","MAKEFLAGS","MFLAGS","MAKELEVEL","MAKEFILES","MAKEOVERRIDES",
+        "SOURCE_COMMIT","AR","NM","RANLIB","STRIP","GCC_EXEC_PREFIX","DEPENDENCIES_OUTPUT",
+    }
+    for key in list(env):
+        if key in dangerous_exact or key.startswith("CGO_") or key.startswith("DYLD_") or key.startswith("GO") or key.startswith("GIT_"):
+            env.pop(key,None)
+    env["PATH"]="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+    env["LANG"]="C"
+    env["LC_ALL"]="C"
+    env["TZ"]="UTC"
+    env["GOTOOLCHAIN"]="local"
+    env["GOENV"]="off"
+    env["GOWORK"]="off"
+    env["GOFLAGS"]=""
+    env["GOPROXY"]="off"
+    env["GOSUMDB"]="off"
+    env["GOPRIVATE"]=""
+    env["GONOPROXY"]=""
+    env["GONOSUMDB"]=""
+    return env
+
+
 def git_head(root:Path)->str:
     p=subprocess.run(["git","rev-parse","HEAD"],cwd=root,text=True,capture_output=True,check=False)
     value=p.stdout.strip().lower() if p.returncode==0 else ""
     if not COMMIT.fullmatch(value):
         raise RuntimeError("RELEASE_BINARY_BUILD_SOURCE_SHA_UNAVAILABLE")
     return value
+
 
 def release_identity(root:Path,source_commit:str="",version:str="")->tuple[str,str]:
     observed_sha=git_head(root)
@@ -41,6 +72,7 @@ def release_identity(root:Path,source_commit:str="",version:str="")->tuple[str,s
     if not VERSION.fullmatch(wanted_version) or wanted_version!=observed_version:
         raise RuntimeError("RELEASE_BINARY_BUILD_VERSION_MISMATCH")
     return wanted_sha,wanted_version
+
 
 def build_plan(root:Path,go_binary:str,source_commit:str,version:str)->list[tuple[str,dict[str,str],list[str]]]:
     ldflags=(
@@ -59,6 +91,7 @@ def build_plan(root:Path,go_binary:str,source_commit:str,version:str)->list[tupl
         plan.append((name,env,argv))
     return plan
 
+
 def build(root:Path,go_binary:str,source_commit:str="",version:str="")->dict:
     root=root.resolve()
     if not sys.platform.startswith("linux"):
@@ -71,11 +104,12 @@ def build(root:Path,go_binary:str,source_commit:str="",version:str="")->dict:
     if out_dir.is_symlink() or (out_dir.exists() and not out_dir.is_dir()):
         raise RuntimeError("RELEASE_BINARY_BUILD_OUTPUT_DIR_INVALID")
     out_dir.mkdir(parents=True,exist_ok=True)
+    base_env=release_build_environment()
     for name,extra_env,argv in build_plan(root,go_binary,source_commit,version):
         target=out_dir/name
         if target.is_symlink():
             raise RuntimeError(f"RELEASE_BINARY_BUILD_OUTPUT_SYMLINK {name}")
-        env=os.environ.copy(); env.update(extra_env)
+        env=base_env.copy(); env.update(extra_env)
         proc=subprocess.run(argv,cwd=root,env=env,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,check=False)
         if proc.returncode!=0:
             raise RuntimeError(f"RELEASE_BINARY_BUILD_FAILED {name} rc={proc.returncode} {(proc.stdout or '').strip()}")
@@ -94,6 +128,7 @@ def build(root:Path,go_binary:str,source_commit:str="",version:str="")->dict:
         "binaries":[name for name,_,_ in TARGETS],
     }
 
+
 def main()->int:
     p=argparse.ArgumentParser()
     p.add_argument("--root",type=Path,default=Path("."))
@@ -108,6 +143,7 @@ def main()->int:
         f"target={result['target']} binaries={result['binaryCount']}"
     )
     return 0
+
 
 if __name__=="__main__":
     raise SystemExit(main())
