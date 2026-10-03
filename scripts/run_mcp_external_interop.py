@@ -75,6 +75,9 @@ def require_c7w_source_freeze(root:Path)->None:
     branch=subprocess.run(["git","symbolic-ref","--quiet","--short","HEAD"],cwd=root,text=True,capture_output=True,check=False)
     if branch.returncode!=0 or branch.stdout.strip()!="main":
         raise RuntimeError("MCP_EXTERNAL_LOCAL_BRANCH_NOT_MAIN")
+    indexed=subprocess.run(["git","ls-files","-v","-z"],cwd=root,capture_output=True,check=False)
+    if indexed.returncode!=0 or any(raw and not raw.startswith(b"H ") for raw in indexed.stdout.split(b"\x00")):
+        raise RuntimeError("MCP_EXTERNAL_LOCAL_GIT_INDEX_FLAGS_FORBIDDEN")
     allowed=sorted(core.C7W_EVIDENCE_ONLY_PATHS)
     command=["git","status","--porcelain=v1","-z","--untracked-files=all"]
     all_status=subprocess.run(command,cwd=root,capture_output=True,check=False)
@@ -175,10 +178,8 @@ def runner_command(state:Path,command:str,*args:str)->list[str]:
 
 def c9_seal_command()->list[str]:
     return [sys.executable,"scripts/seal_final_exact_release.py","--root",".","--out","lab/final-exact-release-evidence.json"]
-
 def c9_preflight_command()->list[str]:
     return [sys.executable,"scripts/c9_preflight.py","--root",".","--preflight"]
-
 def c9_handoff(source_sha:str)->dict:
     command=c9_seal_command()
     preflight=c9_preflight_command()
