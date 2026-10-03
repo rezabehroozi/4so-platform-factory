@@ -3,9 +3,24 @@
 from __future__ import annotations
 
 import argparse
+import ast
 from pathlib import Path
 
 AUTHORITY="RELEASE_TOOL_AUTHORITY_GATE_V1"
+EXPECTED_RELEASE_BINARIES=(
+    "platform-api","platformctl","platform-installer","platform-agent",
+    "platform-probe","virtual-cluster-renderer","openchoreo-runtime","dapr-runtime",
+)
+EXPECTED_BUILD_TARGETS=(
+    ("platform-api","./cmd/platform-api","1"),
+    ("platformctl","./cmd/platformctl","0"),
+    ("platform-installer","./cmd/platform-installer","0"),
+    ("platform-agent","./cmd/platform-agent","0"),
+    ("platform-probe","./cmd/platform-probe","0"),
+    ("virtual-cluster-renderer","./cmd/virtual-cluster-renderer","0"),
+    ("openchoreo-runtime","./cmd/openchoreo-runtime","0"),
+    ("dapr-runtime","./cmd/dapr-runtime","0"),
+)
 
 
 def read_required(root:Path,rel:str,errors:list[tuple[str,str]])->str:
@@ -20,11 +35,33 @@ def read_required(root:Path,rel:str,errors:list[tuple[str,str]])->str:
         return ""
 
 
+def literal_assignment(source:str,name:str):
+    try:
+        tree=ast.parse(source)
+    except (SyntaxError,ValueError):
+        return None
+    for node in tree.body:
+        if isinstance(node,ast.Assign):
+            targets=node.targets; value=node.value
+        elif isinstance(node,ast.AnnAssign):
+            targets=[node.target]; value=node.value
+        else:
+            continue
+        if any(isinstance(target,ast.Name) and target.id==name for target in targets):
+            try:
+                return ast.literal_eval(value)
+            except (ValueError,TypeError):
+                return None
+    return None
+
+
 def validate(root:Path)->list[tuple[str,str]]:
     root=root.resolve()
     errors:list[tuple[str,str]]=[]
     builder=read_required(root,"scripts/build_release_binaries.py",errors)
     verifier=read_required(root,"scripts/verify_release_build_toolchain.py",errors)
+    packager=read_required(root,"scripts/build_release.py",errors)
+    release_verifier=read_required(root,"scripts/verify_release.py",errors)
     exact_packager=read_required(root,"scripts/package_release_exact.py",errors)
     sealer=read_required(root,"scripts/seal_final_exact_release.py",errors)
     preflight=read_required(root,"scripts/c9_preflight.py",errors)
@@ -48,6 +85,16 @@ def validate(root:Path)->list[tuple[str,str]]:
     missing=[marker for marker in builder_markers if marker not in builder]
     if missing:
         errors.append(("RELEASE_BINARY_BUILDER_ENVIRONMENT_INVALID",",".join(missing)))
+
+    builder_targets=literal_assignment(builder,"TARGETS")
+    packager_binaries=literal_assignment(packager,"BINARIES")
+    verifier_binaries=literal_assignment(release_verifier,"RELEASE_BINARIES")
+    if builder_targets!=EXPECTED_BUILD_TARGETS:
+        errors.append(("RELEASE_BINARY_TARGET_SET_INVALID",str(builder_targets)))
+    if packager_binaries!=EXPECTED_RELEASE_BINARIES:
+        errors.append(("RELEASE_PACKAGER_BINARY_SET_INVALID",str(packager_binaries)))
+    if verifier_binaries!=EXPECTED_RELEASE_BINARIES:
+        errors.append(("RELEASE_VERIFIER_BINARY_SET_INVALID",str(verifier_binaries)))
 
     verifier_markers=(
         "verification_environment",
