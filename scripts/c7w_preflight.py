@@ -138,7 +138,7 @@ def _existing_state_handoff(root:Path)->dict|None:
     out=_base(ready=False,blockers=["MCP_EXTERNAL_EXISTING_STATE_REQUIRES_STATUS"]); out.update({**identity,"stateDir":str(state),"workingDirectory":str(root),"nextActionCode":"RUN_C7W_STATUS","nextCommand":runner.runner_command(state,"status"),"detail":"source-bound C7W state already exists; inspect canonical status/recovery first without re-requesting endpoint, OAuth or token inputs"}); return out
 
 
-def _failure(code:str,source_sha:str="")->dict:
+def _failure(code:str,source_sha:str="",root:Path|None=None)->dict:
     out=_base(ready=False,blockers=[code])
     if code.startswith("MCP_EXTERNAL_LOCAL_"): out.update({"nextActionCode":"RESTORE_C7W_SOURCE_FREEZE","nextCommand":["git","status","--short"],"detail":"restore canonical main, repository-root authority and the C7W canonical matrix/evidence-only source boundary before live interoperability work"})
     elif code.startswith("MCP_EXTERNAL_PRIVATE_INPUT_"): out.update({"nextActionCode":"REPAIR_C7W_INPUT_PATHS","requiredInputs":["C7W_OAUTH_CLIENT_MAP"],"detail":"place private C7W inputs under .state/private inside the exact repository root; never track them in Git"})
@@ -147,6 +147,8 @@ def _failure(code:str,source_sha:str="")->dict:
     elif code=="MCP_EXTERNAL_RUNTIME_SOURCE_DRIFT": out.update({"nextActionCode":"DEPLOY_C7W_CURRENT_SOURCE","requiredSourceCommitSHA":source_sha,"detail":"deploy the exact current main source before external named-client execution"})
     elif code.startswith("MCP_EXTERNAL_TRUSTED_CLIENT_"): out.update({"nextActionCode":"RECONCILE_C7W_TRUSTED_CLIENTS","detail":"make all four Product trusted-client registrations ACTIVE with provider/client identity matching the private OAuth binding document"})
     else: out.update({"nextActionCode":"INSPECT_C7W_LIVE_ENDPOINT","detail":"repair the HTTPS MCP/Product API endpoint or its runtime identity/challenge contract, then rerun C7W preflight"})
+    if out.get("nextCommand") and root is not None:
+        out["workingDirectory"]=str(Path(root).resolve())
     return out
 
 
@@ -162,7 +164,7 @@ def preflight(root:Path,matrix:Path,endpoint:str,oauth_client_map:Path|None,toke
             code=str(exc).split()[0] if str(exc).strip() else "MCP_EXTERNAL_LOCAL_SOURCE_REPOSITORY_INVALID"
             if code=="MCP_EXTERNAL_LOCAL_GIT_ROOT_INVALID":
                 code="MCP_EXTERNAL_LOCAL_SOURCE_REPOSITORY_INVALID"
-            return _failure(code)
+            return _failure(code,root=root)
         if missing==["C7W_OAUTH_CLIENT_MAP"]:
             out=_base(ready=False,blockers=["MCP_EXTERNAL_PREFLIGHT_OAUTH_BINDINGS_MISSING"]); out.update({"workingDirectory":str(root),"nextActionCode":"PREPARE_C7W_OAUTH_BINDINGS","requiredInputs":list(OAUTH_CLIENT_ID_INPUTS),"nextCommand":oauth_binding_materializer_command(root,endpoint,token_env),"outputPath":str(DEFAULT_OAUTH_BINDING_REL),"detail":"materialize the private four-client OAuth binding document from the already-provisioned client IDs; values stay in environment/private state and are never emitted"}); return out
         out=_base(ready=False,blockers=["MCP_EXTERNAL_PREFLIGHT_INPUTS_MISSING"]); out.update({"nextActionCode":"PROVIDE_C7W_INPUTS","requiredInputs":missing,"detail":"provide only the missing C7W endpoint/OAuth/admin-token inputs; token values are never emitted"}); return out
@@ -176,18 +178,18 @@ def preflight(root:Path,matrix:Path,endpoint:str,oauth_client_map:Path|None,toke
         matrix_path=runner.require_canonical_matrix(root,matrix); oauth_path=private_input_path(root,oauth_client_map); runner.require_c7w_source_freeze(root); source_sha=git_source_commit(root); endpoint_value=campaign.endpoint(endpoint)
         matrix_doc=core.load(matrix_path,"MATRIX"); core.validate_matrix_contract(matrix_doc,"MCP_EXTERNAL_MATRIX"); bindings,binding_sha=campaign.load_oauth_bindings(oauth_path)
     except RuntimeError as exc:
-        code=str(exc).split()[0] if str(exc).strip() else "MCP_EXTERNAL_PREFLIGHT_UNKNOWN"; return _failure(code,source_sha)
+        code=str(exc).split()[0] if str(exc).strip() else "MCP_EXTERNAL_PREFLIGHT_UNKNOWN"; return _failure(code,source_sha,root=root)
     if not execution_path.exists() and not execution_path.is_symlink():
         out=_base(ready=False,blockers=["MCP_EXTERNAL_PREFLIGHT_EXECUTION_BINDINGS_MISSING"]); out.update({"sourceCommitSHA":source_sha,"workingDirectory":str(root),"nextActionCode":"PREPARE_C7W_EXECUTION_BINDINGS","requiredInputs":list(EXECUTION_BINDING_INPUTS),"nextCommand":execution_binding_materializer_command(root,source_sha,endpoint_value,oauth_path,token_env,execution_path),"outputPath":str(execution_path),"detail":"materialize the three non-secret runtime resource IDs at the canonical private authority path required before any live endpoint execution"}); return out
     try:
         execution_path=private_input_path(root,execution_path)
         execution_doc,execution_sha=execution_bindings.load(execution_path,source_sha)
     except RuntimeError as exc:
-        code=str(exc).split()[0] if str(exc).strip() else "MCP_EXTERNAL_EXECUTION_BINDINGS_INVALID"; out=_failure(code,source_sha); out.update({"workingDirectory":str(root),"nextCommand":execution_binding_materializer_command(root,source_sha,endpoint_value,oauth_path,token_env,Path(os.path.abspath(root/DEFAULT_EXECUTION_BINDING_REL))),"outputPath":str(Path(os.path.abspath(root/DEFAULT_EXECUTION_BINDING_REL)))}); return out
+        code=str(exc).split()[0] if str(exc).strip() else "MCP_EXTERNAL_EXECUTION_BINDINGS_INVALID"; out=_failure(code,source_sha,root=root); out.update({"workingDirectory":str(root),"nextCommand":execution_binding_materializer_command(root,source_sha,endpoint_value,oauth_path,token_env,Path(os.path.abspath(root/DEFAULT_EXECUTION_BINDING_REL))),"outputPath":str(Path(os.path.abspath(root/DEFAULT_EXECUTION_BINDING_REL)))}); return out
     try:
         live=campaign.live_preflight(endpoint_value); runtime=campaign.runtime_identity_readback(endpoint_value,token_env,source_sha); trusted=campaign.trusted_client_readback(endpoint_value,bindings,token_env)
     except RuntimeError as exc:
-        code=str(exc).split()[0] if str(exc).strip() else "MCP_EXTERNAL_PREFLIGHT_UNKNOWN"; out=_failure(code,source_sha)
+        code=str(exc).split()[0] if str(exc).strip() else "MCP_EXTERNAL_PREFLIGHT_UNKNOWN"; out=_failure(code,source_sha,root=root)
         if code.startswith("MCP_EXTERNAL_TRUSTED_CLIENT_") and endpoint_value and oauth_path is not None: out.update({"workingDirectory":str(root),"nextCommand":trusted_client_reconcile_command(root,endpoint_value,oauth_path,token_env)})
         return out
     state=Path(f".state/c7w-external-interop-{source_sha[:12]}")
