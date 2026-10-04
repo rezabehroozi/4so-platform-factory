@@ -684,6 +684,7 @@ def main()->int:
         result=seal(args)
     else:
         result=status(args)
+    result["workingDirectory"]=str(root)
     print(json.dumps(result,sort_keys=True))
     return 0
 
