@@ -13,6 +13,11 @@ class C7WExecutionAuthorityScopeTests(unittest.TestCase):
         errors=mod.external_client_action_contract_errors(source)
         self.assertIn("PREPARE_EXTERNAL_ACTION_WIRING_INVALID",errors)
 
+    def test_external_action_owner_rejects_mixed_safe_and_unsafe_returns(self):
+        source='''\ndef external_client_action():\n    if runtime_condition:\n        return {"nextActionCode":"RUN_EXTERNAL_CLIENT","nextCommand":[],"nextClientHandoff":{},"postExternalExecutionCommand":[]}\n    return {"nextActionCode":"RUN_EXTERNAL_CLIENT","nextCommand":["python","admit.py"],"nextClientHandoff":{},"postExternalExecutionCommand":[]}\ndef prepare(): return external_client_action()\ndef admit(): return external_client_action()\ndef status(): return external_client_action()\n'''
+        errors=mod.external_client_action_contract_errors(source)
+        self.assertIn("EXTERNAL_ACTION_SHAPE_INVALID",errors)
+
     def test_canonical_output_wiring_ignores_nested_and_false_branch_assignments(self):
         source='''\nCANONICAL_PROGRESS_REL=Path("lab/mcp-external-client-interop-progress.json")\nCANONICAL_EVIDENCE_REL=Path("lab/mcp-external-client-interoperability-evidence.json")\ndef require_canonical_artifact_path(): pass\ndef main():\n    def dead():\n        args.progress_out=require_canonical_artifact_path(root,args.progress_out,CANONICAL_PROGRESS_REL,"PROGRESS")\n    if False:\n        args.evidence_out=require_canonical_artifact_path(root,args.evidence_out,CANONICAL_EVIDENCE_REL,"EVIDENCE")\n    return None\n'''
         errors=mod.canonical_output_contract_errors(source)
