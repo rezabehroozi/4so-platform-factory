@@ -30,8 +30,10 @@ def credential_contract_digest()->str:
     value=credential_profiles.contract()
     if not isinstance(value,dict) or value.get("authority")!=CREDENTIAL_PROFILE_CONTRACT_AUTHORITY:
         raise RuntimeError("MCP_EXTERNAL_EXECUTION_BINDING_CREDENTIAL_CONTRACT_INVALID")
-    raw=json.dumps(value,sort_keys=True,separators=(",",":"),ensure_ascii=False).encode("utf-8")
-    return "sha256:"+hashlib.sha256(raw).hexdigest()
+    digest=credential_profiles.contract_digest()
+    if not SHA.fullmatch(str(digest or "")):
+        raise RuntimeError("MCP_EXTERNAL_EXECUTION_BINDING_CREDENTIAL_CONTRACT_INVALID")
+    return digest
 
 
 def _resources(value:object,label:str)->dict[str,str]:
