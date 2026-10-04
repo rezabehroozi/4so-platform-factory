@@ -178,7 +178,22 @@ def c9_main_working_directory_bound(source:str)->bool:
     main=next((node for node in tree.body if isinstance(node,ast.FunctionDef) and node.name=="main"),None)
     if main is None:
         return False
+    root_line=None
+    working_line=None
     for node in function_scope_nodes(main):
+        if isinstance(node,ast.Assign) and len(node.targets)==1 and isinstance(node.targets[0],ast.Name) and node.targets[0].id=="root":
+            value=node.value
+            if (
+                isinstance(value,ast.Call)
+                and isinstance(value.func,ast.Attribute)
+                and value.func.attr=="resolve"
+                and not value.args
+                and isinstance(value.func.value,ast.Attribute)
+                and value.func.value.attr=="root"
+                and isinstance(value.func.value.value,ast.Name)
+                and value.func.value.value.id=="args"
+            ):
+                root_line=node.lineno
         if not isinstance(node,ast.Assign) or len(node.targets)!=1:
             continue
         target=node.targets[0]
@@ -191,27 +206,16 @@ def c9_main_working_directory_bound(source:str)->bool:
         ):
             continue
         value=node.value
-        if not (
+        if (
             isinstance(value,ast.Call)
             and isinstance(value.func,ast.Name)
             and value.func.id=="str"
             and len(value.args)==1
+            and isinstance(value.args[0],ast.Name)
+            and value.args[0].id=="root"
         ):
-            continue
-        resolved=value.args[0]
-        if not (
-            isinstance(resolved,ast.Call)
-            and isinstance(resolved.func,ast.Attribute)
-            and resolved.func.attr=="resolve"
-            and not resolved.args
-            and isinstance(resolved.func.value,ast.Attribute)
-            and resolved.func.value.attr=="root"
-            and isinstance(resolved.func.value.value,ast.Name)
-            and resolved.func.value.value.id=="args"
-        ):
-            continue
-        return True
-    return False
+            working_line=node.lineno if working_line is None else min(working_line,node.lineno)
+    return root_line is not None and working_line is not None and root_line<working_line
 
 
 def c9_main_canonical_output_bound(source:str)->bool:
