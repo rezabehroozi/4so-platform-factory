@@ -170,6 +170,50 @@ def ordered_calls(calls:dict[str,int],names:tuple[str,...])->bool:
     return all(calls[left]<calls[right] for left,right in zip(names,names[1:]))
 
 
+def c9_main_working_directory_bound(source:str)->bool:
+    try:
+        tree=ast.parse(source)
+    except (SyntaxError,ValueError):
+        return False
+    main=next((node for node in tree.body if isinstance(node,ast.FunctionDef) and node.name=="main"),None)
+    if main is None:
+        return False
+    for node in function_scope_nodes(main):
+        if not isinstance(node,ast.Assign) or len(node.targets)!=1:
+            continue
+        target=node.targets[0]
+        if not (
+            isinstance(target,ast.Subscript)
+            and isinstance(target.value,ast.Name)
+            and target.value.id=="result"
+            and isinstance(target.slice,ast.Constant)
+            and target.slice.value=="workingDirectory"
+        ):
+            continue
+        value=node.value
+        if not (
+            isinstance(value,ast.Call)
+            and isinstance(value.func,ast.Name)
+            and value.func.id=="str"
+            and len(value.args)==1
+        ):
+            continue
+        resolved=value.args[0]
+        if not (
+            isinstance(resolved,ast.Call)
+            and isinstance(resolved.func,ast.Attribute)
+            and resolved.func.attr=="resolve"
+            and not resolved.args
+            and isinstance(resolved.func.value,ast.Attribute)
+            and resolved.func.value.attr=="root"
+            and isinstance(resolved.func.value.value,ast.Name)
+            and resolved.func.value.value.id=="args"
+        ):
+            continue
+        return True
+    return False
+
+
 def c7w_execution_errors(root:Path)->list[tuple[str,str]]:
     gate=root/"scripts/c7w_execution_authority_gate.py"
     if gate.is_symlink() or not gate.is_file():
@@ -271,6 +315,8 @@ def validate(root:Path)->list[tuple[str,str]]:
         errors.append(("FINAL_EXACT_RELEASE_ADMISSION_ORDER_INVALID","resume must re-admit sealed source before host/environment work"))
     if not ordered_calls(execute_calls,("admission.verify","safe_toolchain_archive","stage_toolchain_archive","extract_toolchain")):
         errors.append(("FINAL_EXACT_RELEASE_ADMISSION_ORDER_INVALID","detached exact-source admission must precede toolchain extraction"))
+    if not c9_main_working_directory_bound(sealer):
+        errors.append(("FINAL_EXACT_RELEASE_CLI_CONTEXT_INVALID","scripts/seal_final_exact_release.py"))
 
     preflight_markers=(
         'AUTHORITY = "FINAL_EXACT_RELEASE_PREFLIGHT_HANDOFF_V1"',
