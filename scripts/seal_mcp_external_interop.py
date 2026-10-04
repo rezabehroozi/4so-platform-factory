@@ -12,6 +12,10 @@ import argparse, hashlib, json, os, re, stat, subprocess, tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlsplit
+try:
+    import c7w_execution_provenance as execution_provenance
+except ModuleNotFoundError:
+    from scripts import c7w_execution_provenance as execution_provenance
 
 AUTHORITY="MCP_EXTERNAL_CLIENT_INTEROPERABILITY_EVIDENCE_V1"
 MATRIX_AUTHORITY="MCP_EXTERNAL_CLIENT_INTEROPERABILITY_MATRIX_V2"
@@ -502,6 +506,9 @@ def validate_request_ids(row:dict,client:str)->dict[str,str]:
         raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_REQUEST_IDS_INVALID {client}")
     return out
 
+def validate_receipt_execution_binding(row:object,campaign:object,client:str)->dict:
+    return execution_provenance.validate_receipt_execution_binding(row,campaign,client)
+
 def verify_receipt(path:Path,client:str,required:list[str],protocol:str,campaign:dict,*,require_live:bool=True)->dict:
     row,receipt_sha256=load_with_sha256(path,client.upper()+"_RECEIPT")
     if not isinstance(row,dict) or row.get("authority")!=RECEIPT_AUTHORITY or row.get("clientId")!=client:
@@ -552,8 +559,9 @@ def verify_receipt(path:Path,client:str,required:list[str],protocol:str,campaign
     if not SHA.fullmatch(evidence):
         raise RuntimeError(f"MCP_EXTERNAL_RECEIPT_EVIDENCE_DIGEST_INVALID {client}")
     request_ids=validate_request_ids(row,client)
+    execution_binding=validate_receipt_execution_binding(row,campaign,client)
     trusted=campaign_trusted_client_bindings(campaign)[client]
-    return {"clientId":client,"clientSurface":row["clientSurface"],"endpoint":ep,"sourceCommitSHA":row["sourceCommitSHA"],"runtimeVersion":row["runtimeVersion"],"executionId":run_id,"providerExecutionRef":provider_ref,"executedAt":utc_timestamp(executed),"campaignId":row["campaignId"],"challengeSha256":row["challengeSha256"],"oauthClientId":oauth_client_id,**trusted,"interopBindingAuthority":INTEROP_BINDING_AUTHORITY,"interopBindingDigest":binding,"evidenceDigest":evidence,"externalReceiptSha256":receipt_sha256,"checks":checks,"responseObservations":response_observations,"requestIds":request_ids,"campaignCreatedAt":utc_timestamp(created),"campaignExpiresAt":utc_timestamp(expires),"executionAuditWindowSeconds":audit_window}
+    return {"clientId":client,"clientSurface":row["clientSurface"],"endpoint":ep,"sourceCommitSHA":row["sourceCommitSHA"],"runtimeVersion":row["runtimeVersion"],"executionId":run_id,"providerExecutionRef":provider_ref,"executedAt":utc_timestamp(executed),"campaignId":row["campaignId"],"challengeSha256":row["challengeSha256"],"oauthClientId":oauth_client_id,**trusted,"interopBindingAuthority":INTEROP_BINDING_AUTHORITY,"interopBindingDigest":binding,**execution_binding,"evidenceDigest":evidence,"externalReceiptSha256":receipt_sha256,"checks":checks,"responseObservations":response_observations,"requestIds":request_ids,"campaignCreatedAt":utc_timestamp(created),"campaignExpiresAt":utc_timestamp(expires),"executionAuditWindowSeconds":audit_window}
 
 def validate_audit_export(path:Path)->tuple[list[dict],str]:
     value,audit_sha256=load_with_sha256(path,"SECURITY_AUDIT")
