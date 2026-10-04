@@ -60,6 +60,70 @@ def direct_git_calls_without_env(source:str)->list[int]:
     return missing
 
 
+def function_scope_nodes(function:ast.FunctionDef|ast.AsyncFunctionDef):
+    """Walk definitely reachable syntax in one owner without accepting nested/dead wiring."""
+    terminators=(ast.Return,ast.Raise,ast.Break,ast.Continue)
+
+    def block_terminates(statements)->bool:
+        for statement in statements:
+            if isinstance(statement,terminators):
+                return True
+            if isinstance(statement,ast.If):
+                if isinstance(statement.test,ast.Constant) and isinstance(statement.test.value,bool):
+                    selected=statement.body if statement.test.value else statement.orelse
+                    if block_terminates(selected):
+                        return True
+                elif statement.orelse and block_terminates(statement.body) and block_terminates(statement.orelse):
+                    return True
+        return False
+
+    def visit_block(statements):
+        for statement in statements:
+            yield from visit(statement)
+            if isinstance(statement,terminators):
+                break
+            if isinstance(statement,ast.If):
+                if isinstance(statement.test,ast.Constant) and isinstance(statement.test.value,bool):
+                    selected=statement.body if statement.test.value else statement.orelse
+                    if block_terminates(selected):
+                        break
+                elif statement.orelse and block_terminates(statement.body) and block_terminates(statement.orelse):
+                    break
+
+    def visit(node):
+        yield node
+        if isinstance(node,(ast.FunctionDef,ast.AsyncFunctionDef)) and node is not function:
+            for decorator in node.decorator_list:
+                yield from visit(decorator)
+            for default in (*node.args.defaults,*node.args.kw_defaults):
+                if default is not None:
+                    yield from visit(default)
+            if node.returns is not None:
+                yield from visit(node.returns)
+            return
+        if isinstance(node,ast.Lambda):
+            for default in (*node.args.defaults,*node.args.kw_defaults):
+                if default is not None:
+                    yield from visit(default)
+            return
+        if isinstance(node,ast.If):
+            yield from visit(node.test)
+            if isinstance(node.test,ast.Constant) and isinstance(node.test.value,bool):
+                yield from visit_block(node.body if node.test.value else node.orelse)
+            else:
+                yield from visit_block(node.body)
+                yield from visit_block(node.orelse)
+            return
+        if isinstance(node,ast.While) and isinstance(node.test,ast.Constant) and node.test.value is False:
+            yield from visit(node.test)
+            yield from visit_block(node.orelse)
+            return
+        for child in ast.iter_child_nodes(node):
+            yield from visit(child)
+
+    yield from visit_block(function.body)
+
+
 def external_client_action_contract_errors(source:str)->list[str]:
     try:
         tree=ast.parse(source)
@@ -70,7 +134,7 @@ def external_client_action_contract_errors(source:str)->list[str]:
     if helper is None:
         return ["EXTERNAL_ACTION_OWNER_MISSING"]
     mappings=[]
-    for node in ast.walk(helper):
+    for node in function_scope_nodes(helper):
         if not isinstance(node,ast.Return) or not isinstance(node.value,ast.Dict):
             continue
         current={}
@@ -104,7 +168,7 @@ def external_client_action_contract_errors(source:str)->list[str]:
             isinstance(node,ast.Call)
             and isinstance(node.func,ast.Name)
             and node.func.id=="external_client_action"
-            for node in ast.walk(fn)
+            for node in function_scope_nodes(fn)
         )
         if not wired:
             errors.append(f"{owner.upper()}_EXTERNAL_ACTION_WIRING_INVALID")
@@ -144,7 +208,7 @@ def canonical_output_contract_errors(source:str)->list[str]:
         errors.append("MAIN_OWNER_MISSING")
         return errors
     guarded={}
-    for node in ast.walk(main):
+    for node in function_scope_nodes(main):
         if not isinstance(node,ast.Assign) or len(node.targets)!=1 or not isinstance(node.targets[0],ast.Attribute):
             continue
         target=node.targets[0]
