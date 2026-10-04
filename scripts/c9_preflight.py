@@ -41,7 +41,7 @@ C9_COMMAND_TEMPLATE = [
     "<python>",
     "scripts/seal_final_exact_release.py",
     "--root",
-    ".",
+    "<exact-source-checkout-root>",
     "--out",
     str(FINAL_EVIDENCE_REL),
 ]
@@ -56,6 +56,19 @@ TOOLCHAIN_SOURCE_BLOCKERS = {
     "FINAL_EXACT_RELEASE_TOOLCHAIN_PATH_INVALID",
     "FINAL_EXACT_RELEASE_TOOLCHAIN_LOCK_INVALID",
 }
+
+
+def bind_execution_context(root:Path,result:dict)->dict:
+    root=Path(root).resolve()
+    out=dict(result)
+    if out.get("nextCommand"):
+        out["workingDirectory"]=str(root)
+    if out.get("nextCommandTemplate"):
+        if out.get("nextActionCode")=="RUN_C9_ON_EXACT_LINUX_HOST":
+            out["requiredWorkingDirectory"]="<exact-source-checkout-root>"
+        else:
+            out["workingDirectory"]=str(root)
+    return out
 
 
 def load_existing_evidence_snapshot(path:Path)->dict:
@@ -308,12 +321,12 @@ def preflight(root: Path) -> dict:
     evidence = root / FINAL_EVIDENCE_REL
     evidence_present=evidence.exists() or evidence.is_symlink()
     if evidence_present and (evidence.is_symlink() or not evidence.is_file()):
-        return _existing_evidence_failure("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_INVALID", "")
+        return bind_execution_context(root,_existing_evidence_failure("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_INVALID", ""))
     resume = evidence_present
     try:
         source_sha = sealer.git_source_for_resume(root, evidence) if resume else sealer.git_source(root)
     except RuntimeError as exc:
-        return _source_failure(root, exc)
+        return bind_execution_context(root,_source_failure(root, exc))
 
     sealed_evidence=None
     admission_source_sha=source_sha
@@ -323,7 +336,7 @@ def preflight(root: Path) -> dict:
             admission_source_sha=str(sealed_evidence.get("sourceCommitSHA") or "").strip().lower()
         except RuntimeError as exc:
             code = str(exc).split()[0] if str(exc).strip() else "FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_INVALID"
-            return _existing_evidence_failure(code, source_sha)
+            return bind_execution_context(root,_existing_evidence_failure(code, source_sha))
 
     admission_failure,admitted=_admission_preflight(root,admission_source_sha)
     if admission_failure is not None:
@@ -331,7 +344,7 @@ def preflight(root: Path) -> dict:
         admission_failure["resumeExistingEvidence"]=resume
         if admission_source_sha!=source_sha:
             admission_failure["sealedSourceCommitSHA"]=admission_source_sha
-        return admission_failure
+        return bind_execution_context(root,admission_failure)
 
     out = enrich(sealer.exact_release_environment_preflight(root))
     out["sourceCommitSHA"] = source_sha
@@ -342,7 +355,7 @@ def preflight(root: Path) -> dict:
         out["sealedSourceCommitSHA"]=admission_source_sha
     if resume and out.get("ready") is True:
         out["detail"] = "existing final evidence is present at the canonical path; final admission remains valid and the exact sealer must perform full resume revalidation before post-seal Git handoff"
-    return out
+    return bind_execution_context(root,out)
 
 
 def main() -> int:
