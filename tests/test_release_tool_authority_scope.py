@@ -27,6 +27,18 @@ class ReleaseToolAuthorityScopeTests(unittest.TestCase):
         calls=mod.function_call_lines(source,"execute")
         self.assertEqual({"git_source":3},calls)
 
+    def test_ordered_calls_same_path_accepts_straight_line_sequence(self):
+        source='''\ndef execute():\n    git_source()\n    exact_source_admission()\n    require_exact_release_host()\n    require_exact_release_environment()\n'''
+        self.assertTrue(mod.ordered_calls_on_same_path(source,"execute",("git_source","exact_source_admission","require_exact_release_host","require_exact_release_environment")))
+
+    def test_ordered_calls_same_path_rejects_runtime_branch_split(self):
+        source='''\ndef execute():\n    git_source()\n    if runtime_condition:\n        exact_source_admission()\n    else:\n        require_exact_release_host()\n    require_exact_release_environment()\n'''
+        self.assertFalse(mod.ordered_calls_on_same_path(source,"execute",("git_source","exact_source_admission","require_exact_release_host","require_exact_release_environment")))
+
+    def test_ordered_calls_same_path_allows_unrelated_runtime_branch(self):
+        source='''\ndef execute():\n    git_source()\n    exact_source_admission()\n    if runtime_condition:\n        audit_one()\n    else:\n        audit_two()\n    require_exact_release_host()\n    require_exact_release_environment()\n'''
+        self.assertTrue(mod.ordered_calls_on_same_path(source,"execute",("git_source","exact_source_admission","require_exact_release_host","require_exact_release_environment")))
+
 
 if __name__=="__main__":
     unittest.main()
