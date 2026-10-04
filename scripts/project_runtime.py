@@ -70,6 +70,13 @@ def detached_process_kwargs():
         return {"creationflags":getattr(subprocess,"CREATE_NEW_PROCESS_GROUP",0)}
     return {"start_new_session":True}
 
+def clean_git_env():
+    env=os.environ.copy()
+    for key in list(env):
+        if key.startswith("GIT_"):
+            env.pop(key,None)
+    return env
+
 def terminate_process_tree(child,force=False):
     if child is None or child.poll() is not None:
         return
@@ -269,11 +276,12 @@ def write_state(root,state,override=None,expected_revision=None):
         return True,body
 
 def git_worktree_fingerprint(root,head):
-    indexed=subprocess.run(["git","ls-files","-v","-z"],cwd=root,stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=False)
-    status=subprocess.run(["git","status","--porcelain=v1","-z","--untracked-files=all"],cwd=root,stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=False)
-    unstaged=subprocess.run(["git","diff","--binary","--no-ext-diff","HEAD","--"],cwd=root,stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=False)
-    staged=subprocess.run(["git","diff","--binary","--cached","--no-ext-diff","HEAD","--"],cwd=root,stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=False)
-    untracked=subprocess.run(["git","ls-files","--others","--exclude-standard","-z"],cwd=root,stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=False)
+    git_env=clean_git_env()
+    indexed=subprocess.run(["git","ls-files","-v","-z"],cwd=root,env=git_env,stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=False)
+    status=subprocess.run(["git","status","--porcelain=v1","-z","--untracked-files=all"],cwd=root,env=git_env,stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=False)
+    unstaged=subprocess.run(["git","diff","--binary","--no-ext-diff","HEAD","--"],cwd=root,env=git_env,stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=False)
+    staged=subprocess.run(["git","diff","--binary","--cached","--no-ext-diff","HEAD","--"],cwd=root,env=git_env,stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=False)
+    untracked=subprocess.run(["git","ls-files","--others","--exclude-standard","-z"],cwd=root,env=git_env,stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=False)
     if any(p.returncode!=0 for p in (indexed,status,unstaged,staged,untracked)):
         raise RuntimeError("GIT_WORKTREE_FINGERPRINT_FAILED")
     for raw in indexed.stdout.split(b"\x00"):
@@ -303,8 +311,9 @@ def git_worktree_fingerprint(root,head):
     return "sha256:"+digest.hexdigest(),bool(status.stdout)
 
 def git(root,refresh=False,allow_detached=False,require_origin_sync=False):
+    git_env=clean_git_env()
     def run(*args,check=True,timeout=30):
-        p=subprocess.run(["git",*args],cwd=root,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=timeout)
+        p=subprocess.run(["git",*args],cwd=root,env=git_env,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=timeout)
         if check and p.returncode: raise RuntimeError("GIT_COMMAND_FAILED "+" ".join(args)+" "+p.stdout.strip())
         return p
     refresh_error=""
@@ -718,7 +727,7 @@ def resume(root,override=None,allow_detached=False):
     if not head_branch_match or (not worktree_match and not allow_owned):
         s.update(status="WAITING",recoveryRequired=True,latestError="LOCAL_GIT_AUTHORITY_CHANGED_REPLAN_REQUIRED",
                  currentOriginMain=info.get("originMain",""),gitSyncStatus=info.get("gitSyncStatus","UNAVAILABLE"),
-                 currentWorktreeFingerprint=info.get("worktreeFingerprint",""),currentWorktreeDirty=info.get("worktreeDirty"))
+                 currentWorktreeFingerprint=info.get("worktreeFingerprint","") ,currentWorktreeDirty=info.get("worktreeDirty"))
         write_state(root,s,override)
         return {"action":"REPLAN_REQUIRED","state":s}
     if allow_owned and not worktree_match:
