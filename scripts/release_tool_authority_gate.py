@@ -79,7 +79,35 @@ def direct_git_calls_without_env(source:str)->list[int]:
 
 
 def function_scope_nodes(function:ast.FunctionDef|ast.AsyncFunctionDef):
-    """Walk runtime expressions in one function without attributing nested function bodies to it."""
+    """Walk definitely reachable runtime syntax without attributing dead/nested function bodies to the owner."""
+    terminators=(ast.Return,ast.Raise,ast.Break,ast.Continue)
+
+    def block_terminates(statements)->bool:
+        for statement in statements:
+            if isinstance(statement,terminators):
+                return True
+            if isinstance(statement,ast.If):
+                if isinstance(statement.test,ast.Constant) and isinstance(statement.test.value,bool):
+                    selected=statement.body if statement.test.value else statement.orelse
+                    if block_terminates(selected):
+                        return True
+                elif statement.orelse and block_terminates(statement.body) and block_terminates(statement.orelse):
+                    return True
+        return False
+
+    def visit_block(statements):
+        for statement in statements:
+            yield from visit(statement)
+            if isinstance(statement,terminators):
+                break
+            if isinstance(statement,ast.If):
+                if isinstance(statement.test,ast.Constant) and isinstance(statement.test.value,bool):
+                    selected=statement.body if statement.test.value else statement.orelse
+                    if block_terminates(selected):
+                        break
+                elif statement.orelse and block_terminates(statement.body) and block_terminates(statement.orelse):
+                    break
+
     def visit(node):
         yield node
         if isinstance(node,(ast.FunctionDef,ast.AsyncFunctionDef)) and node is not function:
@@ -96,10 +124,22 @@ def function_scope_nodes(function:ast.FunctionDef|ast.AsyncFunctionDef):
                 if default is not None:
                     yield from visit(default)
             return
+        if isinstance(node,ast.If):
+            yield from visit(node.test)
+            if isinstance(node.test,ast.Constant) and isinstance(node.test.value,bool):
+                yield from visit_block(node.body if node.test.value else node.orelse)
+            else:
+                yield from visit_block(node.body)
+                yield from visit_block(node.orelse)
+            return
+        if isinstance(node,ast.While) and isinstance(node.test,ast.Constant) and node.test.value is False:
+            yield from visit(node.test)
+            yield from visit_block(node.orelse)
+            return
         for child in ast.iter_child_nodes(node):
             yield from visit(child)
-    for statement in function.body:
-        yield from visit(statement)
+
+    yield from visit_block(function.body)
 
 
 def function_call_lines(source:str,function_name:str)->dict[str,int]:
