@@ -9,7 +9,7 @@ mod=importlib.util.module_from_spec(SPEC); SPEC.loader.exec_module(mod)
 
 
 class C7WExecutionBindingRootHandoffTests(unittest.TestCase):
-    def test_followup_preflight_canonicalizes_repository_alias_and_output(self):
+    def test_followup_preflight_canonicalizes_repository_alias_output_and_script(self):
         with tempfile.TemporaryDirectory() as td:
             base=Path(td); root=base/"repo"; root.mkdir(); alias=base/"repo-alias"
             try:
@@ -20,6 +20,7 @@ class C7WExecutionBindingRootHandoffTests(unittest.TestCase):
             command=mod.followup_preflight_command(alias,output,"https://mcp.example.test/mcp",None,"TOKEN")
         root_index=command.index("--root")+1
         output_index=command.index("--execution-bindings")+1
+        self.assertEqual(str((root/"scripts/c7w_preflight.py").resolve()),command[1])
         self.assertEqual(str(root.resolve()),command[root_index])
         self.assertEqual(str((root/".state/private/c7w-execution-bindings.json").resolve()),command[output_index])
 
