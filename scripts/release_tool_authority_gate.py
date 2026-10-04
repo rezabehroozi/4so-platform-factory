@@ -309,6 +309,100 @@ def ordered_calls_on_same_path(source:str,function_name:str,names:tuple[str,...]
     return not invalid and completed and all(state==len(names) for state in live)
 
 
+def assignment_targets_and_value(node):
+    if isinstance(node,ast.Assign):
+        return list(node.targets),node.value
+    if isinstance(node,ast.AnnAssign):
+        return [node.target],node.value
+    if isinstance(node,ast.AugAssign):
+        return [node.target],None
+    return [],None
+
+
+def assignment_target_nodes(target):
+    yield target
+    if isinstance(target,(ast.Tuple,ast.List)):
+        for element in target.elts:
+            yield from assignment_target_nodes(element)
+
+
+def c9_root_value_valid(value)->bool:
+    return (
+        isinstance(value,ast.Call)
+        and isinstance(value.func,ast.Attribute)
+        and value.func.attr=="resolve"
+        and not value.args
+        and isinstance(value.func.value,ast.Attribute)
+        and value.func.value.attr=="root"
+        and isinstance(value.func.value.value,ast.Name)
+        and value.func.value.value.id=="args"
+    )
+
+
+def c9_working_directory_value_valid(value)->bool:
+    return (
+        isinstance(value,ast.Call)
+        and isinstance(value.func,ast.Name)
+        and value.func.id=="str"
+        and len(value.args)==1
+        and isinstance(value.args[0],ast.Name)
+        and value.args[0].id=="root"
+    )
+
+
+def c9_output_value_valid(value)->bool:
+    return (
+        isinstance(value,ast.Call)
+        and isinstance(value.func,ast.Name)
+        and value.func.id=="canonical_cli_output_path"
+        and len(value.args)==2
+        and isinstance(value.args[0],ast.Name)
+        and value.args[0].id=="root"
+        and isinstance(value.args[1],ast.Attribute)
+        and value.args[1].attr=="out"
+        and isinstance(value.args[1].value,ast.Name)
+        and value.args[1].value.id=="args"
+    )
+
+
+def c9_evidence_value_valid(value)->bool:
+    return (
+        isinstance(value,ast.Call)
+        and isinstance(value.func,ast.Name)
+        and value.func.id=="execute"
+        and len(value.args)>=2
+        and isinstance(value.args[0],ast.Name)
+        and value.args[0].id=="root"
+        and isinstance(value.args[1],ast.Name)
+        and value.args[1].id=="out"
+    )
+
+
+def c9_args_attribute_call_mutation(node)->str|None:
+    if not isinstance(node,ast.Call):
+        return None
+    func=node.func
+    if isinstance(func,ast.Name) and func.id in ("setattr","delattr") and len(node.args)>=2:
+        owner,name=node.args[:2]
+        if isinstance(owner,ast.Name) and owner.id=="args" and isinstance(name,ast.Constant) and isinstance(name.value,str):
+            return name.value
+    if isinstance(func,ast.Attribute) and isinstance(func.value,ast.Name) and func.value.id=="args" and func.attr in ("__setattr__","__delattr__") and node.args:
+        name=node.args[0]
+        if isinstance(name,ast.Constant) and isinstance(name.value,str):
+            return name.value
+    return None
+
+
+def c9_mapping_mutation_call(node,owner:str)->bool:
+    return (
+        isinstance(node,ast.Call)
+        and isinstance(node.func,ast.Attribute)
+        and isinstance(node.func.value,ast.Name)
+        and node.func.value.id==owner
+        and node.func.attr in ("update","clear","pop","popitem","setdefault","__setitem__","__delitem__")
+    )
+
+
 def c9_main_working_directory_bound(source:str)->bool:
     try:
         tree=ast.parse(source)
@@ -322,41 +416,31 @@ def c9_main_working_directory_bound(source:str)->bool:
     for node in main.body:
         if isinstance(node,(ast.Return,ast.Raise)):
             break
-        if not isinstance(node,ast.Assign) or len(node.targets)!=1:
-            continue
-        target=node.targets[0]
-        value=node.value
-        if isinstance(target,ast.Name):
-            if target.id=="root":
-                root_valid=(
-                    isinstance(value,ast.Call)
-                    and isinstance(value.func,ast.Attribute)
-                    and value.func.attr=="resolve"
-                    and not value.args
-                    and isinstance(value.func.value,ast.Attribute)
-                    and value.func.value.attr=="root"
-                    and isinstance(value.func.value.value,ast.Name)
-                    and value.func.value.value.id=="args"
-                )
-            elif target.id=="result":
+        targets,value=assignment_targets_and_value(node)
+        flat_targets=[item for root_target in targets for item in assignment_target_nodes(root_target)]
+        for target in flat_targets:
+            if isinstance(target,ast.Name) and target.id=="root":
+                direct_target=len(targets)==1 and targets[0] is target and not isinstance(node,ast.AugAssign)
+                root_valid=direct_target and c9_root_value_valid(value)
                 working_valid=False
-            continue
-        if (
-            isinstance(target,ast.Subscript)
-            and isinstance(target.value,ast.Name)
-            and target.value.id=="result"
-            and isinstance(target.slice,ast.Constant)
-            and target.slice.value=="workingDirectory"
-        ):
-            working_valid=(
-                root_valid
-                and isinstance(value,ast.Call)
-                and isinstance(value.func,ast.Name)
-                and value.func.id=="str"
-                and len(value.args)==1
-                and isinstance(value.args[0],ast.Name)
-                and value.args[0].id=="root"
-            )
+            elif isinstance(target,ast.Name) and target.id=="result":
+                working_valid=False
+            elif (
+                isinstance(target,ast.Subscript)
+                and isinstance(target.value,ast.Name)
+                and target.value.id=="result"
+                and isinstance(target.slice,ast.Constant)
+                and target.slice.value=="workingDirectory"
+            ):
+                direct_target=len(targets)==1 and targets[0] is target and not isinstance(node,ast.AugAssign)
+                working_valid=direct_target and root_valid and c9_working_directory_value_valid(value)
+        if isinstance(node,ast.Expr):
+            for candidate in ast.walk(node.value):
+                if c9_args_attribute_call_mutation(candidate)=="root":
+                    root_valid=False
+                    working_valid=False
+                if c9_mapping_mutation_call(candidate,"result"):
+                    working_valid=False
     return root_valid and working_valid
 
 
@@ -374,51 +458,33 @@ def c9_main_canonical_output_bound(source:str)->bool:
     for node in main.body:
         if isinstance(node,(ast.Return,ast.Raise)):
             break
-        if not isinstance(node,ast.Assign) or len(node.targets)!=1 or not isinstance(node.targets[0],ast.Name):
-            continue
-        name=node.targets[0].id
-        value=node.value
-        if name=="root":
-            root_valid=(
-                isinstance(value,ast.Call)
-                and isinstance(value.func,ast.Attribute)
-                and value.func.attr=="resolve"
-                and not value.args
-                and isinstance(value.func.value,ast.Attribute)
-                and value.func.value.attr=="root"
-                and isinstance(value.func.value.value,ast.Name)
-                and value.func.value.value.id=="args"
-            )
-            out_valid=False
-            evidence_valid=False
-        elif name=="out":
-            out_valid=(
-                root_valid
-                and isinstance(value,ast.Call)
-                and isinstance(value.func,ast.Name)
-                and value.func.id=="canonical_cli_output_path"
-                and len(value.args)==2
-                and isinstance(value.args[0],ast.Name)
-                and value.args[0].id=="root"
-                and isinstance(value.args[1],ast.Attribute)
-                and value.args[1].attr=="out"
-                and isinstance(value.args[1].value,ast.Name)
-                and value.args[1].value.id=="args"
-            )
-            evidence_valid=False
-        elif name=="evidence":
-            evidence_valid=(
-                root_valid
-                and out_valid
-                and isinstance(value,ast.Call)
-                and isinstance(value.func,ast.Name)
-                and value.func.id=="execute"
-                and len(value.args)>=2
-                and isinstance(value.args[0],ast.Name)
-                and value.args[0].id=="root"
-                and isinstance(value.args[1],ast.Name)
-                and value.args[1].id=="out"
-            )
+        targets,value=assignment_targets_and_value(node)
+        flat_targets=[item for root_target in targets for item in assignment_target_nodes(root_target)]
+        for target in flat_targets:
+            if not isinstance(target,ast.Name):
+                continue
+            direct_target=len(targets)==1 and targets[0] is target and not isinstance(node,ast.AugAssign)
+            if target.id=="root":
+                root_valid=direct_target and c9_root_value_valid(value)
+                out_valid=False
+                evidence_valid=False
+            elif target.id=="out":
+                out_valid=direct_target and root_valid and c9_output_value_valid(value)
+                evidence_valid=False
+            elif target.id=="evidence":
+                evidence_valid=direct_target and root_valid and out_valid and c9_evidence_value_valid(value)
+        if isinstance(node,ast.Expr):
+            for candidate in ast.walk(node.value):
+                mutation=c9_args_attribute_call_mutation(candidate)
+                if mutation=="root":
+                    root_valid=False
+                    out_valid=False
+                    evidence_valid=False
+                elif mutation=="out":
+                    out_valid=False
+                    evidence_valid=False
+                if c9_mapping_mutation_call(candidate,"evidence"):
+                    evidence_valid=False
     return root_valid and out_valid and evidence_valid
 
 
