@@ -11,6 +11,7 @@ import argparse
 import json
 import os
 import stat
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -26,6 +27,28 @@ AUTHORITY=core.OAUTH_BINDING_AUTHORITY
 CLIENTS=core.CLIENTS
 DEFAULT_OUTPUT=Path(".state/private/c7w-oauth-client-bindings.json")
 ENV_IDS={client:f"C7W_{client.upper()}_OAUTH_CLIENT_ID" for client in CLIENTS}
+
+
+def clean_git_env()->dict[str,str]:
+    env=os.environ.copy()
+    for key in list(env):
+        if key.startswith("GIT_"):
+            env.pop(key,None)
+    return env
+
+
+def require_repository_root(root:Path)->Path:
+    root=Path(os.path.abspath(root))
+    proc=subprocess.run(["git","rev-parse","--show-toplevel"],cwd=root,env=clean_git_env(),text=True,capture_output=True,check=False)
+    if proc.returncode!=0:
+        raise RuntimeError("MCP_EXTERNAL_OAUTH_BINDINGS_REPOSITORY_ROOT_INVALID")
+    try:
+        top=Path(proc.stdout.strip()).resolve()
+    except (OSError,RuntimeError) as exc:
+        raise RuntimeError("MCP_EXTERNAL_OAUTH_BINDINGS_REPOSITORY_ROOT_INVALID") from exc
+    if top!=root.resolve():
+        raise RuntimeError("MCP_EXTERNAL_OAUTH_BINDINGS_REPOSITORY_ROOT_INVALID")
+    return root.resolve()
 
 
 def _root_for_output(output:Path,root:Path|None)->Path:
@@ -149,12 +172,13 @@ def materialize(output:Path,clients:dict[str,str],*,root:Path|None=None)->dict:
     }
 
 
-def followup_preflight_command(output:Path,endpoint:str,token_env:str)->list[str]:
+def followup_preflight_command(root:Path,output:Path,endpoint:str,token_env:str)->list[str]:
+    root=Path(root).resolve()
     command=[
         sys.executable,
         "scripts/c7w_preflight.py",
         "--root",
-        ".",
+        str(root),
         "--oauth-client-map",
         str(output),
     ]
@@ -177,11 +201,12 @@ def main()->int:
         parser.add_argument(f"--{client}-client-id",default=os.environ.get(ENV_IDS[client],""))
     args=parser.parse_args()
     clients={client:getattr(args,client+"_client_id") for client in CLIENTS}
-    root=Path(os.path.abspath(args.root))
+    root=require_repository_root(args.root)
     output=args.out if args.out.is_absolute() else root/args.out
     result=materialize(output,clients,root=root)
+    result["workingDirectory"]=str(root)
     result["nextActionCode"]="RUN_C7W_PREFLIGHT"
-    result["nextCommand"]=followup_preflight_command(output,args.preflight_endpoint,args.preflight_token_env)
+    result["nextCommand"]=followup_preflight_command(root,output,args.preflight_endpoint,args.preflight_token_env)
     print(json.dumps(result,sort_keys=True))
     return 0
 
