@@ -19,6 +19,10 @@ try:
     import seal_mcp_external_interop as mcp_contract
 except ModuleNotFoundError:
     from scripts import seal_mcp_external_interop as mcp_contract
+try:
+    import c7w_execution_provenance as execution_provenance
+except ModuleNotFoundError:
+    from scripts import c7w_execution_provenance as execution_provenance
 
 AUTHORITY="FINAL_EXACT_RELEASE_ADMISSION_V1"
 S1_AUTHORITY="LAB_APPLIANCE_BUNDLE_ACQUISITION_LOCK_V8"
@@ -149,6 +153,7 @@ def external_client_progress(root:Path)->dict:
     rows=progress.get("clients")
     if not isinstance(rows,list):
         raise RuntimeError("MCP_EXTERNAL_PROGRESS_CLIENTS_INVALID")
+    execution_provenance.validate_rows(rows,progress.get("sourceCommitSHA"),"MCP_EXTERNAL_PROGRESS",require_bound=False)
     seen=set(); provider_refs=set(); execution_ids=set(); evidence_digests=set(); receipt_digests=set(); challenge_digests=set(); request_id_owners={}; campaign_windows=set()
     for row in rows:
         if not isinstance(row,dict):
@@ -282,6 +287,7 @@ def verify(root:Path,expected_source_sha:str|None=None)->dict:
     clients=mcp.get("clients")
     if not isinstance(clients,list) or [x.get("clientId") for x in clients if isinstance(x,dict)]!=list(CLIENTS):
         raise RuntimeError("MCP_EXTERNAL_INTEROP_CLIENT_SET_INVALID")
+    execution_provenance.validate_rows(clients,certified_source_sha,"MCP_EXTERNAL_INTEROP",require_bound=True)
     provider_refs=set(); execution_ids=set(); evidence_digests=set(); receipt_digests=set(); challenge_digests=set(); request_id_owners={}; campaign_windows=set()
     for row in clients:
         client=str(row.get("clientId") or "")
