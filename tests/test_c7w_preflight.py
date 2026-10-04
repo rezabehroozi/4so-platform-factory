@@ -22,8 +22,9 @@ class C7WPreflightTests(unittest.TestCase):
         self.assertFalse(out["ready"]); self.assertEqual("PROVIDE_C7W_INPUTS",out["nextActionCode"]); self.assertEqual(["C7W_MCP_ENDPOINT","C7W_OAUTH_CLIENT_MAP","C7W_PLATFORM_ADMIN_TOKEN"],out["requiredInputs"]); self.assertEqual([],out["nextCommand"]); self.assertFalse(out["physicalCertified"])
 
     def test_missing_oauth_map_with_other_inputs_ready_returns_private_materializer_handoff(self):
-        with tempfile.TemporaryDirectory() as td, mock.patch.dict(os.environ,{"TOKEN":"admin-token"},clear=True): out=mod.preflight(Path(td),ROOT/"lab/mcp-external-client-interop-matrix.json","https://mcp.example.test/mcp",None,"TOKEN")
-        self.assertFalse(out["ready"]); self.assertEqual("PREPARE_C7W_OAUTH_BINDINGS",out["nextActionCode"]); self.assertEqual(["C7W_CHATGPT_OAUTH_CLIENT_ID","C7W_CLAUDE_OAUTH_CLIENT_ID","C7W_GEMINI_OAUTH_CLIENT_ID","C7W_GROK_OAUTH_CLIENT_ID"],out["requiredInputs"]); self.assertIn("scripts/prepare_c7w_oauth_bindings.py",out["nextCommand"]); self.assertNotIn("admin-token",str(out))
+        with tempfile.TemporaryDirectory() as td, mock.patch.dict(os.environ,{"TOKEN":"admin-token"},clear=True):
+            root=Path(td).resolve(); out=mod.preflight(root,ROOT/"lab/mcp-external-client-interop-matrix.json","https://mcp.example.test/mcp",None,"TOKEN")
+        self.assertFalse(out["ready"]); self.assertEqual("PREPARE_C7W_OAUTH_BINDINGS",out["nextActionCode"]); self.assertEqual(["C7W_CHATGPT_OAUTH_CLIENT_ID","C7W_CLAUDE_OAUTH_CLIENT_ID","C7W_GEMINI_OAUTH_CLIENT_ID","C7W_GROK_OAUTH_CLIENT_ID"],out["requiredInputs"]); self.assertIn("scripts/prepare_c7w_oauth_bindings.py",out["nextCommand"]); self.assertNotIn("admin-token",str(out)); self.assertEqual(str(root),out["workingDirectory"]); root_arg=out["nextCommand"].index("--root")+1; self.assertEqual(str(root),out["nextCommand"][root_arg])
 
     def test_existing_source_state_routes_to_status_without_secrets_or_network(self):
         with tempfile.TemporaryDirectory() as td, mock.patch.dict(os.environ,{},clear=True):
