@@ -178,14 +178,13 @@ def c9_main_working_directory_bound(source:str)->bool:
     main=next((node for node in tree.body if isinstance(node,ast.FunctionDef) and node.name=="main"),None)
     if main is None:
         return False
-    root_line=None
-    working_line=None
+    root_valid=False
     for node in main.body:
         if isinstance(node,(ast.Return,ast.Raise)):
             break
         if isinstance(node,ast.Assign) and len(node.targets)==1 and isinstance(node.targets[0],ast.Name) and node.targets[0].id=="root":
             value=node.value
-            if (
+            root_valid=(
                 isinstance(value,ast.Call)
                 and isinstance(value.func,ast.Attribute)
                 and value.func.attr=="resolve"
@@ -194,9 +193,8 @@ def c9_main_working_directory_bound(source:str)->bool:
                 and value.func.value.attr=="root"
                 and isinstance(value.func.value.value,ast.Name)
                 and value.func.value.value.id=="args"
-            ):
-                root_line=node.lineno
-        if not isinstance(node,ast.Assign) or len(node.targets)!=1:
+            )
+        if not root_valid or not isinstance(node,ast.Assign) or len(node.targets)!=1:
             continue
         target=node.targets[0]
         if not (
@@ -216,8 +214,8 @@ def c9_main_working_directory_bound(source:str)->bool:
             and isinstance(value.args[0],ast.Name)
             and value.args[0].id=="root"
         ):
-            working_line=node.lineno if working_line is None else min(working_line,node.lineno)
-    return root_line is not None and working_line is not None and root_line<working_line
+            return True
+    return False
 
 
 def c9_main_canonical_output_bound(source:str)->bool:
@@ -228,30 +226,47 @@ def c9_main_canonical_output_bound(source:str)->bool:
     main=next((node for node in tree.body if isinstance(node,ast.FunctionDef) and node.name=="main"),None)
     if main is None:
         return False
-    canonical_line=None
-    execute_line=None
+    root_valid=False
+    out_valid=False
     for node in main.body:
         if isinstance(node,(ast.Return,ast.Raise)):
             break
-        if isinstance(node,ast.Assign) and len(node.targets)==1 and isinstance(node.targets[0],ast.Name) and node.targets[0].id=="out":
+        if isinstance(node,ast.Assign) and len(node.targets)==1 and isinstance(node.targets[0],ast.Name):
+            name=node.targets[0].id
             value=node.value
+            if name=="root":
+                root_valid=(
+                    isinstance(value,ast.Call)
+                    and isinstance(value.func,ast.Attribute)
+                    and value.func.attr=="resolve"
+                    and not value.args
+                    and isinstance(value.func.value,ast.Attribute)
+                    and value.func.value.attr=="root"
+                    and isinstance(value.func.value.value,ast.Name)
+                    and value.func.value.value.id=="args"
+                )
+                if not root_valid:
+                    out_valid=False
+                continue
+            if name=="out":
+                out_valid=(
+                    root_valid
+                    and isinstance(value,ast.Call)
+                    and isinstance(value.func,ast.Name)
+                    and value.func.id=="canonical_cli_output_path"
+                    and len(value.args)==2
+                    and isinstance(value.args[0],ast.Name)
+                    and value.args[0].id=="root"
+                    and isinstance(value.args[1],ast.Attribute)
+                    and value.args[1].attr=="out"
+                    and isinstance(value.args[1].value,ast.Name)
+                    and value.args[1].value.id=="args"
+                )
+                continue
             if (
-                isinstance(value,ast.Call)
-                and isinstance(value.func,ast.Name)
-                and value.func.id=="canonical_cli_output_path"
-                and len(value.args)==2
-                and isinstance(value.args[0],ast.Name)
-                and value.args[0].id=="root"
-                and isinstance(value.args[1],ast.Attribute)
-                and value.args[1].attr=="out"
-                and isinstance(value.args[1].value,ast.Name)
-                and value.args[1].value.id=="args"
-            ):
-                canonical_line=node.lineno
-        if isinstance(node,ast.Assign) and len(node.targets)==1:
-            value=node.value
-            if (
-                isinstance(value,ast.Call)
+                root_valid
+                and out_valid
+                and isinstance(value,ast.Call)
                 and isinstance(value.func,ast.Name)
                 and value.func.id=="execute"
                 and len(value.args)>=2
@@ -260,8 +275,8 @@ def c9_main_canonical_output_bound(source:str)->bool:
                 and isinstance(value.args[1],ast.Name)
                 and value.args[1].id=="out"
             ):
-                execute_line=node.lineno if execute_line is None else min(execute_line,node.lineno)
-    return canonical_line is not None and execute_line is not None and canonical_line<execute_line
+                return True
+    return False
 
 
 def c7w_execution_errors(root:Path)->list[tuple[str,str]]:
