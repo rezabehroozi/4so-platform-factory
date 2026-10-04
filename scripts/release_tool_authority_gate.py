@@ -326,6 +326,12 @@ def assignment_target_nodes(target):
             yield from assignment_target_nodes(element)
 
 
+def c9_target_base_name(target)->str|None:
+    while isinstance(target,(ast.Attribute,ast.Subscript)):
+        target=target.value
+    return target.id if isinstance(target,ast.Name) else None
+
+
 def c9_root_value_valid(value)->bool:
     return (
         isinstance(value,ast.Call)
@@ -413,6 +419,7 @@ def c9_main_working_directory_bound(source:str)->bool:
         return False
     root_valid=False
     working_valid=False
+    working_line=None
     for node in main.body:
         if isinstance(node,(ast.Return,ast.Raise)):
             break
@@ -423,8 +430,10 @@ def c9_main_working_directory_bound(source:str)->bool:
                 direct_target=len(targets)==1 and targets[0] is target and not isinstance(node,ast.AugAssign)
                 root_valid=direct_target and c9_root_value_valid(value)
                 working_valid=False
+                working_line=None
             elif isinstance(target,ast.Name) and target.id=="result":
                 working_valid=False
+                working_line=None
             elif (
                 isinstance(target,ast.Subscript)
                 and isinstance(target.value,ast.Name)
@@ -434,13 +443,31 @@ def c9_main_working_directory_bound(source:str)->bool:
             ):
                 direct_target=len(targets)==1 and targets[0] is target and not isinstance(node,ast.AugAssign)
                 working_valid=direct_target and root_valid and c9_working_directory_value_valid(value)
-        if isinstance(node,ast.Expr):
-            for candidate in ast.walk(node.value):
-                if c9_args_attribute_call_mutation(candidate)=="root":
+                working_line=getattr(node,"lineno",0) if working_valid else None
+    if working_valid and working_line is not None:
+        for node in function_scope_nodes(main):
+            if getattr(node,"lineno",0)<=working_line:
+                continue
+            targets,_=assignment_targets_and_value(node)
+            for target in (item for root_target in targets for item in assignment_target_nodes(root_target)):
+                if c9_target_base_name(target)=="root":
                     root_valid=False
                     working_valid=False
-                if c9_mapping_mutation_call(candidate,"result"):
+                elif isinstance(target,ast.Name) and target.id=="result":
                     working_valid=False
+                elif (
+                    isinstance(target,ast.Subscript)
+                    and isinstance(target.value,ast.Name)
+                    and target.value.id=="result"
+                    and isinstance(target.slice,ast.Constant)
+                    and target.slice.value=="workingDirectory"
+                ):
+                    working_valid=False
+            if c9_args_attribute_call_mutation(node)=="root":
+                root_valid=False
+                working_valid=False
+            if c9_mapping_mutation_call(node,"result"):
+                working_valid=False
     return root_valid and working_valid
 
 
@@ -455,6 +482,7 @@ def c9_main_canonical_output_bound(source:str)->bool:
     root_valid=False
     out_valid=False
     evidence_valid=False
+    evidence_line=None
     for node in main.body:
         if isinstance(node,(ast.Return,ast.Raise)):
             break
@@ -468,23 +496,42 @@ def c9_main_canonical_output_bound(source:str)->bool:
                 root_valid=direct_target and c9_root_value_valid(value)
                 out_valid=False
                 evidence_valid=False
+                evidence_line=None
             elif target.id=="out":
                 out_valid=direct_target and root_valid and c9_output_value_valid(value)
                 evidence_valid=False
+                evidence_line=None
             elif target.id=="evidence":
                 evidence_valid=direct_target and root_valid and out_valid and c9_evidence_value_valid(value)
-        if isinstance(node,ast.Expr):
-            for candidate in ast.walk(node.value):
-                mutation=c9_args_attribute_call_mutation(candidate)
-                if mutation=="root":
+                evidence_line=getattr(node,"lineno",0) if evidence_valid else None
+    if evidence_valid and evidence_line is not None:
+        for node in function_scope_nodes(main):
+            if getattr(node,"lineno",0)<=evidence_line:
+                continue
+            targets,_=assignment_targets_and_value(node)
+            for target in (item for root_target in targets for item in assignment_target_nodes(root_target)):
+                base=c9_target_base_name(target)
+                if base=="root":
                     root_valid=False
                     out_valid=False
                     evidence_valid=False
-                elif mutation=="out":
+                elif base=="out":
                     out_valid=False
                     evidence_valid=False
-                if c9_mapping_mutation_call(candidate,"evidence"):
+                elif base=="evidence":
                     evidence_valid=False
+            mutation=c9_args_attribute_call_mutation(node)
+            if mutation=="root":
+                root_valid=False
+                out_valid=False
+                evidence_valid=False
+            elif mutation=="out":
+                out_valid=False
+                evidence_valid=False
+            if c9_mapping_mutation_call(node,"evidence"):
+                evidence_valid=False
+            if isinstance(node,ast.Call) and isinstance(node.func,ast.Name) and node.func.id=="execute":
+                evidence_valid=False
     return root_valid and out_valid and evidence_valid
 
 
