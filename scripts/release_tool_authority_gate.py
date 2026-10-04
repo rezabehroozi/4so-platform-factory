@@ -287,6 +287,9 @@ def validate(root:Path)->list[tuple[str,str]]:
         '"admissionReady"',
         '"requiredInputs"',
         '"physicalCertified"',
+        "bind_execution_context",
+        '"requiredWorkingDirectory"',
+        '"<exact-source-checkout-root>"',
     )
     missing=[marker for marker in preflight_markers if marker not in preflight]
     if missing: errors.append(("FINAL_EXACT_RELEASE_PREFLIGHT_HANDOFF_INVALID",",".join(missing)))
