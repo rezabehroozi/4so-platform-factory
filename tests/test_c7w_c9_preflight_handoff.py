@@ -17,9 +17,9 @@ class C7WToC9PreflightHandoffTests(unittest.TestCase):
             root=Path(td).resolve()
             out=mod.c9_handoff("a"*40,root)
         self.assertEqual("RUN_C9_SEAL",out["nextActionCode"])
-        self.assertEqual([sys.executable,"scripts/c9_preflight.py","--root",str(root),"--preflight"],out["preflightCommand"])
+        self.assertEqual([sys.executable,"scripts/c9_preflight.py","--root",".","--preflight"],out["preflightCommand"])
         self.assertEqual("--preflight",out["preflightCommand"][-1])
-        self.assertEqual([sys.executable,"scripts/seal_final_exact_release.py","--root",str(root),"--out","lab/final-exact-release-evidence.json"],out["nextCommand"])
+        self.assertEqual([sys.executable,"scripts/seal_final_exact_release.py","--root",".","--out","lab/final-exact-release-evidence.json"],out["nextCommand"])
         self.assertEqual(str(root),out["workingDirectory"])
 
     def test_windows_handoff_templates_machine_actionable_c9_preflight_owner(self):
