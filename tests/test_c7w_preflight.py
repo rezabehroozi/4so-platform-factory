@@ -24,6 +24,11 @@ class C7WPreflightTests(unittest.TestCase):
             out=mod.preflight(Path(td),ROOT/"lab/mcp-external-client-interop-matrix.json","",None,"C7W_PLATFORM_ADMIN_TOKEN")
         self.assertFalse(out["ready"]); self.assertEqual(["MCP_EXTERNAL_LOCAL_SOURCE_REPOSITORY_INVALID"],out["blockers"]); self.assertEqual("RESTORE_C7W_SOURCE_FREEZE",out["nextActionCode"]); self.assertEqual([],out["requiredInputs"])
 
+    def test_unfrozen_source_stops_before_requesting_external_inputs(self):
+        with tempfile.TemporaryDirectory() as td, mock.patch.dict(os.environ,{},clear=True):
+            root=Path(td); self.init_repo(root); self.git(root,"checkout","-b","feature"); out=mod.preflight(root,ROOT/"lab/mcp-external-client-interop-matrix.json","",None,"C7W_PLATFORM_ADMIN_TOKEN")
+        self.assertFalse(out["ready"]); self.assertEqual(["MCP_EXTERNAL_LOCAL_BRANCH_NOT_MAIN"],out["blockers"]); self.assertEqual("RESTORE_C7W_SOURCE_FREEZE",out["nextActionCode"]); self.assertEqual([],out["requiredInputs"])
+
     def test_missing_inputs_are_machine_actionable_without_network(self):
         with tempfile.TemporaryDirectory() as td, mock.patch.dict(os.environ,{},clear=True):
             root=Path(td); self.init_repo(root); out=mod.preflight(root,ROOT/"lab/mcp-external-client-interop-matrix.json","",None,"C7W_PLATFORM_ADMIN_TOKEN")
