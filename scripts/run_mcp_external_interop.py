@@ -114,7 +114,7 @@ def require_canonical_artifact_path(root:Path,candidate:Path,expected_rel:Path,l
     for current in (expected,*expected.parents):
         if current==root:
             break
-        if current.exists() and current.is_symlink():
+        if current.is_symlink():
             raise RuntimeError(code)
     try:
         expected.relative_to(root)
