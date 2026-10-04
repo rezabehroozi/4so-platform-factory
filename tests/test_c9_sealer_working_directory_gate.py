@@ -20,6 +20,14 @@ class C9SealerWorkingDirectoryGateTests(unittest.TestCase):
         source='''\ndef main():\n    result={}\n    if False:\n        result["workingDirectory"]=str(args.root.resolve())\n    def dead():\n        result["workingDirectory"]=str(args.root.resolve())\n    return result\n'''
         self.assertFalse(mod.c9_main_working_directory_bound(source))
 
+    def test_requires_canonical_output_before_execute(self):
+        good='''\ndef main():\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,out)\n    return evidence\n'''
+        bypass='''\ndef main():\n    root=args.root.resolve()\n    evidence=execute(root,args.out)\n    return evidence\n'''
+        dead='''\ndef main():\n    root=args.root.resolve()\n    if False:\n        out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,args.out)\n    return evidence\n'''
+        self.assertTrue(mod.c9_main_canonical_output_bound(good))
+        self.assertFalse(mod.c9_main_canonical_output_bound(bypass))
+        self.assertFalse(mod.c9_main_canonical_output_bound(dead))
+
 
 if __name__=="__main__":
     unittest.main()
