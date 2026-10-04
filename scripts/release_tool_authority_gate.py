@@ -170,6 +170,122 @@ def ordered_calls(calls:dict[str,int],names:tuple[str,...])->bool:
     return all(calls[left]<calls[right] for left,right in zip(names,names[1:]))
 
 
+def ordered_calls_on_same_path(source:str,function_name:str,names:tuple[str,...])->bool:
+    try:
+        tree=ast.parse(source)
+    except (SyntaxError,ValueError):
+        return False
+    function=next((node for node in tree.body if isinstance(node,(ast.FunctionDef,ast.AsyncFunctionDef)) and node.name==function_name),None)
+    if function is None or not names or len(set(names))!=len(names):
+        return False
+    positions={name:index for index,name in enumerate(names)}
+    invalid=False
+    completed=False
+
+    def call_name(node:ast.Call)->str:
+        if isinstance(node.func,ast.Name):
+            return node.func.id
+        if isinstance(node.func,ast.Attribute) and isinstance(node.func.value,ast.Name):
+            return f"{node.func.value.id}.{node.func.attr}"
+        return ""
+
+    def calls_in_eval_order(node)->list[str]:
+        if node is None or isinstance(node,(ast.Lambda,ast.FunctionDef,ast.AsyncFunctionDef,ast.ClassDef)):
+            return []
+        calls=[]
+        if isinstance(node,ast.Call):
+            calls.extend(calls_in_eval_order(node.func))
+            for arg in node.args:
+                calls.extend(calls_in_eval_order(arg))
+            for keyword in node.keywords:
+                calls.extend(calls_in_eval_order(keyword.value))
+            name=call_name(node)
+            if name:
+                calls.append(name)
+            return calls
+        for child in ast.iter_child_nodes(node):
+            calls.extend(calls_in_eval_order(child))
+        return calls
+
+    def advance(state:int,node)->int:
+        nonlocal invalid,completed
+        for name in calls_in_eval_order(node):
+            index=positions.get(name)
+            if index is None:
+                continue
+            if index>state:
+                invalid=True
+                continue
+            if index==state:
+                state+=1
+                if state==len(names):
+                    completed=True
+        return state
+
+    def process_block(statements,states:set[int])->set[int]:
+        live=set(states)
+        for statement in statements:
+            if not live:
+                break
+            next_live=set()
+            for state in live:
+                next_live.update(process_statement(statement,state))
+            live=next_live
+        return live
+
+    def process_statement(statement,state:int)->set[int]:
+        nonlocal invalid
+        if isinstance(statement,(ast.FunctionDef,ast.AsyncFunctionDef,ast.ClassDef)):
+            return {state}
+        if isinstance(statement,ast.If):
+            state=advance(state,statement.test)
+            if isinstance(statement.test,ast.Constant) and isinstance(statement.test.value,bool):
+                selected=statement.body if statement.test.value else statement.orelse
+                return process_block(selected,{state})
+            body_states=process_block(statement.body,{state})
+            else_states=process_block(statement.orelse,{state}) if statement.orelse else {state}
+            return body_states|else_states
+        if isinstance(statement,(ast.Return,ast.Raise)):
+            value=statement.value if isinstance(statement,ast.Return) else statement.exc
+            advance(state,value)
+            return set()
+        if isinstance(statement,(ast.With,ast.AsyncWith)):
+            for item in statement.items:
+                state=advance(state,item.context_expr)
+            return process_block(statement.body,{state})
+        if isinstance(statement,ast.Try):
+            normal=process_block(statement.body,{state})
+            if statement.orelse:
+                normal=process_block(statement.orelse,normal)
+            handler_states=set()
+            for handler in statement.handlers:
+                handler_state=advance(state,handler.type)
+                handler_states.update(process_block(handler.body,{handler_state}))
+            live=normal|handler_states
+            if statement.finalbody:
+                live=process_block(statement.finalbody,live)
+            return live
+        if isinstance(statement,(ast.For,ast.AsyncFor,ast.While)):
+            if any(name in positions for name in calls_in_eval_order(statement)):
+                invalid=True
+            return {state}
+        if isinstance(statement,ast.Assign):
+            return {advance(state,statement.value)}
+        if isinstance(statement,ast.AnnAssign):
+            return {advance(state,statement.value)}
+        if isinstance(statement,ast.AugAssign):
+            return {advance(state,statement.value)}
+        if isinstance(statement,ast.Expr):
+            return {advance(state,statement.value)}
+        if isinstance(statement,ast.Assert):
+            state=advance(state,statement.test)
+            return {advance(state,statement.msg)}
+        return {advance(state,statement)}
+
+    live=process_block(function.body,{0})
+    return not invalid and completed and all(state==len(names) for state in live)
+
+
 def c9_main_working_directory_bound(source:str)->bool:
     try:
         tree=ast.parse(source)
@@ -376,13 +492,11 @@ def validate(root:Path)->list[tuple[str,str]]:
     if missing:
         errors.append(("FINAL_EXACT_RELEASE_C7W_PROVENANCE_INVALID",",".join(missing)))
 
-    execute_calls=function_call_lines(sealer,"execute")
-    resume_calls=function_call_lines(sealer,"resume_existing_evidence")
-    if not ordered_calls(execute_calls,("git_source","exact_source_admission","require_exact_release_host","require_exact_release_environment")):
+    if not ordered_calls_on_same_path(sealer,"execute",("git_source","exact_source_admission","require_exact_release_host","require_exact_release_environment")):
         errors.append(("FINAL_EXACT_RELEASE_ADMISSION_ORDER_INVALID","fresh seal must admit exact source before host/environment work"))
-    if not ordered_calls(resume_calls,("exact_source_admission","require_exact_release_host","require_exact_release_environment")):
+    if not ordered_calls_on_same_path(sealer,"resume_existing_evidence",("exact_source_admission","require_exact_release_host","require_exact_release_environment")):
         errors.append(("FINAL_EXACT_RELEASE_ADMISSION_ORDER_INVALID","resume must re-admit sealed source before host/environment work"))
-    if not ordered_calls(execute_calls,("admission.verify","safe_toolchain_archive","stage_toolchain_archive","extract_toolchain")):
+    if not ordered_calls_on_same_path(sealer,"execute",("admission.verify","safe_toolchain_archive","stage_toolchain_archive","extract_toolchain")):
         errors.append(("FINAL_EXACT_RELEASE_ADMISSION_ORDER_INVALID","detached exact-source admission must precede toolchain extraction"))
     if not c9_main_working_directory_bound(sealer):
         errors.append(("FINAL_EXACT_RELEASE_CLI_CONTEXT_INVALID","scripts/seal_final_exact_release.py"))
