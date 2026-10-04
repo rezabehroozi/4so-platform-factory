@@ -34,6 +34,21 @@ class C7WCanonicalOutputAuthorityTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,"MCP_EXTERNAL_LOCAL_EVIDENCE_PATH_INVALID"):
                 mod.require_canonical_artifact_path(root,root/"other-evidence.json",mod.CANONICAL_EVIDENCE_REL,"EVIDENCE")
 
+    def test_broken_symlink_at_canonical_output_is_rejected(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td).resolve()
+            lab=root/"lab"
+            lab.mkdir()
+            progress=root/mod.CANONICAL_PROGRESS_REL
+            try:
+                progress.symlink_to(root/"missing-progress-target.json")
+            except OSError as exc:
+                self.skipTest(f"symlink creation unavailable: {exc}")
+            self.assertTrue(progress.is_symlink())
+            self.assertFalse(progress.exists())
+            with self.assertRaisesRegex(RuntimeError,"MCP_EXTERNAL_LOCAL_PROGRESS_PATH_INVALID"):
+                mod.require_canonical_artifact_path(root,progress,mod.CANONICAL_PROGRESS_REL,"PROGRESS")
+
     def test_cli_main_guards_both_canonical_outputs_before_dispatch(self):
         source=(ROOT/"scripts"/"run_mcp_external_interop.py").read_text(encoding="utf-8")
         tree=ast.parse(source)
