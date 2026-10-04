@@ -22,11 +22,13 @@ class C9SealerWorkingDirectoryGateTests(unittest.TestCase):
         split='''\ndef main():\n    result={}\n    if runtime_condition:\n        root=args.root.resolve()\n    else:\n        result["workingDirectory"]=str(root)\n    return result\n'''
         overwritten='''\ndef main():\n    root=args.root.resolve()\n    root=args.root\n    result={}\n    result["workingDirectory"]=str(root)\n    return result\n'''
         late_overwrite='''\ndef main():\n    root=args.root.resolve()\n    result={}\n    result["workingDirectory"]=str(root)\n    result["workingDirectory"]=str(args.root)\n    return result\n'''
+        result_rebound='''\ndef main():\n    root=args.root.resolve()\n    result={}\n    result["workingDirectory"]=str(root)\n    result={}\n    return result\n'''
         self.assertFalse(mod.c9_main_working_directory_bound(unbound))
         self.assertFalse(mod.c9_main_working_directory_bound(dead))
         self.assertFalse(mod.c9_main_working_directory_bound(split))
         self.assertFalse(mod.c9_main_working_directory_bound(overwritten))
         self.assertFalse(mod.c9_main_working_directory_bound(late_overwrite))
+        self.assertFalse(mod.c9_main_working_directory_bound(result_rebound))
 
     def test_requires_canonical_output_before_execute_on_same_path(self):
         good='''\ndef main():\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,out)\n    return evidence\n'''
@@ -36,6 +38,8 @@ class C9SealerWorkingDirectoryGateTests(unittest.TestCase):
         overwritten='''\ndef main():\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    out=args.out\n    evidence=execute(root,out)\n    return evidence\n'''
         root_drift='''\ndef main():\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    root=args.root\n    evidence=execute(root,out)\n    return evidence\n'''
         late_execute='''\ndef main():\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,out)\n    evidence=execute(root,args.out)\n    return evidence\n'''
+        late_out_drift='''\ndef main():\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,out)\n    out=args.out\n    return evidence\n'''
+        late_root_drift='''\ndef main():\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,out)\n    root=args.root\n    return evidence\n'''
         self.assertTrue(mod.c9_main_canonical_output_bound(good))
         self.assertFalse(mod.c9_main_canonical_output_bound(bypass))
         self.assertFalse(mod.c9_main_canonical_output_bound(dead))
@@ -43,6 +47,8 @@ class C9SealerWorkingDirectoryGateTests(unittest.TestCase):
         self.assertFalse(mod.c9_main_canonical_output_bound(overwritten))
         self.assertFalse(mod.c9_main_canonical_output_bound(root_drift))
         self.assertFalse(mod.c9_main_canonical_output_bound(late_execute))
+        self.assertFalse(mod.c9_main_canonical_output_bound(late_out_drift))
+        self.assertFalse(mod.c9_main_canonical_output_bound(late_root_drift))
 
 
 if __name__=="__main__":
