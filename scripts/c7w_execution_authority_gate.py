@@ -133,31 +133,28 @@ def external_client_action_contract_errors(source:str)->list[str]:
     helper=functions.get("external_client_action")
     if helper is None:
         return ["EXTERNAL_ACTION_OWNER_MISSING"]
-    mappings=[]
-    for node in function_scope_nodes(helper):
-        if not isinstance(node,ast.Return) or not isinstance(node.value,ast.Dict):
-            continue
-        current={}
+    returns=[node for node in function_scope_nodes(helper) if isinstance(node,ast.Return)]
+
+    def valid_return(node:ast.Return)->bool:
+        if not isinstance(node.value,ast.Dict):
+            return False
+        mapping={}
         for key,value in zip(node.value.keys,node.value.values):
             if isinstance(key,ast.Constant) and isinstance(key.value,str):
-                current[key.value]=value
-        mappings.append(current)
-    valid_shape=False
-    for mapping in mappings:
+                mapping[key.value]=value
         action=mapping.get("nextActionCode")
         command=mapping.get("nextCommand")
-        if (
+        return (
             isinstance(action,ast.Constant)
             and action.value=="RUN_EXTERNAL_CLIENT"
             and isinstance(command,ast.List)
             and not command.elts
             and "nextClientHandoff" in mapping
             and "postExternalExecutionCommand" in mapping
-        ):
-            valid_shape=True
-            break
+        )
+
     errors=[]
-    if not valid_shape:
+    if not returns or not all(valid_return(node) for node in returns):
         errors.append("EXTERNAL_ACTION_SHAPE_INVALID")
     for owner in ("prepare","admit","status"):
         fn=functions.get(owner)
