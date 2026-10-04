@@ -124,6 +124,23 @@ def function_scope_nodes(function:ast.FunctionDef|ast.AsyncFunctionDef):
     yield from visit_block(function.body)
 
 
+def assignment_targets_and_value(node):
+    if isinstance(node,ast.Assign):
+        return list(node.targets),node.value
+    if isinstance(node,ast.AnnAssign):
+        return [node.target],node.value
+    if isinstance(node,ast.AugAssign):
+        return [node.target],None
+    return [],None
+
+
+def assignment_target_nodes(target):
+    yield target
+    if isinstance(target,(ast.Tuple,ast.List)):
+        for element in target.elts:
+            yield from assignment_target_nodes(element)
+
+
 def external_client_action_contract_errors(source:str)->list[str]:
     try:
         tree=ast.parse(source)
@@ -208,36 +225,38 @@ def canonical_output_contract_errors(source:str)->list[str]:
     for node in main.body:
         if isinstance(node,(ast.Return,ast.Raise)):
             break
-        if not isinstance(node,ast.Assign) or len(node.targets)!=1:
+        targets,value=assignment_targets_and_value(node)
+        if not targets:
             continue
-        target=node.targets[0]
-        if not (
-            isinstance(target,ast.Attribute)
-            and isinstance(target.value,ast.Name)
-            and target.value.id=="args"
-            and target.attr in guarded
-        ):
-            continue
-        attr=target.attr
-        call=node.value
-        expected_rel="CANONICAL_PROGRESS_REL" if attr=="progress_out" else "CANONICAL_EVIDENCE_REL"
-        expected_label="PROGRESS" if attr=="progress_out" else "EVIDENCE"
-        guarded[attr]=(
-            isinstance(call,ast.Call)
-            and isinstance(call.func,ast.Name)
-            and call.func.id=="require_canonical_artifact_path"
-            and len(call.args)>=4
-            and isinstance(call.args[0],ast.Name)
-            and call.args[0].id=="root"
-            and isinstance(call.args[1],ast.Attribute)
-            and isinstance(call.args[1].value,ast.Name)
-            and call.args[1].value.id=="args"
-            and call.args[1].attr==attr
-            and isinstance(call.args[2],ast.Name)
-            and call.args[2].id==expected_rel
-            and isinstance(call.args[3],ast.Constant)
-            and call.args[3].value==expected_label
-        )
+        for target in (item for root_target in targets for item in assignment_target_nodes(root_target)):
+            if not (
+                isinstance(target,ast.Attribute)
+                and isinstance(target.value,ast.Name)
+                and target.value.id=="args"
+                and target.attr in guarded
+            ):
+                continue
+            attr=target.attr
+            expected_rel="CANONICAL_PROGRESS_REL" if attr=="progress_out" else "CANONICAL_EVIDENCE_REL"
+            expected_label="PROGRESS" if attr=="progress_out" else "EVIDENCE"
+            direct_target=len(targets)==1 and targets[0] is target and not isinstance(node,ast.AugAssign)
+            guarded[attr]=(
+                direct_target
+                and isinstance(value,ast.Call)
+                and isinstance(value.func,ast.Name)
+                and value.func.id=="require_canonical_artifact_path"
+                and len(value.args)>=4
+                and isinstance(value.args[0],ast.Name)
+                and value.args[0].id=="root"
+                and isinstance(value.args[1],ast.Attribute)
+                and isinstance(value.args[1].value,ast.Name)
+                and value.args[1].value.id=="args"
+                and value.args[1].attr==attr
+                and isinstance(value.args[2],ast.Name)
+                and value.args[2].id==expected_rel
+                and isinstance(value.args[3],ast.Constant)
+                and value.args[3].value==expected_label
+            )
     if not guarded["progress_out"]:
         errors.append("PROGRESS_OUTPUT_WIRING_INVALID")
     if not guarded["evidence_out"]:
@@ -257,29 +276,31 @@ def runner_working_directory_contract_errors(source:str)->list[str]:
     for node in main.body:
         if isinstance(node,(ast.Return,ast.Raise)):
             break
-        if not isinstance(node,ast.Assign) or len(node.targets)!=1:
+        targets,value=assignment_targets_and_value(node)
+        if not targets:
             continue
-        target=node.targets[0]
-        value=node.value
-        if isinstance(target,ast.Name) and target.id=="result":
+        flat_targets=[item for root_target in targets for item in assignment_target_nodes(root_target)]
+        if any(isinstance(target,ast.Name) and target.id=="result" for target in flat_targets):
             working_valid=False
-            continue
-        if not (
-            isinstance(target,ast.Subscript)
-            and isinstance(target.value,ast.Name)
-            and target.value.id=="result"
-            and isinstance(target.slice,ast.Constant)
-            and target.slice.value=="workingDirectory"
-        ):
-            continue
-        working_valid=(
-            isinstance(value,ast.Call)
-            and isinstance(value.func,ast.Name)
-            and value.func.id=="str"
-            and len(value.args)==1
-            and isinstance(value.args[0],ast.Name)
-            and value.args[0].id=="root"
-        )
+        for target in flat_targets:
+            if not (
+                isinstance(target,ast.Subscript)
+                and isinstance(target.value,ast.Name)
+                and target.value.id=="result"
+                and isinstance(target.slice,ast.Constant)
+                and target.slice.value=="workingDirectory"
+            ):
+                continue
+            direct_target=len(targets)==1 and targets[0] is target and not isinstance(node,ast.AugAssign)
+            working_valid=(
+                direct_target
+                and isinstance(value,ast.Call)
+                and isinstance(value.func,ast.Name)
+                and value.func.id=="str"
+                and len(value.args)==1
+                and isinstance(value.args[0],ast.Name)
+                and value.args[0].id=="root"
+            )
     return [] if working_valid else ["RUNNER_WORKING_DIRECTORY_WIRING_INVALID"]
 
 
