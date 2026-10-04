@@ -51,8 +51,9 @@ def private_input_path(root:Path,path:Path)->Path:
     return private_path(root,path,require_file=True)
 
 
-def oauth_binding_materializer_command(endpoint:str,token_env:str)->list[str]:
-    return [sys.executable,"scripts/prepare_c7w_oauth_bindings.py","--root",".","--out",str(DEFAULT_OAUTH_BINDING_REL),"--preflight-endpoint",str(endpoint),"--preflight-token-env",str(token_env)]
+def oauth_binding_materializer_command(root:Path,endpoint:str,token_env:str)->list[str]:
+    root=Path(root).resolve()
+    return [sys.executable,"scripts/prepare_c7w_oauth_bindings.py","--root",str(root),"--out",str(DEFAULT_OAUTH_BINDING_REL),"--preflight-endpoint",str(endpoint),"--preflight-token-env",str(token_env)]
 
 
 def execution_binding_materializer_command(root:Path,source_sha:str,endpoint:str,oauth_client_map:Path,token_env:str,output:Path=DEFAULT_EXECUTION_BINDING_REL)->list[str]:
@@ -152,7 +153,7 @@ def preflight(root:Path,matrix:Path,endpoint:str,oauth_client_map:Path|None,toke
     missing=_missing_inputs(endpoint,oauth_client_map,token_env)
     if missing:
         if missing==["C7W_OAUTH_CLIENT_MAP"]:
-            out=_base(ready=False,blockers=["MCP_EXTERNAL_PREFLIGHT_OAUTH_BINDINGS_MISSING"]); out.update({"nextActionCode":"PREPARE_C7W_OAUTH_BINDINGS","requiredInputs":list(OAUTH_CLIENT_ID_INPUTS),"nextCommand":oauth_binding_materializer_command(endpoint,token_env),"outputPath":str(DEFAULT_OAUTH_BINDING_REL),"detail":"materialize the private four-client OAuth binding document from the already-provisioned client IDs; values stay in environment/private state and are never emitted"}); return out
+            out=_base(ready=False,blockers=["MCP_EXTERNAL_PREFLIGHT_OAUTH_BINDINGS_MISSING"]); out.update({"workingDirectory":str(root),"nextActionCode":"PREPARE_C7W_OAUTH_BINDINGS","requiredInputs":list(OAUTH_CLIENT_ID_INPUTS),"nextCommand":oauth_binding_materializer_command(root,endpoint,token_env),"outputPath":str(DEFAULT_OAUTH_BINDING_REL),"detail":"materialize the private four-client OAuth binding document from the already-provisioned client IDs; values stay in environment/private state and are never emitted"}); return out
         out=_base(ready=False,blockers=["MCP_EXTERNAL_PREFLIGHT_INPUTS_MISSING"]); out.update({"nextActionCode":"PROVIDE_C7W_INPUTS","requiredInputs":missing,"detail":"provide only the missing C7W endpoint/OAuth/admin-token inputs; token values are never emitted"}); return out
     source_sha=""; endpoint_value=""; oauth_path=None
     execution_raw=Path(execution_binding_path or DEFAULT_EXECUTION_BINDING_REL)
