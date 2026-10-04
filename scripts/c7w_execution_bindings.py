@@ -240,7 +240,7 @@ def load(path:Path,expected_source_sha:str)->tuple[dict,str]:
 def followup_preflight_command(root:Path,output:Path,endpoint:str,oauth_client_map:Path|None,token_env:str)->list[str]:
     root=Path(root).resolve()
     output=Path(output).resolve()
-    command=[sys.executable,"scripts/c7w_preflight.py","--root",str(root),"--execution-bindings",str(output)]
+    command=[sys.executable,str((root/"scripts/c7w_preflight.py").resolve()),"--root",str(root),"--execution-bindings",str(output)]
     if str(endpoint or "").strip():
         command.extend(["--endpoint",str(endpoint).strip()])
     if oauth_client_map is not None:
