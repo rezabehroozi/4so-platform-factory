@@ -228,6 +228,39 @@ def canonical_output_contract_errors(source:str)->list[str]:
     return errors
 
 
+def runner_working_directory_contract_errors(source:str)->list[str]:
+    try:
+        tree=ast.parse(source)
+    except (SyntaxError,ValueError):
+        return ["RUNNER_SYNTAX_INVALID"]
+    main=next((node for node in tree.body if isinstance(node,ast.FunctionDef) and node.name=="main"),None)
+    if main is None:
+        return ["MAIN_OWNER_MISSING"]
+    for node in function_scope_nodes(main):
+        if not isinstance(node,ast.Assign) or len(node.targets)!=1:
+            continue
+        target=node.targets[0]
+        if not (
+            isinstance(target,ast.Subscript)
+            and isinstance(target.value,ast.Name)
+            and target.value.id=="result"
+            and isinstance(target.slice,ast.Constant)
+            and target.slice.value=="workingDirectory"
+        ):
+            continue
+        value=node.value
+        if (
+            isinstance(value,ast.Call)
+            and isinstance(value.func,ast.Name)
+            and value.func.id=="str"
+            and len(value.args)==1
+            and isinstance(value.args[0],ast.Name)
+            and value.args[0].id=="root"
+        ):
+            return []
+    return ["RUNNER_WORKING_DIRECTORY_WIRING_INVALID"]
+
+
 def validate(root:Path)->list[tuple[str,str]]:
     root=root.resolve(); errors:list[tuple[str,str]]=[]
     source={rel:read(root,rel,errors) for rel in REQUIRED_FILES}
@@ -312,6 +345,9 @@ def validate(root:Path)->list[tuple[str,str]]:
     canonical_output_errors=canonical_output_contract_errors(runner)
     if canonical_output_errors:
         errors.append(("C7W_LOCAL_RUNNER_CANONICAL_OUTPUT_INVALID",",".join(canonical_output_errors)))
+    working_directory_errors=runner_working_directory_contract_errors(runner)
+    if working_directory_errors:
+        errors.append(("C7W_LOCAL_RUNNER_WORKING_DIRECTORY_INVALID",",".join(working_directory_errors)))
     campaign_markers=(
         'AUTHORITY=core.CAMPAIGN_AUTHORITY',
         "def source_commit_sha",
