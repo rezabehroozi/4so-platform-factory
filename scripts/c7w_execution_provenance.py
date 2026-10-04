@@ -6,6 +6,11 @@ import hashlib
 import json
 import re
 
+try:
+    import c7w_credential_profiles as credential_profiles
+except ModuleNotFoundError:
+    from scripts import c7w_credential_profiles as credential_profiles
+
 EXECUTION_BINDING_AUTHORITY="MCP_EXTERNAL_EXECUTION_BINDINGS_V1"
 CREDENTIAL_PROFILE_CONTRACT_AUTHORITY="MCP_EXTERNAL_CREDENTIAL_PROFILE_CONTRACT_V1"
 EXECUTION_BINDING_FIELDS=(
@@ -19,6 +24,14 @@ RESOURCE_KEYS=("foreignProjectId","sameProjectOperationId","selfApprovalRequestI
 SHA=re.compile(r"^sha256:[0-9a-f]{64}$")
 COMMIT=re.compile(r"^[0-9a-f]{40}$")
 SAFE_VALUE=re.compile(r"^[^\x00-\x20\x7f]{1,256}$")
+
+
+def credential_contract_digest()->str:
+    value=credential_profiles.contract()
+    if not isinstance(value,dict) or value.get("authority")!=CREDENTIAL_PROFILE_CONTRACT_AUTHORITY:
+        raise RuntimeError("MCP_EXTERNAL_EXECUTION_BINDING_CREDENTIAL_CONTRACT_INVALID")
+    raw=json.dumps(value,sort_keys=True,separators=(",",":"),ensure_ascii=False).encode("utf-8")
+    return "sha256:"+hashlib.sha256(raw).hexdigest()
 
 
 def _resources(value:object,label:str)->dict[str,str]:
@@ -53,6 +66,8 @@ def projection(value:object,source_sha:str,label:str)->dict:
     credential_digest=str(value.get("credentialProfileContractSha256") or "")
     if not SHA.fullmatch(credential_digest):
         raise RuntimeError(f"{label}_EXECUTION_BINDING_CREDENTIAL_DIGEST_INVALID")
+    if credential_digest!=credential_contract_digest():
+        raise RuntimeError(f"{label}_EXECUTION_BINDING_CREDENTIAL_CONTRACT_INVALID")
     resources=_resources(value.get("executionBindings"),label)
     document={
         "authority":EXECUTION_BINDING_AUTHORITY,
