@@ -180,7 +180,9 @@ def c9_main_working_directory_bound(source:str)->bool:
         return False
     root_line=None
     working_line=None
-    for node in function_scope_nodes(main):
+    for node in main.body:
+        if isinstance(node,(ast.Return,ast.Raise)):
+            break
         if isinstance(node,ast.Assign) and len(node.targets)==1 and isinstance(node.targets[0],ast.Name) and node.targets[0].id=="root":
             value=node.value
             if (
@@ -228,7 +230,9 @@ def c9_main_canonical_output_bound(source:str)->bool:
         return False
     canonical_line=None
     execute_line=None
-    for node in function_scope_nodes(main):
+    for node in main.body:
+        if isinstance(node,(ast.Return,ast.Raise)):
+            break
         if isinstance(node,ast.Assign) and len(node.targets)==1 and isinstance(node.targets[0],ast.Name) and node.targets[0].id=="out":
             value=node.value
             if (
@@ -244,12 +248,17 @@ def c9_main_canonical_output_bound(source:str)->bool:
                 and value.args[1].value.id=="args"
             ):
                 canonical_line=node.lineno
-        if isinstance(node,ast.Call) and isinstance(node.func,ast.Name) and node.func.id=="execute" and len(node.args)>=2:
+        if isinstance(node,ast.Assign) and len(node.targets)==1:
+            value=node.value
             if (
-                isinstance(node.args[0],ast.Name)
-                and node.args[0].id=="root"
-                and isinstance(node.args[1],ast.Name)
-                and node.args[1].id=="out"
+                isinstance(value,ast.Call)
+                and isinstance(value.func,ast.Name)
+                and value.func.id=="execute"
+                and len(value.args)>=2
+                and isinstance(value.args[0],ast.Name)
+                and value.args[0].id=="root"
+                and isinstance(value.args[1],ast.Name)
+                and value.args[1].id=="out"
             ):
                 execute_line=node.lineno if execute_line is None else min(execute_line,node.lineno)
     return canonical_line is not None and execute_line is not None and canonical_line<execute_line
