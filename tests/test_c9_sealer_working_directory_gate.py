@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[1]
-SPEC=importlib.util.spec_from_file_location("release_tool_authority_gate_c9_workdir",ROOT/"scripts/release_tool_authority_gate.py")
+SPEC=importlib.util.spec_from_file_location("release_tool_authority_gate_c9_workdir",ROOT/"scripts"/"release_tool_authority_gate.py")
 mod=importlib.util.module_from_spec(SPEC); SPEC.loader.exec_module(mod)
 
 
@@ -30,6 +30,14 @@ class C9SealerWorkingDirectoryGateTests(unittest.TestCase):
         self.assertFalse(mod.c9_main_working_directory_bound(late_overwrite))
         self.assertFalse(mod.c9_main_working_directory_bound(result_rebound))
 
+    def test_rejects_nonstandard_working_directory_mutations(self):
+        annotated='''\ndef main():\n    root=args.root.resolve()\n    result={}\n    result["workingDirectory"]=str(root)\n    result["workingDirectory"]: str="."\n    return result\n'''
+        augmented='''\ndef main():\n    root=args.root.resolve()\n    result={}\n    result["workingDirectory"]=str(root)\n    result["workingDirectory"] += "/tmp"\n    return result\n'''
+        updated='''\ndef main():\n    root=args.root.resolve()\n    result={}\n    result["workingDirectory"]=str(root)\n    result.update({"workingDirectory":"."})\n    return result\n'''
+        removed='''\ndef main():\n    root=args.root.resolve()\n    result={}\n    result["workingDirectory"]=str(root)\n    result.pop("workingDirectory")\n    return result\n'''
+        for source in (annotated,augmented,updated,removed):
+            self.assertFalse(mod.c9_main_working_directory_bound(source))
+
     def test_requires_canonical_output_before_execute_on_same_path(self):
         good='''\ndef main():\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,out)\n    return evidence\n'''
         bypass='''\ndef main():\n    root=args.root.resolve()\n    evidence=execute(root,args.out)\n    return evidence\n'''
@@ -49,6 +57,14 @@ class C9SealerWorkingDirectoryGateTests(unittest.TestCase):
         self.assertFalse(mod.c9_main_canonical_output_bound(late_execute))
         self.assertFalse(mod.c9_main_canonical_output_bound(late_out_drift))
         self.assertFalse(mod.c9_main_canonical_output_bound(late_root_drift))
+
+    def test_rejects_nonstandard_canonical_output_mutations(self):
+        annotated='''\ndef main():\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,out)\n    out: Path=args.out\n    return evidence\n'''
+        augmented='''\ndef main():\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,out)\n    out /= "alternate"\n    return evidence\n'''
+        root_setattr='''\ndef main():\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,out)\n    setattr(args,"root",Path("."))\n    return evidence\n'''
+        evidence_rebind='''\ndef main():\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,out)\n    evidence += {"drift":True}\n    return evidence\n'''
+        for source in (annotated,augmented,root_setattr,evidence_rebind):
+            self.assertFalse(mod.c9_main_canonical_output_bound(source))
 
 
 if __name__=="__main__":
