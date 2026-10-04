@@ -23,7 +23,8 @@ class C9DirectPreflightDelegationTests(unittest.TestCase):
         self.assertEqual(2,rc)
         run.assert_called_once()
         command=run.call_args.args[0]
-        self.assertEqual([sys.executable,"scripts/c9_preflight.py","--root",str(root),"--preflight"],command)
+        canonical=Path(mod.__file__).resolve().with_name("c9_preflight.py")
+        self.assertEqual([sys.executable,str(canonical),"--root",str(root.resolve()),"--preflight"],command)
         self.assertEqual(root.resolve(),run.call_args.kwargs["cwd"])
         self.assertEqual(mod.clean_git_env(),run.call_args.kwargs["env"])
         self.assertIsNone(run.call_args.kwargs["stdout"])
