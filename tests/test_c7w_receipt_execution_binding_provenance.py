@@ -76,6 +76,16 @@ class C7WReceiptExecutionBindingProvenanceTests(unittest.TestCase):
                 [{"clientId":"chatgpt"},{"clientId":"claude"}],source,"MCP_EXTERNAL_INTEROP",require_bound=True,
             )
 
+    def test_final_evidence_builder_rejects_unbound_rows(self):
+        source,_=self.projection()
+        rows=[{"clientId":client} for client in core.CLIENTS]
+        digest="sha256:"+"3"*64
+        with self.assertRaisesRegex(RuntimeError,"EXECUTION_BINDING_REQUIRED"):
+            core.build_interop_evidence(
+                digest,"mcp-interop-provenance",digest,digest,source,"test-runtime",
+                "2026-07-28","streamable-http","https://mcp.example.test/mcp",rows,
+            )
+
     def test_final_exact_release_verify_requires_bound_execution_provenance(self):
         source=(ROOT/"scripts"/"final_exact_release_admission.py").read_text(encoding="utf-8")
         tree=ast.parse(source)
