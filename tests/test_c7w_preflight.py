@@ -14,27 +14,35 @@ mod=importlib.util.module_from_spec(SPEC); SPEC.loader.exec_module(mod)
 
 class C7WPreflightTests(unittest.TestCase):
     def git(self,root,*args): return subprocess.run(["git",*args],cwd=root,text=True,capture_output=True,check=True).stdout.strip()
+    def init_repo(self,root):
+        self.git(root,"init","-b","main"); self.git(root,"config","user.email","test@example.invalid"); self.git(root,"config","user.name","Test"); (root/"seed.txt").write_text("seed\n"); self.git(root,"add","seed.txt"); self.git(root,"commit","-m","seed"); return self.git(root,"rev-parse","HEAD")
     def execution_doc(self,source_sha):
         return {"authority":mod.execution_bindings.AUTHORITY,"sourceCommitSHA":source_sha,"resources":{"foreignProjectId":"project-foreign","sameProjectOperationId":"operation-1","selfApprovalRequestId":"approval-1"},"credentialProfileContractAuthority":mod.execution_bindings.credential_contract()["authority"],"credentialProfileContractSha256":mod.execution_bindings.credential_contract_digest()}
 
+    def test_invalid_repository_root_stops_before_requesting_external_inputs(self):
+        with tempfile.TemporaryDirectory() as td, mock.patch.dict(os.environ,{},clear=True):
+            out=mod.preflight(Path(td),ROOT/"lab/mcp-external-client-interop-matrix.json","",None,"C7W_PLATFORM_ADMIN_TOKEN")
+        self.assertFalse(out["ready"]); self.assertEqual(["MCP_EXTERNAL_LOCAL_SOURCE_REPOSITORY_INVALID"],out["blockers"]); self.assertEqual("RESTORE_C7W_SOURCE_FREEZE",out["nextActionCode"]); self.assertEqual([],out["requiredInputs"])
+
     def test_missing_inputs_are_machine_actionable_without_network(self):
-        with tempfile.TemporaryDirectory() as td, mock.patch.dict(os.environ,{},clear=True): out=mod.preflight(Path(td),ROOT/"lab/mcp-external-client-interop-matrix.json","",None,"C7W_PLATFORM_ADMIN_TOKEN")
+        with tempfile.TemporaryDirectory() as td, mock.patch.dict(os.environ,{},clear=True):
+            root=Path(td); self.init_repo(root); out=mod.preflight(root,ROOT/"lab/mcp-external-client-interop-matrix.json","",None,"C7W_PLATFORM_ADMIN_TOKEN")
         self.assertFalse(out["ready"]); self.assertEqual("PROVIDE_C7W_INPUTS",out["nextActionCode"]); self.assertEqual(["C7W_MCP_ENDPOINT","C7W_OAUTH_CLIENT_MAP","C7W_PLATFORM_ADMIN_TOKEN"],out["requiredInputs"]); self.assertEqual([],out["nextCommand"]); self.assertFalse(out["physicalCertified"])
 
     def test_missing_oauth_map_with_other_inputs_ready_returns_private_materializer_handoff(self):
         with tempfile.TemporaryDirectory() as td, mock.patch.dict(os.environ,{"TOKEN":"admin-token"},clear=True):
-            root=Path(td).resolve(); out=mod.preflight(root,ROOT/"lab/mcp-external-client-interop-matrix.json","https://mcp.example.test/mcp",None,"TOKEN")
+            root=Path(td).resolve(); self.init_repo(root); out=mod.preflight(root,ROOT/"lab/mcp-external-client-interop-matrix.json","https://mcp.example.test/mcp",None,"TOKEN")
         self.assertFalse(out["ready"]); self.assertEqual("PREPARE_C7W_OAUTH_BINDINGS",out["nextActionCode"]); self.assertEqual(["C7W_CHATGPT_OAUTH_CLIENT_ID","C7W_CLAUDE_OAUTH_CLIENT_ID","C7W_GEMINI_OAUTH_CLIENT_ID","C7W_GROK_OAUTH_CLIENT_ID"],out["requiredInputs"]); self.assertIn("scripts/prepare_c7w_oauth_bindings.py",out["nextCommand"]); self.assertNotIn("admin-token",str(out)); self.assertEqual(str(root),out["workingDirectory"]); root_arg=out["nextCommand"].index("--root")+1; self.assertEqual(str(root),out["nextCommand"][root_arg])
 
     def test_existing_source_state_routes_to_status_without_secrets_or_network(self):
         with tempfile.TemporaryDirectory() as td, mock.patch.dict(os.environ,{},clear=True):
-            root=Path(td); self.git(root,"init","-b","main"); self.git(root,"config","user.email","test@example.invalid"); self.git(root,"config","user.name","Test"); (root/"seed.txt").write_text("seed\n"); self.git(root,"add","seed.txt"); self.git(root,"commit","-m","seed"); source_sha=self.git(root,"rev-parse","HEAD"); state=root/f".state/c7w-external-interop-{source_sha[:12]}"; state.mkdir(parents=True)
+            root=Path(td); source_sha=self.init_repo(root); state=root/f".state/c7w-external-interop-{source_sha[:12]}"; state.mkdir(parents=True)
             with mock.patch.object(mod.campaign,"live_preflight",side_effect=AssertionError("network must not run before status recovery")): out=mod.preflight(root,ROOT/"lab/mcp-external-client-interop-matrix.json","",None,"C7W_PLATFORM_ADMIN_TOKEN")
         self.assertFalse(out["ready"]); self.assertEqual("RUN_C7W_STATUS",out["nextActionCode"]); self.assertEqual([],out["requiredInputs"]); self.assertEqual(source_sha,out["sourceCommitSHA"]); self.assertEqual("status",out["nextCommand"][-1]); self.assertNotIn("C7W_PLATFORM_ADMIN_TOKEN",str(out))
 
     def test_missing_local_state_with_canonical_progress_stops_before_new_inputs(self):
         with tempfile.TemporaryDirectory() as td, mock.patch.dict(os.environ,{},clear=True):
-            root=Path(td); self.git(root,"init","-b","main"); self.git(root,"config","user.email","test@example.invalid"); self.git(root,"config","user.name","Test"); (root/"seed.txt").write_text("seed\n"); self.git(root,"add","seed.txt"); self.git(root,"commit","-m","seed"); source_sha=self.git(root,"rev-parse","HEAD"); lab=root/"lab"; lab.mkdir(); (lab/"mcp-external-client-interop-progress.json").write_text("{}\n")
+            root=Path(td); source_sha=self.init_repo(root); lab=root/"lab"; lab.mkdir(); (lab/"mcp-external-client-interop-progress.json").write_text("{}\n")
             with mock.patch.object(mod.campaign,"live_preflight",side_effect=AssertionError("network must not run when canonical progress outlives local state")): out=mod.preflight(root,ROOT/"lab/mcp-external-client-interop-matrix.json","",None,"C7W_PLATFORM_ADMIN_TOKEN")
         self.assertFalse(out["ready"]); self.assertEqual("RESTORE_C7W_LOCAL_STATE",out["nextActionCode"]); self.assertEqual(source_sha,out["sourceCommitSHA"]); self.assertIn("lab/mcp-external-client-interop-progress.json",out["nextCommand"])
 
