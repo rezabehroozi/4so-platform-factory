@@ -189,6 +189,16 @@ def validate(root:Path)->list[tuple[str,str]]:
     if any(marker not in sealer for marker in host_markers) or "require_release_build_host" not in builder:
         errors.append(("RELEASE_HOST_ARCHITECTURE_GUARD_INVALID","exact release must fail closed outside linux/amd64 in both builder and C9"))
 
+    admission_markers=(
+        'AUTHORITY="FINAL_EXACT_RELEASE_ADMISSION_V1"',
+        "c7w_execution_provenance as execution_provenance",
+        'execution_provenance.validate_rows(clients,certified_source_sha,"MCP_EXTERNAL_INTEROP",require_bound=True)',
+        'execution_provenance.validate_rows(rows,progress.get("sourceCommitSHA"),"MCP_EXTERNAL_PROGRESS",require_bound=False)',
+    )
+    missing=[marker for marker in admission_markers if marker not in admission]
+    if missing:
+        errors.append(("FINAL_EXACT_RELEASE_C7W_PROVENANCE_INVALID",",".join(missing)))
+
     execute_calls=function_call_lines(sealer,"execute")
     resume_calls=function_call_lines(sealer,"resume_existing_evidence")
     if not ordered_calls(execute_calls,("git_source","exact_source_admission","require_exact_release_host","require_exact_release_environment")):
