@@ -17,8 +17,8 @@ class C7WExecutionAuthorityGateTests(unittest.TestCase):
         self.write(root,"scripts/c7w_preflight.py",'''DEFAULT_EXECUTION_BINDING_REL=".state/private/c7w-execution-bindings.json"\ndef trusted_client_reconcile_command(): return ["scripts/reconcile_c7w_trusted_clients.py"]\n# "RECONCILE_C7W_TRUSTED_CLIENTS"\n# PREPARE_C7W_EXECUTION_BINDINGS scripts/c7w_execution_bindings.py executionBindingsSha256\n# MCP_EXTERNAL_EXECUTION_BINDINGS_PATH_INVALID\n''')
         self.write(root,"scripts/prepare_c7w_oauth_bindings.py",'''DEFAULT_OUTPUT=".state/private/c7w-oauth-client-bindings.json"\ndef followup_preflight_command(): pass\n''')
         self.write(root,"scripts/c7w_execution_bindings.py",'''AUTHORITY="MCP_EXTERNAL_EXECUTION_BINDINGS_V1"\nDEFAULT_OUTPUT=Path(".state/private/c7w-execution-bindings.json")\ndef validate_document(): pass\ndef canonical_output_path(): pass\ndef materialize(): pass\n# credentialProfileContractSha256\n''')
-        self.write(root,"scripts/c7w_credential_profiles.py",'''AUTHORITY="MCP_EXTERNAL_CREDENTIAL_PROFILE_CONTRACT_V1"\ndef contract(): return {}\n''')
-        self.write(root,"scripts/c7w_execution_provenance.py",'''EXECUTION_BINDING_AUTHORITY="MCP_EXTERNAL_EXECUTION_BINDINGS_V1"\nCREDENTIAL_PROFILE_CONTRACT_AUTHORITY="MCP_EXTERNAL_CREDENTIAL_PROFILE_CONTRACT_V1"\ndef credential_contract_digest(): pass\ndef projection():\n    credential_digest=""\n    if credential_digest!=credential_contract_digest():\n        raise RuntimeError("EXECUTION_BINDING_CREDENTIAL_CONTRACT_INVALID")\ndef validate_rows():\n    # EXECUTION_BINDING_MIXED EXECUTION_BINDING_REQUIRED\n    pass\ndef validate_receipt_execution_binding(): pass\n''')
+        self.write(root,"scripts/c7w_credential_profiles.py",'''AUTHORITY="MCP_EXTERNAL_CREDENTIAL_PROFILE_CONTRACT_V1"\ndef contract(): return {}\ndef contract_digest(): return "sha256:"+"0"*64\n''')
+        self.write(root,"scripts/c7w_execution_provenance.py",'''EXECUTION_BINDING_AUTHORITY="MCP_EXTERNAL_EXECUTION_BINDINGS_V1"\nCREDENTIAL_PROFILE_CONTRACT_AUTHORITY="MCP_EXTERNAL_CREDENTIAL_PROFILE_CONTRACT_V1"\ndef credential_contract_digest():\n    return credential_profiles.contract_digest()\ndef projection():\n    credential_digest=""\n    if credential_digest!=credential_contract_digest():\n        raise RuntimeError("EXECUTION_BINDING_CREDENTIAL_CONTRACT_INVALID")\ndef validate_rows():\n    # EXECUTION_BINDING_MIXED EXECUTION_BINDING_REQUIRED\n    pass\ndef validate_receipt_execution_binding(): pass\n''')
         self.write(root,"scripts/run_mcp_external_interop.py",'''AUTHORITY="MCP_EXTERNAL_LOCAL_EXECUTION_RUNNER_V1"\ndef runner_command(): pass\n''')
         self.write(root,"scripts/prepare_mcp_external_interop_campaign.py",'''AUTHORITY=core.CAMPAIGN_AUTHORITY\ndef source_commit_sha(): pass\ndef execution_binding_snapshot(): pass\ndef normalize_execution_binding_snapshot(): pass\ndef prepare(matrix_path):\n    if canonical_execution_binding_required(matrix_path): pass\n# executionBindingsSha256 MCP_EXTERNAL_CAMPAIGN_EXECUTION_BINDING_DRIFT\n''')
         self.write(root,"scripts/seal_mcp_external_interop.py",'''AUTHORITY="MCP_EXTERNAL_CLIENT_INTEROPERABILITY_EVIDENCE_V1"\ndef validate_evidence_only_source_lineage(): pass\ndef validate_receipt_execution_binding(): pass\ndef verify_receipt(row,campaign,client):\n    execution_binding=validate_receipt_execution_binding(row,campaign,client)\n    return {**execution_binding}\ndef build_interop_evidence(rows,source_commit_sha):\n    execution_provenance.validate_rows(rows,source_commit_sha,"MCP_EXTERNAL_EVIDENCE",require_bound=True)\n''')
@@ -57,7 +57,7 @@ class C7WExecutionAuthorityGateTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td); self.good(root)
             provenance=root/"scripts/c7w_execution_provenance.py"
-            provenance.write_text(provenance.read_text().replace("def credential_contract_digest(): pass\n",""),encoding="utf-8")
+            provenance.write_text(provenance.read_text().replace("def credential_contract_digest():\n    return credential_profiles.contract_digest()\n",""),encoding="utf-8")
             codes=[c for c,_ in mod.validate(root)]
             self.assertIn("C7W_EXECUTION_PROVENANCE_OWNER_INVALID",codes)
         with tempfile.TemporaryDirectory() as td:
@@ -66,6 +66,20 @@ class C7WExecutionAuthorityGateTests(unittest.TestCase):
             seal.write_text(seal.read_text().replace('    execution_provenance.validate_rows(rows,source_commit_sha,"MCP_EXTERNAL_EVIDENCE",require_bound=True)\n',''),encoding="utf-8")
             codes=[c for c,_ in mod.validate(root)]
             self.assertIn("C7W_SEAL_OWNER_INVALID",codes)
+
+    def test_credential_digest_owner_or_delegation_drift_fails(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); self.good(root)
+            profiles=root/"scripts/c7w_credential_profiles.py"
+            profiles.write_text(profiles.read_text().replace('def contract_digest(): return "sha256:"+"0"*64\n',''),encoding="utf-8")
+            codes=[c for c,_ in mod.validate(root)]
+            self.assertIn("C7W_CREDENTIAL_PROFILE_OWNER_INVALID",codes)
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); self.good(root)
+            provenance=root/"scripts/c7w_execution_provenance.py"
+            provenance.write_text(provenance.read_text().replace("credential_profiles.contract_digest()","'sha256:'+('0'*64)"),encoding="utf-8")
+            codes=[c for c,_ in mod.validate(root)]
+            self.assertIn("C7W_EXECUTION_PROVENANCE_OWNER_INVALID",codes)
 
 
 if __name__=="__main__": unittest.main()
