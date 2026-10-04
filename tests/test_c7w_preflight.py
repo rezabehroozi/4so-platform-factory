@@ -55,7 +55,7 @@ class C7WPreflightTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td); private=root/".state/private"; private.mkdir(parents=True); oauth=private/"oauth.json"; oauth.write_text("{}")
             with mock.patch.dict(os.environ,{"TOKEN":"secret"},clear=False), mock.patch.object(mod.runner,"require_c7w_source_freeze",side_effect=RuntimeError("MCP_EXTERNAL_LOCAL_SOURCE_NOT_FROZEN")): out=mod.preflight(root,ROOT/"lab/mcp-external-client-interop-matrix.json","https://mcp.example.test/mcp",oauth,"TOKEN")
-        self.assertEqual("RESTORE_C7W_SOURCE_FREEZE",out["nextActionCode"]); self.assertEqual(["git","status","--short"],out["nextCommand"])
+        self.assertEqual("RESTORE_C7W_SOURCE_FREEZE",out["nextActionCode"]); self.assertEqual(["git","status","--short"],out["nextCommand"]); self.assertEqual(str(root.resolve()),out["workingDirectory"])
 
     def test_runtime_source_drift_gets_deployment_action_not_generic_failure(self):
         with tempfile.TemporaryDirectory() as td:
