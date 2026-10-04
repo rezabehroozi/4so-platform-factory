@@ -111,6 +111,59 @@ def external_client_action_contract_errors(source:str)->list[str]:
     return errors
 
 
+def canonical_output_contract_errors(source:str)->list[str]:
+    try:
+        tree=ast.parse(source)
+    except (SyntaxError,ValueError):
+        return ["RUNNER_SYNTAX_INVALID"]
+    expected={
+        "CANONICAL_PROGRESS_REL":"lab/mcp-external-client-interop-progress.json",
+        "CANONICAL_EVIDENCE_REL":"lab/mcp-external-client-interoperability-evidence.json",
+    }
+    constants={}
+    functions={node.name:node for node in tree.body if isinstance(node,ast.FunctionDef)}
+    for node in tree.body:
+        if not isinstance(node,ast.Assign) or len(node.targets)!=1 or not isinstance(node.targets[0],ast.Name):
+            continue
+        name=node.targets[0].id
+        if name not in expected or not isinstance(node.value,ast.Call):
+            continue
+        if not isinstance(node.value.func,ast.Name) or node.value.func.id!="Path" or len(node.value.args)!=1:
+            continue
+        arg=node.value.args[0]
+        if isinstance(arg,ast.Constant) and isinstance(arg.value,str):
+            constants[name]=arg.value
+    errors=[]
+    for name,value in expected.items():
+        if constants.get(name)!=value:
+            errors.append(name+"_INVALID")
+    if "require_canonical_artifact_path" not in functions:
+        errors.append("CANONICAL_OUTPUT_GUARD_MISSING")
+    main=functions.get("main")
+    if main is None:
+        errors.append("MAIN_OWNER_MISSING")
+        return errors
+    guarded={}
+    for node in ast.walk(main):
+        if not isinstance(node,ast.Assign) or len(node.targets)!=1 or not isinstance(node.targets[0],ast.Attribute):
+            continue
+        target=node.targets[0]
+        if not isinstance(target.value,ast.Name) or target.value.id!="args" or target.attr not in ("progress_out","evidence_out"):
+            continue
+        call=node.value
+        if not isinstance(call,ast.Call) or not isinstance(call.func,ast.Name) or call.func.id!="require_canonical_artifact_path" or len(call.args)<4:
+            continue
+        rel=call.args[2]
+        label=call.args[3]
+        if isinstance(rel,ast.Name) and isinstance(label,ast.Constant) and isinstance(label.value,str):
+            guarded[target.attr]=(rel.id,label.value)
+    if guarded.get("progress_out")!=("CANONICAL_PROGRESS_REL","PROGRESS"):
+        errors.append("PROGRESS_OUTPUT_WIRING_INVALID")
+    if guarded.get("evidence_out")!=("CANONICAL_EVIDENCE_REL","EVIDENCE"):
+        errors.append("EVIDENCE_OUTPUT_WIRING_INVALID")
+    return errors
+
+
 def validate(root:Path)->list[tuple[str,str]]:
     root=root.resolve(); errors:list[tuple[str,str]]=[]
     source={rel:read(root,rel,errors) for rel in REQUIRED_FILES}
@@ -192,6 +245,9 @@ def validate(root:Path)->list[tuple[str,str]]:
     external_action_errors=external_client_action_contract_errors(runner)
     if external_action_errors:
         errors.append(("C7W_LOCAL_RUNNER_EXTERNAL_ACTION_INVALID",",".join(external_action_errors)))
+    canonical_output_errors=canonical_output_contract_errors(runner)
+    if canonical_output_errors:
+        errors.append(("C7W_LOCAL_RUNNER_CANONICAL_OUTPUT_INVALID",",".join(canonical_output_errors)))
     campaign_markers=(
         'AUTHORITY=core.CAMPAIGN_AUTHORITY',
         "def source_commit_sha",
