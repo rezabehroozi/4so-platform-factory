@@ -32,11 +32,13 @@ class C9SealerWorkingDirectoryGateTests(unittest.TestCase):
         dead='''\ndef main():\n    root=args.root.resolve()\n    if False:\n        out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,args.out)\n    return evidence\n'''
         split='''\ndef main():\n    root=args.root.resolve()\n    if runtime_condition:\n        out=canonical_cli_output_path(root,args.out)\n    else:\n        evidence=execute(root,out)\n    return evidence\n'''
         overwritten='''\ndef main():\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    out=args.out\n    evidence=execute(root,out)\n    return evidence\n'''
+        root_drift='''\ndef main():\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    root=args.root\n    evidence=execute(root,out)\n    return evidence\n'''
         self.assertTrue(mod.c9_main_canonical_output_bound(good))
         self.assertFalse(mod.c9_main_canonical_output_bound(bypass))
         self.assertFalse(mod.c9_main_canonical_output_bound(dead))
         self.assertFalse(mod.c9_main_canonical_output_bound(split))
         self.assertFalse(mod.c9_main_canonical_output_bound(overwritten))
+        self.assertFalse(mod.c9_main_canonical_output_bound(root_drift))
 
 
 if __name__=="__main__":
