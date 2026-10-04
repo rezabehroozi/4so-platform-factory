@@ -245,8 +245,8 @@ def c9_handoff(source_sha:str,root:Path|None=None)->dict:
         checkout_root=Path(root or Path.cwd()).resolve()
         return {
             "nextActionCode":"RUN_C9_SEAL",
-            "nextCommand":c9_seal_command(checkout_root),
-            "preflightCommand":c9_preflight_command(checkout_root),
+            "nextCommand":c9_seal_command(),
+            "preflightCommand":c9_preflight_command(),
             "workingDirectory":str(checkout_root),
             "requiredHost":"linux-amd64-exact-toolchain",
         }
