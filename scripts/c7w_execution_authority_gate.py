@@ -115,8 +115,18 @@ def validate(root:Path)->list[tuple[str,str]]:
         errors.append(("C7W_EXECUTION_BINDINGS_WIRING_INVALID","scripts/c7w_preflight.py"))
     if 'AUTHORITY="MCP_EXTERNAL_LOCAL_EXECUTION_RUNNER_V1"' not in runner or "def runner_command" not in runner:
         errors.append(("C7W_LOCAL_RUNNER_OWNER_INVALID","scripts/run_mcp_external_interop.py"))
-    if 'AUTHORITY=core.CAMPAIGN_AUTHORITY' not in campaign or "def source_commit_sha" not in campaign:
-        errors.append(("C7W_CAMPAIGN_OWNER_INVALID","scripts/prepare_mcp_external_interop_campaign.py"))
+    campaign_markers=(
+        'AUTHORITY=core.CAMPAIGN_AUTHORITY',
+        "def source_commit_sha",
+        "def execution_binding_snapshot",
+        "def normalize_execution_binding_snapshot",
+        "canonical_execution_binding_required(matrix_path)",
+        "executionBindingsSha256",
+        "MCP_EXTERNAL_CAMPAIGN_EXECUTION_BINDING_DRIFT",
+    )
+    missing=[marker for marker in campaign_markers if marker not in campaign]
+    if missing:
+        errors.append(("C7W_CAMPAIGN_OWNER_INVALID",",".join(missing)))
     if 'AUTHORITY="MCP_EXTERNAL_CLIENT_INTEROPERABILITY_EVIDENCE_V1"' not in seal or "def validate_evidence_only_source_lineage" not in seal:
         errors.append(("C7W_SEAL_OWNER_INVALID","scripts/seal_mcp_external_interop.py"))
     if (
