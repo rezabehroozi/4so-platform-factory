@@ -19,7 +19,7 @@ class C7WExecutionAuthorityGateTests(unittest.TestCase):
         self.write(root,"scripts/c7w_execution_bindings.py",'''AUTHORITY="MCP_EXTERNAL_EXECUTION_BINDINGS_V1"\nDEFAULT_OUTPUT=Path(".state/private/c7w-execution-bindings.json")\ndef validate_document(): pass\ndef canonical_output_path(): pass\ndef materialize(): pass\n# credentialProfileContractSha256\n''')
         self.write(root,"scripts/c7w_credential_profiles.py",'''AUTHORITY="MCP_EXTERNAL_CREDENTIAL_PROFILE_CONTRACT_V1"\ndef contract(): return {}\ndef contract_digest(): return "sha256:"+"0"*64\n''')
         self.write(root,"scripts/c7w_execution_provenance.py",'''EXECUTION_BINDING_AUTHORITY="MCP_EXTERNAL_EXECUTION_BINDINGS_V1"\nCREDENTIAL_PROFILE_CONTRACT_AUTHORITY="MCP_EXTERNAL_CREDENTIAL_PROFILE_CONTRACT_V1"\ndef credential_contract_digest():\n    return credential_profiles.contract_digest()\ndef projection():\n    credential_digest=""\n    if credential_digest!=credential_contract_digest():\n        raise RuntimeError("EXECUTION_BINDING_CREDENTIAL_CONTRACT_INVALID")\ndef validate_rows():\n    # EXECUTION_BINDING_MIXED EXECUTION_BINDING_REQUIRED\n    pass\ndef validate_receipt_execution_binding(): pass\n''')
-        self.write(root,"scripts/run_mcp_external_interop.py",'''AUTHORITY="MCP_EXTERNAL_LOCAL_EXECUTION_RUNNER_V1"\ndef runner_command(): pass\n''')
+        self.write(root,"scripts/run_mcp_external_interop.py",'''AUTHORITY="MCP_EXTERNAL_LOCAL_EXECUTION_RUNNER_V1"\ndef runner_command(): pass\ndef external_client_action():\n    return {"nextActionCode":"RUN_EXTERNAL_CLIENT","nextCommand":[],"nextClientHandoff":{},"postExternalExecutionCommand":[]}\ndef prepare(): return external_client_action()\ndef admit(): return external_client_action()\ndef status(): return external_client_action()\n''')
         self.write(root,"scripts/prepare_mcp_external_interop_campaign.py",'''AUTHORITY=core.CAMPAIGN_AUTHORITY\ndef source_commit_sha(): pass\ndef execution_binding_snapshot(): pass\ndef normalize_execution_binding_snapshot(): pass\ndef prepare(matrix_path):\n    if canonical_execution_binding_required(matrix_path): pass\n# executionBindingsSha256 MCP_EXTERNAL_CAMPAIGN_EXECUTION_BINDING_DRIFT\n''')
         self.write(root,"scripts/seal_mcp_external_interop.py",'''AUTHORITY="MCP_EXTERNAL_CLIENT_INTEROPERABILITY_EVIDENCE_V1"\ndef validate_evidence_only_source_lineage(): pass\ndef validate_receipt_execution_binding(): pass\ndef verify_receipt(row,campaign,client):\n    execution_binding=validate_receipt_execution_binding(row,campaign,client)\n    return {**execution_binding}\ndef build_interop_evidence(rows,source_commit_sha):\n    execution_provenance.validate_rows(rows,source_commit_sha,"MCP_EXTERNAL_EVIDENCE",require_bound=True)\n''')
         self.write(root,"scripts/prepare_mcp_external_client_execution.py",'''AUTHORITY="MCP_EXTERNAL_CLIENT_EXECUTION_PACKET_V1"\ndef _binding_snapshot(): pass\n# executionBindingsSha256 credentialProfileContract\n''')
@@ -80,6 +80,20 @@ class C7WExecutionAuthorityGateTests(unittest.TestCase):
             provenance.write_text(provenance.read_text().replace("credential_profiles.contract_digest()","'sha256:'+('0'*64)"),encoding="utf-8")
             codes=[c for c,_ in mod.validate(root)]
             self.assertIn("C7W_EXECUTION_PROVENANCE_OWNER_INVALID",codes)
+
+    def test_external_action_owner_or_wiring_drift_fails(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); self.good(root)
+            runner=root/"scripts/run_mcp_external_interop.py"
+            runner.write_text(runner.read_text().replace('"nextCommand":[]','"nextCommand":["admit"]'),encoding="utf-8")
+            codes=[c for c,_ in mod.validate(root)]
+            self.assertIn("C7W_LOCAL_RUNNER_EXTERNAL_ACTION_INVALID",codes)
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); self.good(root)
+            runner=root/"scripts/run_mcp_external_interop.py"
+            runner.write_text(runner.read_text().replace('def prepare(): return external_client_action()','def prepare(): return {}'),encoding="utf-8")
+            codes=[c for c,_ in mod.validate(root)]
+            self.assertIn("C7W_LOCAL_RUNNER_EXTERNAL_ACTION_INVALID",codes)
 
 
 if __name__=="__main__": unittest.main()
