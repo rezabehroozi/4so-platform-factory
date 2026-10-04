@@ -20,6 +20,13 @@ CLIENTS=core.CLIENTS
 PREFLIGHT_AUTHORITY=core.CAMPAIGN_PREFLIGHT_AUTHORITY
 OAUTH_BINDING_AUTHORITY=core.OAUTH_BINDING_AUTHORITY
 ROOT=Path(__file__).resolve().parents[1]
+EXECUTION_BINDING_FIELDS=(
+    "executionBindingAuthority",
+    "executionBindingsSha256",
+    "executionBindings",
+    "credentialProfileContractAuthority",
+    "credentialProfileContractSha256",
+)
 
 
 class RejectRedirects(HTTPRedirectHandler):
@@ -57,6 +64,78 @@ def source_commit_sha(explicit:str="")->str:
     if value:
         return value
     raise RuntimeError("MCP_EXTERNAL_SOURCE_COMMIT_UNAVAILABLE")
+
+
+def _execution_bindings_module():
+    try:
+        import c7w_execution_bindings
+    except ModuleNotFoundError:
+        from scripts import c7w_execution_bindings
+    return c7w_execution_bindings
+
+
+def canonical_execution_binding_required(matrix_path:Path)->bool:
+    actual=Path(os.path.abspath(matrix_path))
+    expected=Path(os.path.abspath(ROOT/"lab/mcp-external-client-interop-matrix.json"))
+    return actual==expected
+
+
+def normalize_execution_binding_snapshot(value:object,source_sha:str)->dict:
+    if not isinstance(value,dict) or set(value)!=set(EXECUTION_BINDING_FIELDS):
+        raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_EXECUTION_BINDING_FIELDS_INVALID")
+    source_sha=str(source_sha or "").strip().lower()
+    if not core.COMMIT.fullmatch(source_sha):
+        raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_EXECUTION_BINDING_SOURCE_INVALID")
+    bindings=_execution_bindings_module()
+    document={
+        "authority":value.get("executionBindingAuthority"),
+        "sourceCommitSHA":source_sha,
+        "resources":value.get("executionBindings"),
+        "credentialProfileContractAuthority":value.get("credentialProfileContractAuthority"),
+        "credentialProfileContractSha256":value.get("credentialProfileContractSha256"),
+    }
+    try:
+        normalized=bindings.validate_document(document,source_sha)
+    except RuntimeError as exc:
+        raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_EXECUTION_BINDING_INVALID") from exc
+    raw=(json.dumps(normalized,sort_keys=True,separators=(",",":"),ensure_ascii=False)+"\n").encode("utf-8")
+    expected_digest="sha256:"+hashlib.sha256(raw).hexdigest()
+    if value.get("executionBindingsSha256")!=expected_digest:
+        raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_EXECUTION_BINDING_DIGEST_INVALID")
+    return {
+        "executionBindingAuthority":normalized["authority"],
+        "executionBindingsSha256":expected_digest,
+        "executionBindings":normalized["resources"],
+        "credentialProfileContractAuthority":normalized["credentialProfileContractAuthority"],
+        "credentialProfileContractSha256":normalized["credentialProfileContractSha256"],
+    }
+
+
+def _load_execution_binding_snapshot(source_sha:str)->dict:
+    bindings=_execution_bindings_module()
+    document,digest=bindings.load(ROOT/bindings.DEFAULT_OUTPUT,source_sha)
+    return normalize_execution_binding_snapshot(
+        {
+            "executionBindingAuthority":document["authority"],
+            "executionBindingsSha256":digest,
+            "executionBindings":document["resources"],
+            "credentialProfileContractAuthority":document["credentialProfileContractAuthority"],
+            "credentialProfileContractSha256":document["credentialProfileContractSha256"],
+        },
+        source_sha,
+    )
+
+
+def execution_binding_snapshot(source_sha:str)->dict:
+    return _load_execution_binding_snapshot(source_sha)
+
+
+def _campaign_execution_binding(campaign:dict,source_sha:str)->dict:
+    try:
+        raw={key:campaign[key] for key in EXECUTION_BINDING_FIELDS}
+        return normalize_execution_binding_snapshot(raw,source_sha)
+    except (KeyError,RuntimeError) as exc:
+        raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_EXECUTION_BINDING_DRIFT") from exc
 
 
 def runtime_identity_readback(endpoint_url:str,token_env:str,expected_source_sha:str)->dict:
@@ -214,7 +293,7 @@ def live_preflight(endpoint_url:str)->dict:
     return {"authority":PREFLIGHT_AUTHORITY,"endpoint":ep,"protectedResourceMetadata":metadata_url,"resource":ep,"authorizationServers":[str(x) for x in servers],"scopes":["mcp.read","mcp.operate"],"unauthenticatedStatus":401,"challenge":expected,"protocol":"2026-07-28"}
 
 
-def prepare(matrix_path:Path, endpoint_url:str, preflight:dict, oauth_binding_sha256:str, trusted_clients:dict[str,dict], runtime_identity:dict)->dict:
+def prepare(matrix_path:Path, endpoint_url:str, preflight:dict, oauth_binding_sha256:str, trusted_clients:dict[str,dict], runtime_identity:dict, execution_binding_snapshot:dict|None=None)->dict:
     if matrix_path.is_symlink() or not matrix_path.is_file():
         raise RuntimeError("MCP_EXTERNAL_MATRIX_FILE_INVALID")
     matrix,matrix_sha256=core.load_with_sha256(matrix_path,"MATRIX")
@@ -225,6 +304,11 @@ def prepare(matrix_path:Path, endpoint_url:str, preflight:dict, oauth_binding_sh
     runtime_version=str((runtime_identity or {}).get("version") or "").strip()
     if (runtime_identity or {}).get("authority")!="MCP_EXTERNAL_RUNTIME_SOURCE_IDENTITY_V1" or (runtime_identity or {}).get("product")!="4SO Platform Factory" or not core.COMMIT.fullmatch(source_sha) or not runtime_version:
         raise RuntimeError("MCP_EXTERNAL_RUNTIME_IDENTITY_INVALID")
+    if execution_binding_snapshot is None and canonical_execution_binding_required(matrix_path):
+        execution_binding_snapshot=_load_execution_binding_snapshot(source_sha)
+    normalized_execution_binding={}
+    if execution_binding_snapshot is not None:
+        normalized_execution_binding=normalize_execution_binding_snapshot(execution_binding_snapshot,source_sha)
     max_age=spec.get("campaignMaxAgeSeconds")
     audit_window=spec.get("executionAuditWindowSeconds")
     if type(max_age) is not int or max_age<3600 or max_age>14*24*3600:
@@ -249,15 +333,24 @@ def prepare(matrix_path:Path, endpoint_url:str, preflight:dict, oauth_binding_sh
       "oauthClientBindingAuthority":OAUTH_BINDING_AUTHORITY,"oauthClientBindingsSha256":oauth_binding_sha256,
       "sourceCommitSHA":source_sha,"runtimeVersion":runtime_version,
       "endpoint":endpoint(endpoint_url),"protocol":spec.get("protocol"),"transport":spec.get("transport"),
-      "livePreflight":preflight,"clients":rows,"externalExecutionRequired":True
+      "livePreflight":preflight,"clients":rows,"externalExecutionRequired":True,
+      **normalized_execution_binding,
     }
 
 
-def resume_existing(matrix_path:Path,endpoint_url:str,out_path:Path,source_sha:str)->dict:
+def resume_existing(matrix_path:Path,endpoint_url:str,out_path:Path,source_sha:str,execution_binding_snapshot:dict|None=None)->dict:
     matrix=core.load(matrix_path,"MATRIX"); spec=matrix.get("spec") or {}
     existing=core.verify_campaign(out_path,matrix_path,spec)
     if existing.get("endpoint")!=endpoint(endpoint_url):
         raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_RESUME_ENDPOINT_DRIFT")
+    existing_source=str(existing.get("sourceCommitSHA") or "").strip().lower()
+    if execution_binding_snapshot is None and canonical_execution_binding_required(matrix_path):
+        execution_binding_snapshot=_load_execution_binding_snapshot(existing_source)
+    if execution_binding_snapshot is not None:
+        expected=normalize_execution_binding_snapshot(execution_binding_snapshot,existing_source)
+        observed=_campaign_execution_binding(existing,existing_source)
+        if observed!=expected:
+            raise RuntimeError("MCP_EXTERNAL_CAMPAIGN_EXECUTION_BINDING_DRIFT")
     try:
         core.validate_evidence_only_source_lineage(ROOT,existing.get("sourceCommitSHA"),source_sha,"MCP_EXTERNAL_CAMPAIGN_RESUME")
     except RuntimeError as exc:
@@ -271,14 +364,18 @@ def main()->int:
     matrix=core.load(a.matrix,"MATRIX")
     core.validate_matrix_contract(matrix,"MCP_EXTERNAL_MATRIX")
     if a.out.exists() or a.out.is_symlink():
-        out=resume_existing(a.matrix,a.endpoint,a.out,source_sha); resumed=True
+        preview=core.load(a.out,"MCP_EXTERNAL_CAMPAIGN_RESUME")
+        certified_source=str(preview.get("sourceCommitSHA") or "").strip().lower()
+        execution_snapshot=execution_binding_snapshot(certified_source)
+        out=resume_existing(a.matrix,a.endpoint,a.out,source_sha,execution_binding_snapshot=execution_snapshot); resumed=True
     else:
         if a.oauth_client_map is None:
             raise RuntimeError("MCP_EXTERNAL_OAUTH_BINDINGS_REQUIRED")
         bindings,binding_sha=load_oauth_bindings(a.oauth_client_map)
         runtime_identity=runtime_identity_readback(a.endpoint,a.registry_token_env,source_sha)
         trusted=trusted_client_readback(a.endpoint,bindings,a.registry_token_env)
-        preflight=live_preflight(a.endpoint); out=prepare(a.matrix,a.endpoint,preflight,binding_sha,trusted,runtime_identity)
+        execution_snapshot=execution_binding_snapshot(source_sha)
+        preflight=live_preflight(a.endpoint); out=prepare(a.matrix,a.endpoint,preflight,binding_sha,trusted,runtime_identity,execution_binding_snapshot=execution_snapshot)
         core.write_json_once_or_identical(a.out,out,"MCP_EXTERNAL_CAMPAIGN")
     print(json.dumps({"authority":AUTHORITY,"campaignId":out["campaignId"],"matrixSha256":out["matrixSha256"],"sourceCommitSHA":out["sourceCommitSHA"],"runtimeVersion":out["runtimeVersion"],"endpoint":out["endpoint"],"clients":[x["clientId"] for x in out["clients"]],"resumed":resumed},sort_keys=True))
     return 0
