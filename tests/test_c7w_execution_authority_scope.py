@@ -19,6 +19,17 @@ class C7WExecutionAuthorityScopeTests(unittest.TestCase):
         self.assertIn("PROGRESS_OUTPUT_WIRING_INVALID",errors)
         self.assertIn("EVIDENCE_OUTPUT_WIRING_INVALID",errors)
 
+    def test_canonical_output_wiring_rejects_runtime_branch_split(self):
+        source='''\nCANONICAL_PROGRESS_REL=Path("lab/mcp-external-client-interop-progress.json")\nCANONICAL_EVIDENCE_REL=Path("lab/mcp-external-client-interoperability-evidence.json")\ndef require_canonical_artifact_path(*args): pass\ndef main():\n    if runtime_condition:\n        args.progress_out=require_canonical_artifact_path(root,args.progress_out,CANONICAL_PROGRESS_REL,"PROGRESS")\n    else:\n        args.evidence_out=require_canonical_artifact_path(root,args.evidence_out,CANONICAL_EVIDENCE_REL,"EVIDENCE")\n    return None\n'''
+        errors=mod.canonical_output_contract_errors(source)
+        self.assertIn("PROGRESS_OUTPUT_WIRING_INVALID",errors)
+        self.assertIn("EVIDENCE_OUTPUT_WIRING_INVALID",errors)
+
+    def test_working_directory_wiring_rejects_conditional_projection(self):
+        source='''\ndef main():\n    result={}\n    if runtime_condition:\n        result["workingDirectory"]=str(root)\n    return result\n'''
+        errors=mod.runner_working_directory_contract_errors(source)
+        self.assertIn("RUNNER_WORKING_DIRECTORY_WIRING_INVALID",errors)
+
 
 if __name__=="__main__":
     unittest.main()
