@@ -107,12 +107,17 @@ def validate(root:Path)->list[tuple[str,str]]:
     )
     missing=[marker for marker in execution_markers if marker not in execution]
     if missing: errors.append(("C7W_EXECUTION_BINDINGS_OWNER_INVALID",",".join(missing)))
-    if 'AUTHORITY="MCP_EXTERNAL_CREDENTIAL_PROFILE_CONTRACT_V1"' not in profiles or "def contract" not in profiles:
+    if (
+        'AUTHORITY="MCP_EXTERNAL_CREDENTIAL_PROFILE_CONTRACT_V1"' not in profiles
+        or "def contract" not in profiles
+        or "def contract_digest" not in profiles
+    ):
         errors.append(("C7W_CREDENTIAL_PROFILE_OWNER_INVALID","scripts/c7w_credential_profiles.py"))
     provenance_markers=(
         'EXECUTION_BINDING_AUTHORITY="MCP_EXTERNAL_EXECUTION_BINDINGS_V1"',
         'CREDENTIAL_PROFILE_CONTRACT_AUTHORITY="MCP_EXTERNAL_CREDENTIAL_PROFILE_CONTRACT_V1"',
         "def credential_contract_digest",
+        "credential_profiles.contract_digest()",
         "credential_digest!=credential_contract_digest()",
         "EXECUTION_BINDING_CREDENTIAL_CONTRACT_INVALID",
         "def projection",
