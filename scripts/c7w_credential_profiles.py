@@ -2,6 +2,7 @@
 """Non-secret credential/delegation requirements for real C7W external execution."""
 from __future__ import annotations
 
+import hashlib
 import json
 
 AUTHORITY="MCP_EXTERNAL_CREDENTIAL_PROFILE_CONTRACT_V1"
@@ -64,6 +65,11 @@ def contract()->dict:
         "runtimeCertified":False,
         "physicalCertified":False,
     }
+
+
+def contract_digest()->str:
+    raw=json.dumps(contract(),sort_keys=True,separators=(",",":"),ensure_ascii=False).encode("utf-8")
+    return "sha256:"+hashlib.sha256(raw).hexdigest()
 
 
 def main()->int:
