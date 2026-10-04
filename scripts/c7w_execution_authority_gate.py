@@ -112,6 +112,9 @@ def validate(root:Path)->list[tuple[str,str]]:
     provenance_markers=(
         'EXECUTION_BINDING_AUTHORITY="MCP_EXTERNAL_EXECUTION_BINDINGS_V1"',
         'CREDENTIAL_PROFILE_CONTRACT_AUTHORITY="MCP_EXTERNAL_CREDENTIAL_PROFILE_CONTRACT_V1"',
+        "def credential_contract_digest",
+        "credential_digest!=credential_contract_digest()",
+        "EXECUTION_BINDING_CREDENTIAL_CONTRACT_INVALID",
         "def projection",
         "def validate_rows",
         "def validate_receipt_execution_binding",
@@ -148,6 +151,7 @@ def validate(root:Path)->list[tuple[str,str]]:
         "def validate_receipt_execution_binding",
         "validate_receipt_execution_binding(row,campaign,client)",
         "**execution_binding",
+        'execution_provenance.validate_rows(rows,source_commit_sha,"MCP_EXTERNAL_EVIDENCE",require_bound=True)',
     )
     missing=[marker for marker in seal_markers if marker not in seal]
     if missing:
