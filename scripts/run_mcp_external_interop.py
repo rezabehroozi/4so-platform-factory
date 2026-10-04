@@ -220,7 +220,7 @@ def git_handoff(root:Path,evidence_path:Path,progress_path:Path)->dict:
             "currentSourceCommitSHA":current_sha,
             "detail":str(exc)+"; source changed beyond evidence-only C7W files, so C9 must not use the stale external certification",
         }
-    handoff=c9_handoff(current_sha)
+    handoff=c9_handoff(current_sha,root)
     handoff.update({
         "sourceCommitSHA":current_sha,
         "certifiedSourceCommitSHA":certified_sha,
@@ -234,25 +234,29 @@ def runner_command(state:Path,command:str,*args:str)->list[str]:
     return [sys.executable,"scripts/run_mcp_external_interop.py","--state-dir",str(state),command,*args]
 
 
-def c9_seal_command()->list[str]:
-    return [sys.executable,"scripts/seal_final_exact_release.py","--root",".","--out","lab/final-exact-release-evidence.json"]
-def c9_preflight_command()->list[str]:
-    return [sys.executable,"scripts/c9_preflight.py","--root",".","--preflight"]
-def c9_handoff(source_sha:str)->dict:
-    command=c9_seal_command()
-    preflight=c9_preflight_command()
+def c9_seal_command(root:Path|None=None)->list[str]:
+    root_text=str(Path(root).resolve()) if root is not None else "."
+    return [sys.executable,"scripts/seal_final_exact_release.py","--root",root_text,"--out","lab/final-exact-release-evidence.json"]
+def c9_preflight_command(root:Path|None=None)->list[str]:
+    root_text=str(Path(root).resolve()) if root is not None else "."
+    return [sys.executable,"scripts/c9_preflight.py","--root",root_text,"--preflight"]
+def c9_handoff(source_sha:str,root:Path|None=None)->dict:
     if sys.platform.startswith("linux"):
+        checkout_root=Path(root or Path.cwd()).resolve()
         return {
             "nextActionCode":"RUN_C9_SEAL",
-            "nextCommand":command,
-            "preflightCommand":preflight,
+            "nextCommand":c9_seal_command(checkout_root),
+            "preflightCommand":c9_preflight_command(checkout_root),
+            "workingDirectory":str(checkout_root),
             "requiredHost":"linux-amd64-exact-toolchain",
         }
+    checkout_placeholder="<exact-source-checkout-root>"
     return {
         "nextActionCode":"RUN_C9_ON_EXACT_LINUX_HOST",
         "nextCommand":[],
-        "preflightCommandTemplate":["<python>","scripts/c9_preflight.py","--root",".","--preflight"],
-        "nextCommandTemplate":["<python>","scripts/seal_final_exact_release.py","--root",".","--out","lab/final-exact-release-evidence.json"],
+        "preflightCommandTemplate":["<python>","scripts/c9_preflight.py","--root",checkout_placeholder,"--preflight"],
+        "nextCommandTemplate":["<python>","scripts/seal_final_exact_release.py","--root",checkout_placeholder,"--out","lab/final-exact-release-evidence.json"],
+        "requiredWorkingDirectory":checkout_placeholder,
         "requiredHost":"linux-amd64-exact-toolchain",
         "requiredSourceCommitSHA":source_sha,
         "detail":"C9 is source-ready after C7W, but its admitted Go/CGO lock is Linux/amd64; run the exact committed SHA on a Linux host with the admitted offline toolchain archive rather than weakening the release boundary",
