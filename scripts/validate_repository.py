@@ -1299,6 +1299,85 @@ def validate_upstream_acquisition_toolchain(root: Path, errors: list[tuple[str,s
     return acquisition_toolchain_count
 
 
+def final_exact_release_environment_contract_errors(source: str) -> list[str]:
+    """Validate source-bound C9 release-environment handoff without formatting-sensitive markers."""
+    try:
+        tree = ast.parse(source)
+    except (SyntaxError, ValueError):
+        return ['SEALER_SOURCE_UNPARSEABLE']
+
+    functions = {
+        node.name: node
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+    contract_errors: list[str] = []
+
+    def called_name(call: ast.Call) -> str | None:
+        return call.func.id if isinstance(call.func, ast.Name) else None
+
+    def assigned_names(target: ast.expr) -> list[str]:
+        if isinstance(target, ast.Name):
+            return [target.id]
+        if isinstance(target, (ast.Tuple, ast.List)):
+            return [item.id for item in target.elts if isinstance(item, ast.Name)]
+        return []
+
+    for function_name, prefix in (
+        ('resume_existing_evidence', 'RESUME'),
+        ('execute', 'EXECUTE'),
+    ):
+        function = functions.get(function_name)
+        if function is None:
+            contract_errors.append(f'{prefix}_FUNCTION_MISSING')
+            continue
+
+        source_bound_names: set[str] = set()
+        for node in ast.walk(function):
+            if not isinstance(node, (ast.Assign, ast.AnnAssign)):
+                continue
+            value = node.value
+            if not isinstance(value, ast.Call) or called_name(value) != 'exact_source_toolchain_lock':
+                continue
+            if len(value.args) < 2:
+                continue
+            if not (
+                isinstance(value.args[0], ast.Name)
+                and value.args[0].id == 'root'
+                and isinstance(value.args[1], ast.Name)
+                and value.args[1].id == 'source_sha'
+            ):
+                continue
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            for target in targets:
+                names = assigned_names(target)
+                if names:
+                    source_bound_names.add(names[0])
+
+        if not source_bound_names:
+            contract_errors.append(f'{prefix}_SOURCE_TOOLCHAIN_LOCK_MISSING')
+            continue
+
+        environment_bound = False
+        for node in ast.walk(function):
+            if not isinstance(node, ast.Call) or called_name(node) != 'require_exact_release_environment':
+                continue
+            for keyword in node.keywords:
+                if (
+                    keyword.arg == 'toolchain_lock'
+                    and isinstance(keyword.value, ast.Name)
+                    and keyword.value.id in source_bound_names
+                ):
+                    environment_bound = True
+                    break
+            if environment_bound:
+                break
+        if not environment_bound:
+            contract_errors.append(f'{prefix}_ENVIRONMENT_TOOLCHAIN_LOCK_MISSING')
+
+    return contract_errors
+
+
 def validate_release_build_toolchain(root: Path, version: str, errors: list[tuple[str,str]]) -> None:
     """Release compiler authority is distinct from upstream acquisition; a blocked lock is truthful but not closure."""
     # Release compiler/toolchain authority is distinct from upstream acquisition tools.
@@ -1400,9 +1479,10 @@ def validate_release_build_toolchain(root: Path, version: str, errors: list[tupl
             errors.append(('FINAL_EXACT_RELEASE_NATIVE_BUILDER_MISSING','scripts/build_release_binaries.py'))
         if '["make", "build-release"' in seal_text:
             errors.append(('FINAL_EXACT_RELEASE_MAKE_AUTHORITY_FORBIDDEN','make build-release'))
+        for contract_error in final_exact_release_environment_contract_errors(seal_text):
+            errors.append(('FINAL_EXACT_RELEASE_ENVIRONMENT_PREFLIGHT_INVALID',contract_error))
         for marker in (
             'FINAL_EXACT_RELEASE_ENVIRONMENT_PREFLIGHT_V1',
-            'require_exact_release_environment(root)',
             'UI_BROWSER_AUTHORITY_MISSING',
             'toolchainArchiveReady',
             'browserAuthorityReady',
