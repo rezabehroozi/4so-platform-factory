@@ -10,6 +10,7 @@ ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/"scripts"))
 SPEC=importlib.util.spec_from_file_location("seal_mcp_external_interop_receipt_provenance",ROOT/"scripts"/"seal_mcp_external_interop.py")
 core=importlib.util.module_from_spec(SPEC); SPEC.loader.exec_module(core)
+import c7w_execution_bindings as execution_bindings
 
 
 class C7WReceiptExecutionBindingProvenanceTests(unittest.TestCase):
@@ -24,7 +25,7 @@ class C7WReceiptExecutionBindingProvenanceTests(unittest.TestCase):
                 "selfApprovalRequestId":"self-approval-request",
             },
             "credentialProfileContractAuthority":"MCP_EXTERNAL_CREDENTIAL_PROFILE_CONTRACT_V1",
-            "credentialProfileContractSha256":"sha256:"+"2"*64,
+            "credentialProfileContractSha256":execution_bindings.credential_contract_digest(),
         }
         raw=(json.dumps(document,sort_keys=True,separators=(",",":"),ensure_ascii=False)+"\n").encode("utf-8")
         projection={
@@ -44,6 +45,22 @@ class C7WReceiptExecutionBindingProvenanceTests(unittest.TestCase):
         drift=dict(receipt,executionBindingsSha256="sha256:"+"9"*64)
         with self.assertRaisesRegex(RuntimeError,"EXECUTION_BINDING_DRIFT"):
             core.validate_receipt_execution_binding(drift,campaign,"chatgpt")
+
+    def test_rehashed_wrong_credential_contract_digest_is_rejected(self):
+        source,projection=self.projection()
+        tampered=dict(projection)
+        tampered["credentialProfileContractSha256"]="sha256:"+"9"*64
+        document={
+            "authority":tampered["executionBindingAuthority"],
+            "sourceCommitSHA":source,
+            "resources":tampered["executionBindings"],
+            "credentialProfileContractAuthority":tampered["credentialProfileContractAuthority"],
+            "credentialProfileContractSha256":tampered["credentialProfileContractSha256"],
+        }
+        raw=(json.dumps(document,sort_keys=True,separators=(",",":"),ensure_ascii=False)+"\n").encode("utf-8")
+        tampered["executionBindingsSha256"]="sha256:"+hashlib.sha256(raw).hexdigest()
+        with self.assertRaisesRegex(RuntimeError,"CREDENTIAL_CONTRACT"):
+            core.execution_provenance.projection(tampered,source,"MCP_EXTERNAL_INTEROP_CHATGPT")
 
     def test_legacy_unbound_fixture_remains_compatible_but_partial_projection_is_rejected(self):
         source,_=self.projection()
