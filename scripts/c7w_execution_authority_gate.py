@@ -60,6 +60,57 @@ def direct_git_calls_without_env(source:str)->list[int]:
     return missing
 
 
+def external_client_action_contract_errors(source:str)->list[str]:
+    try:
+        tree=ast.parse(source)
+    except (SyntaxError,ValueError):
+        return ["RUNNER_SYNTAX_INVALID"]
+    functions={node.name:node for node in tree.body if isinstance(node,ast.FunctionDef)}
+    helper=functions.get("external_client_action")
+    if helper is None:
+        return ["EXTERNAL_ACTION_OWNER_MISSING"]
+    mappings=[]
+    for node in ast.walk(helper):
+        if not isinstance(node,ast.Return) or not isinstance(node.value,ast.Dict):
+            continue
+        current={}
+        for key,value in zip(node.value.keys,node.value.values):
+            if isinstance(key,ast.Constant) and isinstance(key.value,str):
+                current[key.value]=value
+        mappings.append(current)
+    valid_shape=False
+    for mapping in mappings:
+        action=mapping.get("nextActionCode")
+        command=mapping.get("nextCommand")
+        if (
+            isinstance(action,ast.Constant)
+            and action.value=="RUN_EXTERNAL_CLIENT"
+            and isinstance(command,ast.List)
+            and not command.elts
+            and "nextClientHandoff" in mapping
+            and "postExternalExecutionCommand" in mapping
+        ):
+            valid_shape=True
+            break
+    errors=[]
+    if not valid_shape:
+        errors.append("EXTERNAL_ACTION_SHAPE_INVALID")
+    for owner in ("prepare","admit","status"):
+        fn=functions.get(owner)
+        if fn is None:
+            errors.append(f"{owner.upper()}_OWNER_MISSING")
+            continue
+        wired=any(
+            isinstance(node,ast.Call)
+            and isinstance(node.func,ast.Name)
+            and node.func.id=="external_client_action"
+            for node in ast.walk(fn)
+        )
+        if not wired:
+            errors.append(f"{owner.upper()}_EXTERNAL_ACTION_WIRING_INVALID")
+    return errors
+
+
 def validate(root:Path)->list[tuple[str,str]]:
     root=root.resolve(); errors:list[tuple[str,str]]=[]
     source={rel:read(root,rel,errors) for rel in REQUIRED_FILES}
@@ -138,6 +189,9 @@ def validate(root:Path)->list[tuple[str,str]]:
         errors.append(("C7W_EXECUTION_BINDINGS_WIRING_INVALID","scripts/c7w_preflight.py"))
     if 'AUTHORITY="MCP_EXTERNAL_LOCAL_EXECUTION_RUNNER_V1"' not in runner or "def runner_command" not in runner:
         errors.append(("C7W_LOCAL_RUNNER_OWNER_INVALID","scripts/run_mcp_external_interop.py"))
+    external_action_errors=external_client_action_contract_errors(runner)
+    if external_action_errors:
+        errors.append(("C7W_LOCAL_RUNNER_EXTERNAL_ACTION_INVALID",",".join(external_action_errors)))
     campaign_markers=(
         'AUTHORITY=core.CAMPAIGN_AUTHORITY',
         "def source_commit_sha",
