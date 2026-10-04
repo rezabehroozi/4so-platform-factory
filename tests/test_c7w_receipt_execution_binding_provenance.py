@@ -1,3 +1,4 @@
+import ast
 import hashlib
 import importlib.util
 import json
@@ -74,6 +75,31 @@ class C7WReceiptExecutionBindingProvenanceTests(unittest.TestCase):
             core.execution_provenance.validate_rows(
                 [{"clientId":"chatgpt"},{"clientId":"claude"}],source,"MCP_EXTERNAL_INTEROP",require_bound=True,
             )
+
+    def test_final_exact_release_verify_requires_bound_execution_provenance(self):
+        source=(ROOT/"scripts"/"final_exact_release_admission.py").read_text(encoding="utf-8")
+        tree=ast.parse(source)
+        verify=next(node for node in tree.body if isinstance(node,ast.FunctionDef) and node.name=="verify")
+        calls=[]
+        for node in ast.walk(verify):
+            if not isinstance(node,ast.Call) or not isinstance(node.func,ast.Attribute):
+                continue
+            owner=node.func.value
+            if isinstance(owner,ast.Name) and owner.id=="execution_provenance" and node.func.attr=="validate_rows":
+                calls.append(node)
+        self.assertTrue(calls,"C9 verify must validate persisted C7W execution provenance")
+        self.assertTrue(
+            any(
+                any(
+                    keyword.arg=="require_bound"
+                    and isinstance(keyword.value,ast.Constant)
+                    and keyword.value.value is True
+                    for keyword in call.keywords
+                )
+                for call in calls
+            ),
+            "C9 verify must reject final evidence without execution provenance",
+        )
 
     def test_finalizer_and_verifier_carry_nested_execution_binding_provenance(self):
         finalizer=(ROOT/"scripts"/"finalize_mcp_external_client_receipt.py").read_text(encoding="utf-8")
