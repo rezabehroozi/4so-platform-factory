@@ -123,9 +123,8 @@ class C7WCampaignExecutionBindingSnapshotTests(unittest.TestCase):
         self.assertIn("c7w_execution_bindings", campaign_source)
         self.assertIn("execution_binding_snapshot(source_sha)", campaign_source)
         self.assertIn("execution_binding_snapshot=execution_snapshot", campaign_source)
-        self.assertIn("execution_binding_snapshot(source_sha)", runner_source)
-        self.assertIn("execution_binding_snapshot=execution_snapshot", runner_source)
-        self.assertIn("require_execution_binding=True", runner_source)
+        self.assertIn("canonical_execution_binding_required(matrix_path)", campaign_source)
+        self.assertIn("require_canonical_matrix(root,args.matrix)", runner_source)
 
 
 if __name__ == "__main__":
