@@ -36,6 +36,13 @@ class ProjectRuntimeGitEnvironmentAuthorityTests(unittest.TestCase):
             self.assertEqual(source_head,observed["head"])
             self.assertEqual("main",observed["branch"])
 
+    def test_runtime_git_rejects_repository_subdirectory_as_root(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); self.repo(root,"source")
+            child=root/"child"; child.mkdir()
+            with self.assertRaisesRegex(RuntimeError,"GIT_ROOT_INVALID"):
+                mod.git(child)
+
     def test_clean_git_env_removes_all_git_prefixed_variables(self):
         with mock.patch.dict(os.environ,{"GIT_DIR":"/tmp/decoy","GIT_WORK_TREE":"/tmp/decoy","GIT_CONFIG_COUNT":"1","SAFE_RUNTIME":"yes"},clear=False):
             env=mod.clean_git_env()
