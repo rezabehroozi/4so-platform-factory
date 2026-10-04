@@ -74,6 +74,31 @@ def projection(value:object,source_sha:str,label:str)->dict:
     }
 
 
+def validate_rows(rows:object,source_sha:str,label:str,*,require_bound:bool=False)->dict:
+    if not isinstance(rows,list):
+        raise RuntimeError(f"{label}_EXECUTION_BINDING_ROWS_INVALID")
+    mode=None
+    expected=None
+    for index,row in enumerate(rows):
+        if not isinstance(row,dict):
+            raise RuntimeError(f"{label}_EXECUTION_BINDING_ROWS_INVALID")
+        client=str(row.get("clientId") or index).strip().upper()
+        current=projection(row,source_sha,f"{label}_{client}")
+        bound=bool(current)
+        if mode is None:
+            mode=bound
+        elif mode is not bound:
+            raise RuntimeError(f"{label}_EXECUTION_BINDING_MIXED")
+        if current:
+            if expected is None:
+                expected=current
+            elif current!=expected:
+                raise RuntimeError(f"{label}_EXECUTION_BINDING_DRIFT")
+    if require_bound and not expected:
+        raise RuntimeError(f"{label}_EXECUTION_BINDING_REQUIRED")
+    return expected or {}
+
+
 def validate_receipt_execution_binding(row:object,campaign:object,client:str)->dict:
     client=str(client or "").strip().upper() or "UNKNOWN"
     if not isinstance(campaign,dict):
