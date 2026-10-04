@@ -13,6 +13,7 @@ class ReleaseToolAuthorityGateContractTests(unittest.TestCase):
             "RELEASE_BINARY_TARGET_SET_INVALID",
             "RELEASE_PACKAGER_BINARY_SET_INVALID",
             "RELEASE_VERIFIER_BINARY_SET_INVALID",
+            "FINAL_EXACT_RELEASE_PREFLIGHT_HANDOFF_INVALID",
         ):
             self.assertIn(code,gate)
         for marker in (
@@ -32,6 +33,9 @@ class ReleaseToolAuthorityGateContractTests(unittest.TestCase):
             "MCP_EXTERNAL_INTEROP_PENDING",
             "RUN_C7W_PREFLIGHT",
             "admissionReady",
+            "bind_execution_context",
+            "requiredWorkingDirectory",
+            "<exact-source-checkout-root>",
         ):
             self.assertIn(marker,gate)
 
