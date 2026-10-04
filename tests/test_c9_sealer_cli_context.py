@@ -45,6 +45,17 @@ class C9SealerCLIContextTests(unittest.TestCase):
         self.assertEqual(str(root),result["workingDirectory"])
         self.assertEqual("COMMIT_C9_EVIDENCE",result["nextActionCode"])
 
+    def test_main_rejects_noncanonical_evidence_output_before_execution(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td).resolve()
+            alternate=root/"lab/alternate-final-evidence.json"
+            with (
+                mock.patch.object(sys,"argv",["seal_final_exact_release.py","--root",str(root),"--out",str(alternate)]),
+                mock.patch.object(mod,"execute",side_effect=AssertionError("execute must not run for noncanonical output")),
+            ):
+                with self.assertRaisesRegex(RuntimeError,"FINAL_EXACT_RELEASE_OUTPUT_PATH_INVALID"):
+                    mod.main()
+
 
 if __name__=="__main__":
     unittest.main()
