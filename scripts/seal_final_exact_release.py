@@ -1090,8 +1090,9 @@ def execute(root: Path, out: Path) -> dict:
 
 def canonical_preflight_exit_code(root:Path)->int:
     root=root.resolve()
+    canonical=Path(__file__).resolve().with_name("c9_preflight.py")
     proc=subprocess.run(
-        [sys.executable,"scripts/c9_preflight.py","--root",str(root),"--preflight"],
+        [sys.executable,str(canonical),"--root",str(root),"--preflight"],
         cwd=root,
         env=clean_git_env(),
         stdout=None,
