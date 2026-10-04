@@ -207,23 +207,43 @@ def canonical_output_contract_errors(source:str)->list[str]:
     if main is None:
         errors.append("MAIN_OWNER_MISSING")
         return errors
-    guarded={}
-    for node in function_scope_nodes(main):
-        if not isinstance(node,ast.Assign) or len(node.targets)!=1 or not isinstance(node.targets[0],ast.Attribute):
+    guarded={"progress_out":False,"evidence_out":False}
+    for node in main.body:
+        if isinstance(node,(ast.Return,ast.Raise)):
+            break
+        if not isinstance(node,ast.Assign) or len(node.targets)!=1:
             continue
         target=node.targets[0]
-        if not isinstance(target.value,ast.Name) or target.value.id!="args" or target.attr not in ("progress_out","evidence_out"):
+        if not (
+            isinstance(target,ast.Attribute)
+            and isinstance(target.value,ast.Name)
+            and target.value.id=="args"
+            and target.attr in guarded
+        ):
             continue
+        attr=target.attr
         call=node.value
-        if not isinstance(call,ast.Call) or not isinstance(call.func,ast.Name) or call.func.id!="require_canonical_artifact_path" or len(call.args)<4:
-            continue
-        rel=call.args[2]
-        label=call.args[3]
-        if isinstance(rel,ast.Name) and isinstance(label,ast.Constant) and isinstance(label.value,str):
-            guarded[target.attr]=(rel.id,label.value)
-    if guarded.get("progress_out")!=("CANONICAL_PROGRESS_REL","PROGRESS"):
+        expected_rel="CANONICAL_PROGRESS_REL" if attr=="progress_out" else "CANONICAL_EVIDENCE_REL"
+        expected_label="PROGRESS" if attr=="progress_out" else "EVIDENCE"
+        guarded[attr]=(
+            isinstance(call,ast.Call)
+            and isinstance(call.func,ast.Name)
+            and call.func.id=="require_canonical_artifact_path"
+            and len(call.args)>=4
+            and isinstance(call.args[0],ast.Name)
+            and call.args[0].id=="root"
+            and isinstance(call.args[1],ast.Attribute)
+            and isinstance(call.args[1].value,ast.Name)
+            and call.args[1].value.id=="args"
+            and call.args[1].attr==attr
+            and isinstance(call.args[2],ast.Name)
+            and call.args[2].id==expected_rel
+            and isinstance(call.args[3],ast.Constant)
+            and call.args[3].value==expected_label
+        )
+    if not guarded["progress_out"]:
         errors.append("PROGRESS_OUTPUT_WIRING_INVALID")
-    if guarded.get("evidence_out")!=("CANONICAL_EVIDENCE_REL","EVIDENCE"):
+    if not guarded["evidence_out"]:
         errors.append("EVIDENCE_OUTPUT_WIRING_INVALID")
     return errors
 
@@ -236,10 +256,17 @@ def runner_working_directory_contract_errors(source:str)->list[str]:
     main=next((node for node in tree.body if isinstance(node,ast.FunctionDef) and node.name=="main"),None)
     if main is None:
         return ["MAIN_OWNER_MISSING"]
-    for node in function_scope_nodes(main):
+    working_valid=False
+    for node in main.body:
+        if isinstance(node,(ast.Return,ast.Raise)):
+            break
         if not isinstance(node,ast.Assign) or len(node.targets)!=1:
             continue
         target=node.targets[0]
+        value=node.value
+        if isinstance(target,ast.Name) and target.id=="result":
+            working_valid=False
+            continue
         if not (
             isinstance(target,ast.Subscript)
             and isinstance(target.value,ast.Name)
@@ -248,17 +275,15 @@ def runner_working_directory_contract_errors(source:str)->list[str]:
             and target.slice.value=="workingDirectory"
         ):
             continue
-        value=node.value
-        if (
+        working_valid=(
             isinstance(value,ast.Call)
             and isinstance(value.func,ast.Name)
             and value.func.id=="str"
             and len(value.args)==1
             and isinstance(value.args[0],ast.Name)
             and value.args[0].id=="root"
-        ):
-            return []
-    return ["RUNNER_WORKING_DIRECTORY_WIRING_INVALID"]
+        )
+    return [] if working_valid else ["RUNNER_WORKING_DIRECTORY_WIRING_INVALID"]
 
 
 def validate(root:Path)->list[tuple[str,str]]:
