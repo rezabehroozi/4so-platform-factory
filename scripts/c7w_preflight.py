@@ -27,10 +27,13 @@ EVIDENCE_REL=Path("lab/mcp-external-client-interoperability-evidence.json")
 
 
 def git_source_commit(root:Path)->str:
-    root=Path(os.path.abspath(root))
-    proc=subprocess.run(["git","rev-parse","HEAD"],cwd=root,env=runner.clean_git_env(),text=True,capture_output=True,check=False)
+    root=Path(os.path.abspath(root)); git_env=runner.clean_git_env()
+    top=subprocess.run(["git","rev-parse","--show-toplevel"],cwd=root,env=git_env,text=True,capture_output=True,check=False)
+    if top.returncode!=0 or Path(top.stdout.strip()).resolve()!=root:
+        raise RuntimeError("MCP_EXTERNAL_LOCAL_SOURCE_REPOSITORY_INVALID")
+    proc=subprocess.run(["git","rev-parse","HEAD"],cwd=root,env=git_env,text=True,capture_output=True,check=False)
     value=proc.stdout.strip().lower() if proc.returncode==0 else ""
-    if not core.COMMIT.fullmatch(value): raise RuntimeError("MCP_EXTERNAL_SOURCE_COMMIT_UNAVAILABLE")
+    if not core.COMMIT.fullmatch(value): raise RuntimeError("MCP_EXTERNAL_LOCAL_SOURCE_REPOSITORY_INVALID")
     return value
 
 
@@ -152,6 +155,8 @@ def preflight(root:Path,matrix:Path,endpoint:str,oauth_client_map:Path|None,toke
     if existing is not None: return existing
     missing=_missing_inputs(endpoint,oauth_client_map,token_env)
     if missing:
+        try: git_source_commit(root)
+        except RuntimeError: return _failure("MCP_EXTERNAL_LOCAL_SOURCE_REPOSITORY_INVALID")
         if missing==["C7W_OAUTH_CLIENT_MAP"]:
             out=_base(ready=False,blockers=["MCP_EXTERNAL_PREFLIGHT_OAUTH_BINDINGS_MISSING"]); out.update({"workingDirectory":str(root),"nextActionCode":"PREPARE_C7W_OAUTH_BINDINGS","requiredInputs":list(OAUTH_CLIENT_ID_INPUTS),"nextCommand":oauth_binding_materializer_command(root,endpoint,token_env),"outputPath":str(DEFAULT_OAUTH_BINDING_REL),"detail":"materialize the private four-client OAuth binding document from the already-provisioned client IDs; values stay in environment/private state and are never emitted"}); return out
         out=_base(ready=False,blockers=["MCP_EXTERNAL_PREFLIGHT_INPUTS_MISSING"]); out.update({"nextActionCode":"PROVIDE_C7W_INPUTS","requiredInputs":missing,"detail":"provide only the missing C7W endpoint/OAuth/admin-token inputs; token values are never emitted"}); return out
