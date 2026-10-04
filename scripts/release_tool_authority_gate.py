@@ -207,8 +207,31 @@ def ordered_calls_on_same_path(source:str,function_name:str,names:tuple[str,...]
             calls.extend(calls_in_eval_order(child))
         return calls
 
+    def contains_target_call(node)->bool:
+        return any(name in positions for name in calls_in_eval_order(node))
+
+    def has_conditional_target_call(node)->bool:
+        if node is None:
+            return False
+        for candidate in ast.walk(node):
+            if isinstance(candidate,ast.BoolOp):
+                if any(contains_target_call(value) for value in candidate.values[1:]):
+                    return True
+            elif isinstance(candidate,ast.IfExp):
+                if contains_target_call(candidate.body) or contains_target_call(candidate.orelse):
+                    return True
+            elif isinstance(candidate,ast.Compare) and len(candidate.ops)>1:
+                if any(contains_target_call(value) for value in candidate.comparators[1:]):
+                    return True
+            elif isinstance(candidate,(ast.ListComp,ast.SetComp,ast.DictComp,ast.GeneratorExp)):
+                if contains_target_call(candidate):
+                    return True
+        return False
+
     def advance(state:int,node)->int:
         nonlocal invalid,completed
+        if has_conditional_target_call(node):
+            invalid=True
         for name in calls_in_eval_order(node):
             index=positions.get(name)
             if index is None:
