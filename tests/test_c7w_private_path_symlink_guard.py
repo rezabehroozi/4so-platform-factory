@@ -5,7 +5,7 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 OWNERS=(
     ("scripts/reconcile_c7w_trusted_clients.py","_private_oauth_map"),
-    ("scripts/c7w_preflight.py","private_input_path"),
+    ("scripts/c7w_preflight.py","private_path"),
 )
 
 
