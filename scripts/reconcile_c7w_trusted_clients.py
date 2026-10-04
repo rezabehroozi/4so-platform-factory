@@ -73,7 +73,7 @@ def _private_oauth_map(root:Path,path:Path)->Path:
     for candidate in (absolute,*absolute.parents):
         if candidate==root:
             break
-        if candidate.exists() and candidate.is_symlink():
+        if candidate.is_symlink():
             raise RuntimeError("MCP_EXTERNAL_PRIVATE_INPUT_PATH_INVALID")
         if candidate==boundary:
             break
