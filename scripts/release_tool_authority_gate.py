@@ -78,6 +78,30 @@ def direct_git_calls_without_env(source:str)->list[int]:
     return missing
 
 
+def function_scope_nodes(function:ast.FunctionDef|ast.AsyncFunctionDef):
+    """Walk runtime expressions in one function without attributing nested function bodies to it."""
+    def visit(node):
+        yield node
+        if isinstance(node,(ast.FunctionDef,ast.AsyncFunctionDef)) and node is not function:
+            for decorator in node.decorator_list:
+                yield from visit(decorator)
+            for default in (*node.args.defaults,*node.args.kw_defaults):
+                if default is not None:
+                    yield from visit(default)
+            if node.returns is not None:
+                yield from visit(node.returns)
+            return
+        if isinstance(node,ast.Lambda):
+            for default in (*node.args.defaults,*node.args.kw_defaults):
+                if default is not None:
+                    yield from visit(default)
+            return
+        for child in ast.iter_child_nodes(node):
+            yield from visit(child)
+    for statement in function.body:
+        yield from visit(statement)
+
+
 def function_call_lines(source:str,function_name:str)->dict[str,int]:
     try:
         tree=ast.parse(source)
@@ -87,7 +111,7 @@ def function_call_lines(source:str,function_name:str)->dict[str,int]:
     if fn is None:
         return {}
     calls:dict[str,int]={}
-    for node in ast.walk(fn):
+    for node in function_scope_nodes(fn):
         if not isinstance(node,ast.Call):
             continue
         name=""
