@@ -155,8 +155,14 @@ def preflight(root:Path,matrix:Path,endpoint:str,oauth_client_map:Path|None,toke
     if existing is not None: return existing
     missing=_missing_inputs(endpoint,oauth_client_map,token_env)
     if missing:
-        try: git_source_commit(root)
-        except RuntimeError: return _failure("MCP_EXTERNAL_LOCAL_SOURCE_REPOSITORY_INVALID")
+        try:
+            git_source_commit(root)
+            runner.require_c7w_source_freeze(root)
+        except RuntimeError as exc:
+            code=str(exc).split()[0] if str(exc).strip() else "MCP_EXTERNAL_LOCAL_SOURCE_REPOSITORY_INVALID"
+            if code=="MCP_EXTERNAL_LOCAL_GIT_ROOT_INVALID":
+                code="MCP_EXTERNAL_LOCAL_SOURCE_REPOSITORY_INVALID"
+            return _failure(code)
         if missing==["C7W_OAUTH_CLIENT_MAP"]:
             out=_base(ready=False,blockers=["MCP_EXTERNAL_PREFLIGHT_OAUTH_BINDINGS_MISSING"]); out.update({"workingDirectory":str(root),"nextActionCode":"PREPARE_C7W_OAUTH_BINDINGS","requiredInputs":list(OAUTH_CLIENT_ID_INPUTS),"nextCommand":oauth_binding_materializer_command(root,endpoint,token_env),"outputPath":str(DEFAULT_OAUTH_BINDING_REL),"detail":"materialize the private four-client OAuth binding document from the already-provisioned client IDs; values stay in environment/private state and are never emitted"}); return out
         out=_base(ready=False,blockers=["MCP_EXTERNAL_PREFLIGHT_INPUTS_MISSING"]); out.update({"nextActionCode":"PROVIDE_C7W_INPUTS","requiredInputs":missing,"detail":"provide only the missing C7W endpoint/OAuth/admin-token inputs; token values are never emitted"}); return out
