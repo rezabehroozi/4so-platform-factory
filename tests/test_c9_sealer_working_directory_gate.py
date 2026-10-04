@@ -16,23 +16,27 @@ class C9SealerWorkingDirectoryGateTests(unittest.TestCase):
         source='''\ndef main():\n    root=args.root.resolve()\n    result={}\n    result["workingDirectory"]=str(root)\n    return result\n'''
         self.assertTrue(mod.c9_main_working_directory_bound(source))
 
-    def test_rejects_unbound_dead_or_branch_split_projection(self):
+    def test_rejects_unbound_dead_branch_split_or_overwritten_projection(self):
         unbound='''\ndef main():\n    root=args.root\n    result={}\n    result["workingDirectory"]=str(root)\n    return result\n'''
         dead='''\ndef main():\n    root=args.root.resolve()\n    result={}\n    if False:\n        result["workingDirectory"]=str(root)\n    def ignored():\n        result["workingDirectory"]=str(root)\n    return result\n'''
         split='''\ndef main():\n    result={}\n    if runtime_condition:\n        root=args.root.resolve()\n    else:\n        result["workingDirectory"]=str(root)\n    return result\n'''
+        overwritten='''\ndef main():\n    root=args.root.resolve()\n    root=args.root\n    result={}\n    result["workingDirectory"]=str(root)\n    return result\n'''
         self.assertFalse(mod.c9_main_working_directory_bound(unbound))
         self.assertFalse(mod.c9_main_working_directory_bound(dead))
         self.assertFalse(mod.c9_main_working_directory_bound(split))
+        self.assertFalse(mod.c9_main_working_directory_bound(overwritten))
 
     def test_requires_canonical_output_before_execute_on_same_path(self):
         good='''\ndef main():\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,out)\n    return evidence\n'''
         bypass='''\ndef main():\n    root=args.root.resolve()\n    evidence=execute(root,args.out)\n    return evidence\n'''
         dead='''\ndef main():\n    root=args.root.resolve()\n    if False:\n        out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,args.out)\n    return evidence\n'''
         split='''\ndef main():\n    root=args.root.resolve()\n    if runtime_condition:\n        out=canonical_cli_output_path(root,args.out)\n    else:\n        evidence=execute(root,out)\n    return evidence\n'''
+        overwritten='''\ndef main():\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    out=args.out\n    evidence=execute(root,out)\n    return evidence\n'''
         self.assertTrue(mod.c9_main_canonical_output_bound(good))
         self.assertFalse(mod.c9_main_canonical_output_bound(bypass))
         self.assertFalse(mod.c9_main_canonical_output_bound(dead))
         self.assertFalse(mod.c9_main_canonical_output_bound(split))
+        self.assertFalse(mod.c9_main_canonical_output_bound(overwritten))
 
 
 if __name__=="__main__":
