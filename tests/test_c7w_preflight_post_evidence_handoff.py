@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import subprocess
 import sys
 import tempfile
@@ -17,7 +18,7 @@ class C7WPostEvidencePreflightTests(unittest.TestCase):
     def git(self,root,*args):
         return subprocess.run(["git",*args],cwd=root,text=True,capture_output=True,check=True).stdout.strip()
 
-    def test_final_evidence_handoff_precedes_missing_current_head_private_state(self):
+    def test_final_evidence_without_private_state_requires_revalidation_recovery(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td)
             self.git(root,"init","-b","main")
@@ -26,29 +27,24 @@ class C7WPostEvidencePreflightTests(unittest.TestCase):
             (root/"seed.txt").write_text("seed\n",encoding="utf-8")
             self.git(root,"add","seed.txt")
             self.git(root,"commit","-m","seed")
+            source_sha=self.git(root,"rev-parse","HEAD")
             lab=root/"lab"; lab.mkdir()
             progress=lab/"mcp-external-client-interop-progress.json"
             evidence=lab/"mcp-external-client-interoperability-evidence.json"
-            progress.write_text("{}\n",encoding="utf-8")
-            evidence.write_text("{}\n",encoding="utf-8")
-            expected={
-                "nextActionCode":"RUN_C9_SEAL",
-                "nextCommand":[sys.executable,"scripts/seal_final_exact_release.py","--root",".","--out","lab/final-exact-release-evidence.json"],
-                "sourceCommitSHA":self.git(root,"rev-parse","HEAD"),
-                "certifiedSourceCommitSHA":"a"*40,
-                "detail":"ready for exact C9 seal",
-            }
+            progress.write_text(json.dumps({"sourceCommitSHA":source_sha})+"\n",encoding="utf-8")
+            evidence.write_text(json.dumps({"sourceCommitSHA":source_sha})+"\n",encoding="utf-8")
             with (
-                mock.patch.object(mod.runner,"git_handoff",return_value=expected) as handoff,
-                mock.patch.object(mod.campaign,"live_preflight",side_effect=AssertionError("network must not run after final C7W evidence")),
+                mock.patch.object(mod.runner,"git_handoff",side_effect=AssertionError("final handoff must not bypass private-state bulk revalidation")),
+                mock.patch.object(mod.campaign,"live_preflight",side_effect=AssertionError("network must not run while recovering persisted final evidence")),
             ):
                 out=mod.preflight(root,ROOT/"lab/mcp-external-client-interop-matrix.json","",None,"C7W_PLATFORM_ADMIN_TOKEN")
-            handoff.assert_called_once_with(root.resolve(),evidence,progress)
-            self.assertTrue(out["ready"])
-            self.assertEqual("RUN_C9_SEAL",out["nextActionCode"])
-            self.assertEqual(expected["nextCommand"],out["nextCommand"])
-            self.assertNotEqual("RESTORE_C7W_LOCAL_STATE",out["nextActionCode"])
-            self.assertEqual([],out["requiredInputs"])
+            self.assertFalse(out["ready"])
+            self.assertEqual("RESTORE_C7W_LOCAL_STATE",out["nextActionCode"])
+            self.assertEqual(str(root.resolve()),out["workingDirectory"])
+            self.assertEqual(source_sha,out["sourceCommitSHA"])
+            self.assertIn("mcp-external-client-interop-progress.json",out["nextCommand"])
+            self.assertIn("mcp-external-client-interoperability-evidence.json",out["nextCommand"])
+            self.assertIn("MCP_EXTERNAL_LOCAL_STATE_MISSING_WITH_CANONICAL_EVIDENCE",out["blockers"])
             self.assertFalse(out["physicalCertified"])
 
     def test_partial_progress_without_final_evidence_still_requires_local_state(self):
@@ -60,9 +56,10 @@ class C7WPostEvidencePreflightTests(unittest.TestCase):
             (root/"seed.txt").write_text("seed\n",encoding="utf-8")
             self.git(root,"add","seed.txt")
             self.git(root,"commit","-m","seed")
+            source_sha=self.git(root,"rev-parse","HEAD")
             lab=root/"lab"; lab.mkdir()
             progress=lab/"mcp-external-client-interop-progress.json"
-            progress.write_text("{}\n",encoding="utf-8")
+            progress.write_text(json.dumps({"sourceCommitSHA":source_sha})+"\n",encoding="utf-8")
             with mock.patch.object(mod.runner,"git_handoff",side_effect=AssertionError("final handoff must not run for progress-only state")):
                 out=mod.preflight(root,ROOT/"lab/mcp-external-client-interop-matrix.json","",None,"C7W_PLATFORM_ADMIN_TOKEN")
             self.assertFalse(out["ready"])
