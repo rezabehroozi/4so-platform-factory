@@ -326,6 +326,17 @@ def assignment_target_nodes(target):
             yield from assignment_target_nodes(element)
 
 
+def direct_authority_alias_present(function:ast.FunctionDef|ast.AsyncFunctionDef,owner:str)->bool:
+    for node in function_scope_nodes(function):
+        targets,value=assignment_targets_and_value(node)
+        if not isinstance(value,ast.Name) or value.id!=owner:
+            continue
+        for target in (item for root_target in targets for item in assignment_target_nodes(root_target)):
+            if isinstance(target,ast.Name) and target.id!=owner:
+                return True
+    return False
+
+
 def c9_target_base_name(target)->str|None:
     while isinstance(target,(ast.Attribute,ast.Subscript)):
         target=target.value
@@ -468,6 +479,8 @@ def c9_main_working_directory_bound(source:str)->bool:
                 working_valid=False
             if c9_mapping_mutation_call(node,"result"):
                 working_valid=False
+    if direct_authority_alias_present(main,"result"):
+        working_valid=False
     return root_valid and working_valid
 
 
@@ -532,6 +545,8 @@ def c9_main_canonical_output_bound(source:str)->bool:
                 evidence_valid=False
             if isinstance(node,ast.Call) and isinstance(node.func,ast.Name) and node.func.id=="execute":
                 evidence_valid=False
+    if direct_authority_alias_present(main,"evidence"):
+        evidence_valid=False
     return root_valid and out_valid and evidence_valid
 
 
