@@ -179,43 +179,46 @@ def c9_main_working_directory_bound(source:str)->bool:
     if main is None:
         return False
     root_valid=False
+    working_valid=False
     for node in main.body:
         if isinstance(node,(ast.Return,ast.Raise)):
             break
-        if isinstance(node,ast.Assign) and len(node.targets)==1 and isinstance(node.targets[0],ast.Name) and node.targets[0].id=="root":
-            value=node.value
-            root_valid=(
-                isinstance(value,ast.Call)
-                and isinstance(value.func,ast.Attribute)
-                and value.func.attr=="resolve"
-                and not value.args
-                and isinstance(value.func.value,ast.Attribute)
-                and value.func.value.attr=="root"
-                and isinstance(value.func.value.value,ast.Name)
-                and value.func.value.value.id=="args"
-            )
-        if not root_valid or not isinstance(node,ast.Assign) or len(node.targets)!=1:
+        if not isinstance(node,ast.Assign) or len(node.targets)!=1:
             continue
         target=node.targets[0]
-        if not (
+        value=node.value
+        if isinstance(target,ast.Name):
+            if target.id=="root":
+                root_valid=(
+                    isinstance(value,ast.Call)
+                    and isinstance(value.func,ast.Attribute)
+                    and value.func.attr=="resolve"
+                    and not value.args
+                    and isinstance(value.func.value,ast.Attribute)
+                    and value.func.value.attr=="root"
+                    and isinstance(value.func.value.value,ast.Name)
+                    and value.func.value.value.id=="args"
+                )
+            elif target.id=="result":
+                working_valid=False
+            continue
+        if (
             isinstance(target,ast.Subscript)
             and isinstance(target.value,ast.Name)
             and target.value.id=="result"
             and isinstance(target.slice,ast.Constant)
             and target.slice.value=="workingDirectory"
         ):
-            continue
-        value=node.value
-        if (
-            isinstance(value,ast.Call)
-            and isinstance(value.func,ast.Name)
-            and value.func.id=="str"
-            and len(value.args)==1
-            and isinstance(value.args[0],ast.Name)
-            and value.args[0].id=="root"
-        ):
-            return True
-    return False
+            working_valid=(
+                root_valid
+                and isinstance(value,ast.Call)
+                and isinstance(value.func,ast.Name)
+                and value.func.id=="str"
+                and len(value.args)==1
+                and isinstance(value.args[0],ast.Name)
+                and value.args[0].id=="root"
+            )
+    return root_valid and working_valid
 
 
 def c9_main_canonical_output_bound(source:str)->bool:
@@ -228,42 +231,44 @@ def c9_main_canonical_output_bound(source:str)->bool:
         return False
     root_valid=False
     out_valid=False
+    evidence_valid=False
     for node in main.body:
         if isinstance(node,(ast.Return,ast.Raise)):
             break
-        if isinstance(node,ast.Assign) and len(node.targets)==1 and isinstance(node.targets[0],ast.Name):
-            name=node.targets[0].id
-            value=node.value
-            if name=="root":
-                root_valid=(
-                    isinstance(value,ast.Call)
-                    and isinstance(value.func,ast.Attribute)
-                    and value.func.attr=="resolve"
-                    and not value.args
-                    and isinstance(value.func.value,ast.Attribute)
-                    and value.func.value.attr=="root"
-                    and isinstance(value.func.value.value,ast.Name)
-                    and value.func.value.value.id=="args"
-                )
-                if not root_valid:
-                    out_valid=False
-                continue
-            if name=="out":
-                out_valid=(
-                    root_valid
-                    and isinstance(value,ast.Call)
-                    and isinstance(value.func,ast.Name)
-                    and value.func.id=="canonical_cli_output_path"
-                    and len(value.args)==2
-                    and isinstance(value.args[0],ast.Name)
-                    and value.args[0].id=="root"
-                    and isinstance(value.args[1],ast.Attribute)
-                    and value.args[1].attr=="out"
-                    and isinstance(value.args[1].value,ast.Name)
-                    and value.args[1].value.id=="args"
-                )
-                continue
-            if (
+        if not isinstance(node,ast.Assign) or len(node.targets)!=1 or not isinstance(node.targets[0],ast.Name):
+            continue
+        name=node.targets[0].id
+        value=node.value
+        if name=="root":
+            root_valid=(
+                isinstance(value,ast.Call)
+                and isinstance(value.func,ast.Attribute)
+                and value.func.attr=="resolve"
+                and not value.args
+                and isinstance(value.func.value,ast.Attribute)
+                and value.func.value.attr=="root"
+                and isinstance(value.func.value.value,ast.Name)
+                and value.func.value.value.id=="args"
+            )
+            out_valid=False
+            evidence_valid=False
+        elif name=="out":
+            out_valid=(
+                root_valid
+                and isinstance(value,ast.Call)
+                and isinstance(value.func,ast.Name)
+                and value.func.id=="canonical_cli_output_path"
+                and len(value.args)==2
+                and isinstance(value.args[0],ast.Name)
+                and value.args[0].id=="root"
+                and isinstance(value.args[1],ast.Attribute)
+                and value.args[1].attr=="out"
+                and isinstance(value.args[1].value,ast.Name)
+                and value.args[1].value.id=="args"
+            )
+            evidence_valid=False
+        elif name=="evidence":
+            evidence_valid=(
                 root_valid
                 and out_valid
                 and isinstance(value,ast.Call)
@@ -274,9 +279,8 @@ def c9_main_canonical_output_bound(source:str)->bool:
                 and value.args[0].id=="root"
                 and isinstance(value.args[1],ast.Name)
                 and value.args[1].id=="out"
-            ):
-                return True
-    return False
+            )
+    return root_valid and out_valid and evidence_valid
 
 
 def c7w_execution_errors(root:Path)->list[tuple[str,str]]:
