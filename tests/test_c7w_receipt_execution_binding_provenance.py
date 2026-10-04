@@ -10,6 +10,7 @@ ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/"scripts"))
 SPEC=importlib.util.spec_from_file_location("seal_mcp_external_interop_receipt_provenance",ROOT/"scripts"/"seal_mcp_external_interop.py")
 core=importlib.util.module_from_spec(SPEC); SPEC.loader.exec_module(core)
+import c7w_credential_profiles as credential_profiles
 import c7w_execution_bindings as execution_bindings
 
 
@@ -36,6 +37,11 @@ class C7WReceiptExecutionBindingProvenanceTests(unittest.TestCase):
             "credentialProfileContractSha256":document["credentialProfileContractSha256"],
         }
         return source,projection
+
+    def test_credential_contract_digest_has_one_canonical_owner(self):
+        digest=credential_profiles.contract_digest()
+        self.assertEqual(digest,execution_bindings.credential_contract_digest())
+        self.assertEqual(digest,core.execution_provenance.credential_contract_digest())
 
     def test_receipt_projection_matches_campaign_snapshot_and_rejects_drift(self):
         source,projection=self.projection()
