@@ -1,10 +1,12 @@
 import hashlib
 import importlib.util
 import json
+import sys
 import unittest
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[1]
+sys.path.insert(0,str(ROOT/"scripts"))
 SPEC=importlib.util.spec_from_file_location("seal_mcp_external_interop_receipt_provenance",ROOT/"scripts"/"seal_mcp_external_interop.py")
 core=importlib.util.module_from_spec(SPEC); SPEC.loader.exec_module(core)
 
