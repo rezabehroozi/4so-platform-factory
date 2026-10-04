@@ -26,6 +26,8 @@ import seal_mcp_external_interop as core
 AUTHORITY="MCP_EXTERNAL_LOCAL_EXECUTION_RUNNER_V1"
 DEFAULT_STATE=Path(".state/c7w-external-interop")
 CANONICAL_MATRIX_REL=Path("lab/mcp-external-client-interop-matrix.json")
+CANONICAL_PROGRESS_REL=Path("lab/mcp-external-client-interop-progress.json")
+CANONICAL_EVIDENCE_REL=Path("lab/mcp-external-client-interoperability-evidence.json")
 
 
 def clean_git_env()->dict[str,str]:
@@ -98,6 +100,26 @@ def require_canonical_matrix(root:Path,candidate:Path)->Path:
     expected=Path(os.path.abspath(root/CANONICAL_MATRIX_REL))
     if actual!=expected or actual.is_symlink() or expected.is_symlink() or not expected.is_file():
         raise RuntimeError("MCP_EXTERNAL_LOCAL_MATRIX_PATH_INVALID")
+    return expected
+
+
+def require_canonical_artifact_path(root:Path,candidate:Path,expected_rel:Path,label:str)->Path:
+    root=root.resolve()
+    raw=Path(candidate)
+    actual=Path(os.path.abspath(raw if raw.is_absolute() else root/raw))
+    expected=Path(os.path.abspath(root/expected_rel))
+    code=f"MCP_EXTERNAL_LOCAL_{label}_PATH_INVALID"
+    if actual!=expected:
+        raise RuntimeError(code)
+    for current in (expected,*expected.parents):
+        if current==root:
+            break
+        if current.exists() and current.is_symlink():
+            raise RuntimeError(code)
+    try:
+        expected.relative_to(root)
+    except ValueError as exc:
+        raise RuntimeError(code) from exc
     return expected
 
 
@@ -621,8 +643,8 @@ def parser()->argparse.ArgumentParser:
     p=argparse.ArgumentParser()
     p.add_argument("--matrix",type=Path,default=CANONICAL_MATRIX_REL)
     p.add_argument("--state-dir",type=Path,default=Path(os.environ.get("C7W_STATE_DIR",str(DEFAULT_STATE))))
-    p.add_argument("--progress-out",type=Path,default=Path("lab/mcp-external-client-interop-progress.json"))
-    p.add_argument("--evidence-out",type=Path,default=Path("lab/mcp-external-client-interoperability-evidence.json"))
+    p.add_argument("--progress-out",type=Path,default=CANONICAL_PROGRESS_REL)
+    p.add_argument("--evidence-out",type=Path,default=CANONICAL_EVIDENCE_REL)
     sub=p.add_subparsers(dest="command",required=True)
 
     prepare_p=sub.add_parser("prepare")
@@ -647,6 +669,9 @@ def parser()->argparse.ArgumentParser:
 
 def main()->int:
     args=parser().parse_args()
+    root=Path.cwd().resolve()
+    args.progress_out=require_canonical_artifact_path(root,args.progress_out,CANONICAL_PROGRESS_REL,"PROGRESS")
+    args.evidence_out=require_canonical_artifact_path(root,args.evidence_out,CANONICAL_EVIDENCE_REL,"EVIDENCE")
     if args.command=="prepare":
         result=prepare(args)
     elif args.command=="admit":
