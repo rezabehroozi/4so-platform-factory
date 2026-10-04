@@ -50,6 +50,14 @@ class C9EnvironmentContractTests(unittest.TestCase):
         errors=mod.final_exact_release_environment_contract_errors(broken)
         self.assertIn('RESUME_SOURCE_TOOLCHAIN_LOCK_MISSING',errors)
 
+    def test_semantic_contract_ignores_nested_dead_function_bindings(self):
+        broken=GOOD.replace(
+            '''    toolchain_lock,_=exact_source_toolchain_lock(root,source_sha)\n    require_exact_release_environment(root, toolchain_lock = toolchain_lock)''',
+            '''    def dead_path():\n        toolchain_lock,_=exact_source_toolchain_lock(root,source_sha)\n        require_exact_release_environment(root,toolchain_lock=toolchain_lock)\n    return None''',
+        )
+        errors=mod.final_exact_release_environment_contract_errors(broken)
+        self.assertIn('EXECUTE_SOURCE_TOOLCHAIN_LOCK_MISSING',errors)
+
 
 if __name__=="__main__":
     unittest.main()
