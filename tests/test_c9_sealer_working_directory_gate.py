@@ -12,13 +12,15 @@ class C9SealerWorkingDirectoryGateTests(unittest.TestCase):
         source='''\ndef main():\n    result={}\n    return result\n'''
         self.assertFalse(mod.c9_main_working_directory_bound(source))
 
-    def test_accepts_reachable_args_root_projection(self):
-        source='''\ndef main():\n    result={}\n    result["workingDirectory"]=str(args.root.resolve())\n    return result\n'''
+    def test_accepts_reachable_canonical_root_projection(self):
+        source='''\ndef main():\n    root=args.root.resolve()\n    result={}\n    result["workingDirectory"]=str(root)\n    return result\n'''
         self.assertTrue(mod.c9_main_working_directory_bound(source))
 
-    def test_rejects_dead_or_nested_projection(self):
-        source='''\ndef main():\n    result={}\n    if False:\n        result["workingDirectory"]=str(args.root.resolve())\n    def dead():\n        result["workingDirectory"]=str(args.root.resolve())\n    return result\n'''
-        self.assertFalse(mod.c9_main_working_directory_bound(source))
+    def test_rejects_unbound_or_dead_projection(self):
+        unbound='''\ndef main():\n    root=args.root\n    result={}\n    result["workingDirectory"]=str(root)\n    return result\n'''
+        dead='''\ndef main():\n    root=args.root.resolve()\n    result={}\n    if False:\n        result["workingDirectory"]=str(root)\n    def ignored():\n        result["workingDirectory"]=str(root)\n    return result\n'''
+        self.assertFalse(mod.c9_main_working_directory_bound(unbound))
+        self.assertFalse(mod.c9_main_working_directory_bound(dead))
 
     def test_requires_canonical_output_before_execute(self):
         good='''\ndef main():\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,out)\n    return evidence\n'''
