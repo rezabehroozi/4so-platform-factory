@@ -9,6 +9,10 @@ if os.name=="nt":
 else:
     import fcntl
 import seal_mcp_external_interop as core
+try:
+    import c7w_execution_provenance as execution_provenance
+except ModuleNotFoundError:
+    from scripts import c7w_execution_provenance as execution_provenance
 
 AUTHORITY="MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1"
 
@@ -121,6 +125,7 @@ def validate_existing(existing:dict,expected:dict)->dict[str,dict]:
         raise RuntimeError("MCP_EXTERNAL_PROGRESS_SCOPE_INFLATED")
     rows=existing.get("clients")
     if not isinstance(rows,list): raise RuntimeError("MCP_EXTERNAL_PROGRESS_CLIENTS_INVALID")
+    execution_provenance.validate_rows(rows,expected.get("sourceCommitSHA"),"MCP_EXTERNAL_PROGRESS",require_bound=False)
     by_id={}; order={name:i for i,name in enumerate(core.CLIENTS)}; last=-1
     provider_refs={}; execution_ids={}; evidence_digests={}; receipt_digests={}; challenge_digests={}; request_id_owners={}
     for row in rows:
@@ -200,6 +205,7 @@ def validate_existing_campaign_rows(by_id:dict[str,dict],expected:dict,campaign:
     expected_created=core.utc_timestamp(created); expected_expires=core.utc_timestamp(expires)
     expected_endpoint=core.endpoint(expected.get("endpoint",""))
     for client,row in by_id.items():
+        core.validate_receipt_execution_binding(row,campaign,client)
         try:
             row_endpoint=core.endpoint(row.get("endpoint",""))
         except RuntimeError as exc:
