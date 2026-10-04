@@ -253,6 +253,17 @@ def client_execution_handoff(state:Path,client:str)->dict:
     }
 
 
+def external_client_action(state:Path,client:str)->dict:
+    handoff=client_execution_handoff(state,client)
+    return {
+        "nextActionCode":"RUN_EXTERNAL_CLIENT",
+        "nextCommand":[],
+        "nextClientHandoff":handoff,
+        "postExternalExecutionCommand":handoff["admitCommand"],
+        "detail":"execute the named external client with its exact prepared packet and capture template; only after the capture is complete run postExternalExecutionCommand",
+    }
+
+
 def capture_template(packet:dict)->dict:
     requirements=packet.get("receiptRequirements") or {}
     if requirements.get("structuredResponseObservationRequired") is not True:
@@ -344,11 +355,7 @@ def prepare(args:argparse.Namespace)->dict:
     if complete:
         result.update({"nextActionCode":"RUN_C7W_SEAL","nextCommand":runner_command(state,"seal")})
     else:
-        result.update({
-            "nextActionCode":"RUN_EXTERNAL_CLIENT",
-            "nextCommand":client_handoff[next_client]["admitCommand"],
-            "nextClientHandoff":client_handoff[next_client],
-        })
+        result.update(external_client_action(state,next_client))
     return result
 
 
@@ -461,13 +468,7 @@ def admit(args:argparse.Namespace)->dict:
         })
     else:
         next_client=status["nextClient"]
-        handoff=client_execution_handoff(state,next_client)
-        result.update({
-            "nextActionCode":"RUN_EXTERNAL_CLIENT",
-            "nextCommand":handoff["admitCommand"],
-            "nextClientHandoff":handoff,
-            "detail":"execute the next named external client with its exact prepared packet and capture template",
-        })
+        result.update(external_client_action(state,next_client))
     return result
 
 
@@ -605,13 +606,7 @@ def status(args:argparse.Namespace)->dict:
                 })
                 return value
             next_client=value.get("nextClient")
-            handoff=client_execution_handoff(state,next_client)
-            value.update({
-                "nextActionCode":"RUN_EXTERNAL_CLIENT",
-                "nextCommand":handoff["admitCommand"],
-                "nextClientHandoff":handoff,
-                "detail":"execute the named external client with the exact prepared packet and fill the matching capture template; then admit that capture",
-            })
+            value.update(external_client_action(state,next_client))
         else:
             value.update({
                 "nextActionCode":"PREPARE_C7W_CAMPAIGN",
