@@ -212,6 +212,8 @@ def finalize(packet_path:Path,capture_path:Path)->dict:
     return {
       "authority":core.RECEIPT_AUTHORITY,"clientId":client,"clientSurface":packet["clientSurface"],"sourceCommitSHA":packet["sourceCommitSHA"],"runtimeVersion":packet["runtimeVersion"],
       "campaignId":packet["campaignId"],"challengeSha256":packet["challengeSha256"],"oauthClientId":oauth_client_id,"interopBindingAuthority":core.INTEROP_BINDING_AUTHORITY,"interopBindingDigest":binding,
+      "executionBindingAuthority":packet["executionBindingAuthority"],"executionBindingsSha256":packet["executionBindingsSha256"],"executionBindings":resources,
+      "credentialProfileContractAuthority":packet["credentialProfileContractAuthority"],"credentialProfileContractSha256":packet["credentialProfileContractSha256"],
       "protocol":packet["protocol"],"transport":packet["transport"],"endpoint":packet["endpoint"],"executionId":execution_id,"providerExecutionRef":provider_ref,"executedAt":core.utc_timestamp(executed),
       "externalExecution":True,"credentialedExecution":True,"checks":{name:True for name in expected_ids},
       "responseObservations":core.validate_response_observations(response_observations,packet["sourceCommitSHA"],packet["runtimeVersion"],packet["endpoint"],"MCP_EXTERNAL_CAPTURE"),
