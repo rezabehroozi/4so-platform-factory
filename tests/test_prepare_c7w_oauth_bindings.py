@@ -64,9 +64,11 @@ class PrepareC7WOAuthBindingsTests(unittest.TestCase):
                 mod.materialize(root/".state"/"private"/"oauth.json",clients,root=root)
             self.assertFalse((attacker/"private").exists())
 
-    def test_followup_preflight_preserves_endpoint_and_token_env_name_without_token_value(self):
-        out=Path(".state/private/c7w-oauth-client-bindings.json")
-        command=mod.followup_preflight_command(out,"https://mcp.example.test/mcp","C7W_PLATFORM_ADMIN_TOKEN")
+    def test_followup_preflight_preserves_repository_endpoint_and_token_env_name_without_token_value(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td).resolve()
+            out=root/".state/private/c7w-oauth-client-bindings.json"
+            command=mod.followup_preflight_command(root,out,"https://mcp.example.test/mcp","C7W_PLATFORM_ADMIN_TOKEN")
         self.assertIn("scripts/c7w_preflight.py",command)
         self.assertIn("--endpoint",command)
         self.assertIn("https://mcp.example.test/mcp",command)
@@ -74,6 +76,7 @@ class PrepareC7WOAuthBindingsTests(unittest.TestCase):
         self.assertIn("C7W_PLATFORM_ADMIN_TOKEN",command)
         self.assertIn("--oauth-client-map",command)
         self.assertIn(str(out),command)
+        self.assertEqual(str(root),command[command.index("--root")+1])
         self.assertNotIn("secret-token-value",command)
 
 
