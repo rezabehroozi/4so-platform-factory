@@ -38,6 +38,13 @@ class C9SealerWorkingDirectoryGateTests(unittest.TestCase):
         for source in (annotated,augmented,updated,removed):
             self.assertFalse(mod.c9_main_working_directory_bound(source))
 
+    def test_rejects_reachable_working_directory_mutations_after_projection(self):
+        returned='''\ndef main():\n    root=args.root.resolve()\n    result={}\n    result["workingDirectory"]=str(root)\n    return result.pop("workingDirectory")\n'''
+        branched='''\ndef main():\n    root=args.root.resolve()\n    result={}\n    result["workingDirectory"]=str(root)\n    if runtime_condition:\n        result.pop("workingDirectory")\n    return result\n'''
+        assigned='''\ndef main():\n    root=args.root.resolve()\n    result={}\n    result["workingDirectory"]=str(root)\n    removed=result.pop("workingDirectory")\n    return result\n'''
+        for source in (returned,branched,assigned):
+            self.assertFalse(mod.c9_main_working_directory_bound(source))
+
     def test_requires_canonical_output_before_execute_on_same_path(self):
         good='''\ndef main():\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,out)\n    return evidence\n'''
         bypass='''\ndef main():\n    root=args.root.resolve()\n    evidence=execute(root,args.out)\n    return evidence\n'''
@@ -64,6 +71,14 @@ class C9SealerWorkingDirectoryGateTests(unittest.TestCase):
         root_setattr='''\ndef main():\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,out)\n    setattr(args,"root",Path("."))\n    return evidence\n'''
         evidence_rebind='''\ndef main():\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,out)\n    evidence += {"drift":True}\n    return evidence\n'''
         for source in (annotated,augmented,root_setattr,evidence_rebind):
+            self.assertFalse(mod.c9_main_canonical_output_bound(source))
+
+    def test_rejects_reachable_canonical_output_mutations_after_execute(self):
+        returned='''\ndef main():\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,out)\n    return evidence.update({"drift":True})\n'''
+        branched='''\ndef main():\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,out)\n    if runtime_condition:\n        evidence.update({"drift":True})\n    return evidence\n'''
+        assigned='''\ndef main():\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,out)\n    removed=evidence.pop("drift",None)\n    return evidence\n'''
+        extra_execute='''\ndef main():\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,out)\n    execute(root,args.out)\n    return evidence\n'''
+        for source in (returned,branched,assigned,extra_execute):
             self.assertFalse(mod.c9_main_canonical_output_bound(source))
 
 
