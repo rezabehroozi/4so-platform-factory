@@ -95,7 +95,7 @@ class C7WCampaignExecutionBindingSnapshotTests(unittest.TestCase):
                 mock.patch.object(mod.core, "load", return_value={"spec": {}}),
                 mock.patch.object(mod.core, "verify_campaign", return_value=campaign),
                 mock.patch.object(mod.core, "validate_evidence_only_source_lineage", return_value=None),
-                mock.patch.object(mod, "normalize_execution_binding_snapshot", return_value=snapshot),
+                mock.patch.object(mod, "normalize_execution_binding_snapshot", side_effect=lambda value, _source: value),
             ):
                 self.assertIs(
                     campaign,
