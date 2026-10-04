@@ -311,11 +311,15 @@ def git_worktree_fingerprint(root,head):
     return "sha256:"+digest.hexdigest(),bool(status.stdout)
 
 def git(root,refresh=False,allow_detached=False,require_origin_sync=False):
+    root=Path(root).resolve()
     git_env=clean_git_env()
     def run(*args,check=True,timeout=30):
         p=subprocess.run(["git",*args],cwd=root,env=git_env,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=timeout)
         if check and p.returncode: raise RuntimeError("GIT_COMMAND_FAILED "+" ".join(args)+" "+p.stdout.strip())
         return p
+    top=run("rev-parse","--show-toplevel")
+    if Path(top.stdout.strip()).resolve()!=root:
+        raise RuntimeError("GIT_ROOT_INVALID")
     refresh_error=""
     if refresh:
         fetched=run("fetch","--quiet","origin","main",check=False,timeout=120)
@@ -727,7 +731,7 @@ def resume(root,override=None,allow_detached=False):
     if not head_branch_match or (not worktree_match and not allow_owned):
         s.update(status="WAITING",recoveryRequired=True,latestError="LOCAL_GIT_AUTHORITY_CHANGED_REPLAN_REQUIRED",
                  currentOriginMain=info.get("originMain",""),gitSyncStatus=info.get("gitSyncStatus","UNAVAILABLE"),
-                 currentWorktreeFingerprint=info.get("worktreeFingerprint","") ,currentWorktreeDirty=info.get("worktreeDirty"))
+                 currentWorktreeFingerprint=info.get("worktreeFingerprint",""),currentWorktreeDirty=info.get("worktreeDirty"))
         write_state(root,s,override)
         return {"action":"REPLAN_REQUIRED","state":s}
     if allow_owned and not worktree_match:
