@@ -141,6 +141,17 @@ def assignment_target_nodes(target):
             yield from assignment_target_nodes(element)
 
 
+def direct_authority_alias_present(function:ast.FunctionDef|ast.AsyncFunctionDef,owner:str)->bool:
+    for node in function_scope_nodes(function):
+        targets,value=assignment_targets_and_value(node)
+        if not isinstance(value,ast.Name) or value.id!=owner:
+            continue
+        for target in (item for root_target in targets for item in assignment_target_nodes(root_target)):
+            if isinstance(target,ast.Name) and target.id!=owner:
+                return True
+    return False
+
+
 def canonical_guard_value_valid(value,attr:str)->bool:
     expected_rel="CANONICAL_PROGRESS_REL" if attr=="progress_out" else "CANONICAL_EVIDENCE_REL"
     expected_label="PROGRESS" if attr=="progress_out" else "EVIDENCE"
@@ -319,6 +330,8 @@ def canonical_output_contract_errors(source:str)->list[str]:
                     guarded[attr]=False
             if args_attribute_call_mutation(node)==attr:
                 guarded[attr]=False
+    if direct_authority_alias_present(main,"args"):
+        guarded={"progress_out":False,"evidence_out":False}
     if not guarded["progress_out"]:
         errors.append("PROGRESS_OUTPUT_WIRING_INVALID")
     if not guarded["evidence_out"]:
@@ -380,6 +393,8 @@ def runner_working_directory_contract_errors(source:str)->list[str]:
                     working_valid=False
             if result_mutation_call(node):
                 working_valid=False
+    if direct_authority_alias_present(main,"result"):
+        working_valid=False
     return [] if working_valid else ["RUNNER_WORKING_DIRECTORY_WIRING_INVALID"]
 
 
