@@ -1088,6 +1088,19 @@ def execute(root: Path, out: Path) -> dict:
     return evidence
 
 
+def canonical_preflight_exit_code(root:Path)->int:
+    root=root.resolve()
+    proc=subprocess.run(
+        [sys.executable,"scripts/c9_preflight.py","--root",str(root),"--preflight"],
+        cwd=root,
+        env=clean_git_env(),
+        stdout=None,
+        stderr=None,
+        check=False,
+    )
+    return proc.returncode
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path, default=Path("."))
@@ -1099,9 +1112,7 @@ def main() -> int:
     parser.add_argument("--preflight",action="store_true")
     args=parser.parse_args()
     if args.preflight:
-        result=exact_release_environment_preflight(args.root)
-        print(json.dumps(result,sort_keys=True))
-        return 0 if result["ready"] else 2
+        return canonical_preflight_exit_code(args.root)
     evidence = execute(args.root, args.out)
     result={
         "authority": evidence["authority"],
