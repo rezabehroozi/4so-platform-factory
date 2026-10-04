@@ -1124,6 +1124,7 @@ def main() -> int:
         "physicalCertified": evidence["physicalCertified"],
     }
     result.update(final_git_handoff(args.root.resolve(),admit_output_path(args.root.resolve(),args.out),evidence))
+    result["workingDirectory"]=str(args.root.resolve())
     print(json.dumps(result,sort_keys=True))
     return 0
 
