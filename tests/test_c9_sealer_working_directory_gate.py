@@ -45,6 +45,10 @@ class C9SealerWorkingDirectoryGateTests(unittest.TestCase):
         for source in (returned,branched,assigned):
             self.assertFalse(mod.c9_main_working_directory_bound(source))
 
+    def test_rejects_working_directory_alias_mutation(self):
+        source='''\ndef main():\n    root=args.root.resolve()\n    result={}\n    result["workingDirectory"]=str(root)\n    alias=result\n    alias.pop("workingDirectory")\n    return result\n'''
+        self.assertFalse(mod.c9_main_working_directory_bound(source))
+
     def test_requires_canonical_output_before_execute_on_same_path(self):
         good='''\ndef main():\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,out)\n    return evidence\n'''
         bypass='''\ndef main():\n    root=args.root.resolve()\n    evidence=execute(root,args.out)\n    return evidence\n'''
@@ -80,6 +84,10 @@ class C9SealerWorkingDirectoryGateTests(unittest.TestCase):
         extra_execute='''\ndef main():\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,out)\n    execute(root,args.out)\n    return evidence\n'''
         for source in (returned,branched,assigned,extra_execute):
             self.assertFalse(mod.c9_main_canonical_output_bound(source))
+
+    def test_rejects_evidence_alias_mutation(self):
+        source='''\ndef main():\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,out)\n    alias=evidence\n    alias.update({"drift":True})\n    return evidence\n'''
+        self.assertFalse(mod.c9_main_canonical_output_bound(source))
 
 
 if __name__=="__main__":
