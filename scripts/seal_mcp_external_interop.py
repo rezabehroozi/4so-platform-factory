@@ -700,6 +700,7 @@ def build_interop_evidence(matrix_sha256:str,campaign_id:str,campaign_sha256:str
         raise RuntimeError("MCP_EXTERNAL_EVIDENCE_RUNTIME_IDENTITY_INVALID")
     if not isinstance(rows,list) or [row.get("clientId") for row in rows if isinstance(row,dict)]!=list(CLIENTS):
         raise RuntimeError("MCP_EXTERNAL_EVIDENCE_CLIENT_SET_INVALID")
+    execution_provenance.validate_rows(rows,source_commit_sha,"MCP_EXTERNAL_EVIDENCE",require_bound=True)
     ep=endpoint(endpoint_value)
     return {
       "apiVersion":"platform.4so.io/v1alpha1","kind":"MCPExternalClientInteroperabilityEvidence",
