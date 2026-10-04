@@ -54,9 +54,32 @@ class C7WReceiptExecutionBindingProvenanceTests(unittest.TestCase):
                 "chatgpt",
             )
 
+    def test_persisted_rows_require_one_consistent_projection_when_bound(self):
+        source,projection=self.projection()
+        rows=[{"clientId":"chatgpt",**projection},{"clientId":"claude",**projection}]
+        self.assertEqual(
+            projection,
+            core.execution_provenance.validate_rows(rows,source,"MCP_EXTERNAL_INTEROP",require_bound=True),
+        )
+        drift=dict(projection,executionBindingsSha256="sha256:"+"9"*64)
+        with self.assertRaisesRegex(RuntimeError,"EXECUTION_BINDING"):
+            core.execution_provenance.validate_rows(
+                [rows[0],{"clientId":"claude",**drift}],source,"MCP_EXTERNAL_INTEROP",require_bound=True,
+            )
+        with self.assertRaisesRegex(RuntimeError,"EXECUTION_BINDING_MIXED"):
+            core.execution_provenance.validate_rows(
+                [rows[0],{"clientId":"claude"}],source,"MCP_EXTERNAL_INTEROP",require_bound=True,
+            )
+        with self.assertRaisesRegex(RuntimeError,"EXECUTION_BINDING_REQUIRED"):
+            core.execution_provenance.validate_rows(
+                [{"clientId":"chatgpt"},{"clientId":"claude"}],source,"MCP_EXTERNAL_INTEROP",require_bound=True,
+            )
+
     def test_finalizer_and_verifier_carry_nested_execution_binding_provenance(self):
         finalizer=(ROOT/"scripts"/"finalize_mcp_external_client_receipt.py").read_text(encoding="utf-8")
         seal=(ROOT/"scripts"/"seal_mcp_external_interop.py").read_text(encoding="utf-8")
+        admit=(ROOT/"scripts"/"admit_mcp_external_receipt.py").read_text(encoding="utf-8")
+        final_admission=(ROOT/"scripts"/"final_exact_release_admission.py").read_text(encoding="utf-8")
         for marker in (
             '"executionBindingAuthority":packet["executionBindingAuthority"]',
             '"executionBindingsSha256":packet["executionBindingsSha256"]',
@@ -67,6 +90,8 @@ class C7WReceiptExecutionBindingProvenanceTests(unittest.TestCase):
             self.assertIn(marker,finalizer)
         self.assertIn("validate_receipt_execution_binding(row,campaign,client)",seal)
         self.assertIn("**execution_binding",seal)
+        self.assertIn("execution_provenance.validate_rows",admit)
+        self.assertIn("execution_provenance.validate_rows",final_admission)
 
 
 if __name__=="__main__":
