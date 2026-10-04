@@ -42,6 +42,12 @@ class C7WExecutionAuthorityScopeTests(unittest.TestCase):
         self.assertIn("PROGRESS_OUTPUT_WIRING_INVALID",mod.canonical_output_contract_errors(annotated))
         self.assertIn("PROGRESS_OUTPUT_WIRING_INVALID",mod.canonical_output_contract_errors(augmented))
 
+    def test_canonical_output_wiring_rejects_direct_call_mutation(self):
+        overwritten='''\nCANONICAL_PROGRESS_REL=Path("lab/mcp-external-client-interop-progress.json")\nCANONICAL_EVIDENCE_REL=Path("lab/mcp-external-client-interoperability-evidence.json")\ndef require_canonical_artifact_path(*args): pass\ndef main():\n    args.progress_out=require_canonical_artifact_path(root,args.progress_out,CANONICAL_PROGRESS_REL,"PROGRESS")\n    args.evidence_out=require_canonical_artifact_path(root,args.evidence_out,CANONICAL_EVIDENCE_REL,"EVIDENCE")\n    setattr(args,"progress_out",Path("alternate-progress.json"))\n    return None\n'''
+        deleted='''\nCANONICAL_PROGRESS_REL=Path("lab/mcp-external-client-interop-progress.json")\nCANONICAL_EVIDENCE_REL=Path("lab/mcp-external-client-interoperability-evidence.json")\ndef require_canonical_artifact_path(*args): pass\ndef main():\n    args.progress_out=require_canonical_artifact_path(root,args.progress_out,CANONICAL_PROGRESS_REL,"PROGRESS")\n    args.evidence_out=require_canonical_artifact_path(root,args.evidence_out,CANONICAL_EVIDENCE_REL,"EVIDENCE")\n    delattr(args,"evidence_out")\n    return None\n'''
+        self.assertIn("PROGRESS_OUTPUT_WIRING_INVALID",mod.canonical_output_contract_errors(overwritten))
+        self.assertIn("EVIDENCE_OUTPUT_WIRING_INVALID",mod.canonical_output_contract_errors(deleted))
+
     def test_working_directory_wiring_rejects_conditional_projection(self):
         source='''\ndef main():\n    result={}\n    if runtime_condition:\n        result["workingDirectory"]=str(root)\n    return result\n'''
         errors=mod.runner_working_directory_contract_errors(source)
@@ -58,6 +64,12 @@ class C7WExecutionAuthorityScopeTests(unittest.TestCase):
         augmented='''\ndef main():\n    result={}\n    result["workingDirectory"]=str(root)\n    result["workingDirectory"] += "/tmp"\n    return result\n'''
         self.assertIn("RUNNER_WORKING_DIRECTORY_WIRING_INVALID",mod.runner_working_directory_contract_errors(annotated))
         self.assertIn("RUNNER_WORKING_DIRECTORY_WIRING_INVALID",mod.runner_working_directory_contract_errors(augmented))
+
+    def test_working_directory_wiring_rejects_direct_call_mutation(self):
+        updated='''\ndef main():\n    result={}\n    result["workingDirectory"]=str(root)\n    result.update({"workingDirectory":"."})\n    return result\n'''
+        removed='''\ndef main():\n    result={}\n    result["workingDirectory"]=str(root)\n    result.pop("workingDirectory")\n    return result\n'''
+        self.assertIn("RUNNER_WORKING_DIRECTORY_WIRING_INVALID",mod.runner_working_directory_contract_errors(updated))
+        self.assertIn("RUNNER_WORKING_DIRECTORY_WIRING_INVALID",mod.runner_working_directory_contract_errors(removed))
 
 
 if __name__=="__main__":
