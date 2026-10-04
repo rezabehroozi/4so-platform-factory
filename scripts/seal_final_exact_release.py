@@ -715,6 +715,15 @@ def admit_output_path(root:Path,out:Path)->Path:
     return raw
 
 
+def canonical_cli_output_path(root:Path,out:Path)->Path:
+    root=root.resolve()
+    raw=Path(os.path.abspath(out if out.is_absolute() else root/out))
+    expected=root/"lab"/"final-exact-release-evidence.json"
+    if raw!=expected:
+        raise RuntimeError("FINAL_EXACT_RELEASE_OUTPUT_PATH_INVALID")
+    return raw
+
+
 def atomic_write_json(path: Path, value: dict) -> None:
     path=admit_output_path(path.parent.resolve(),path.name)
     if path.exists() or path.is_symlink():
@@ -1114,7 +1123,9 @@ def main() -> int:
     args=parser.parse_args()
     if args.preflight:
         return canonical_preflight_exit_code(args.root)
-    evidence = execute(args.root, args.out)
+    root=args.root.resolve()
+    out=canonical_cli_output_path(root,args.out)
+    evidence = execute(root,out)
     result={
         "authority": evidence["authority"],
         "sourceCommitSHA": evidence["sourceCommitSHA"],
@@ -1123,8 +1134,8 @@ def main() -> int:
         "fullVerifierPass": evidence["fullVerifierPass"],
         "physicalCertified": evidence["physicalCertified"],
     }
-    result.update(final_git_handoff(args.root.resolve(),admit_output_path(args.root.resolve(),args.out),evidence))
-    result["workingDirectory"]=str(args.root.resolve())
+    result.update(final_git_handoff(root,admit_output_path(root,out),evidence))
+    result["workingDirectory"]=str(root)
     print(json.dumps(result,sort_keys=True))
     return 0
 
