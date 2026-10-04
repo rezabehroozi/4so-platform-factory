@@ -13,11 +13,13 @@ REQUIRED_FILES=(
     "scripts/reconcile_c7w_trusted_clients.py",
     "scripts/c7w_execution_bindings.py",
     "scripts/c7w_credential_profiles.py",
+    "scripts/c7w_execution_provenance.py",
     "scripts/run_mcp_external_interop.py",
     "scripts/prepare_mcp_external_interop_campaign.py",
     "scripts/seal_mcp_external_interop.py",
     "scripts/prepare_mcp_external_client_execution.py",
     "scripts/finalize_mcp_external_client_receipt.py",
+    "scripts/admit_mcp_external_receipt.py",
 )
 PLACEHOLDERS=("<foreign-project-id>","<same-project-operation-id>","<request-created-by-same-subject>")
 
@@ -66,11 +68,13 @@ def validate(root:Path)->list[tuple[str,str]]:
     reconciler=source["scripts/reconcile_c7w_trusted_clients.py"]
     execution=source["scripts/c7w_execution_bindings.py"]
     profiles=source["scripts/c7w_credential_profiles.py"]
+    provenance=source["scripts/c7w_execution_provenance.py"]
     runner=source["scripts/run_mcp_external_interop.py"]
     campaign=source["scripts/prepare_mcp_external_interop_campaign.py"]
     seal=source["scripts/seal_mcp_external_interop.py"]
     packet=source["scripts/prepare_mcp_external_client_execution.py"]
     finalizer=source["scripts/finalize_mcp_external_client_receipt.py"]
+    admit=source["scripts/admit_mcp_external_receipt.py"]
 
     for rel,text in (
         ("scripts/c7w_preflight.py",preflight),
@@ -105,6 +109,17 @@ def validate(root:Path)->list[tuple[str,str]]:
     if missing: errors.append(("C7W_EXECUTION_BINDINGS_OWNER_INVALID",",".join(missing)))
     if 'AUTHORITY="MCP_EXTERNAL_CREDENTIAL_PROFILE_CONTRACT_V1"' not in profiles or "def contract" not in profiles:
         errors.append(("C7W_CREDENTIAL_PROFILE_OWNER_INVALID","scripts/c7w_credential_profiles.py"))
+    provenance_markers=(
+        'EXECUTION_BINDING_AUTHORITY="MCP_EXTERNAL_EXECUTION_BINDINGS_V1"',
+        'CREDENTIAL_PROFILE_CONTRACT_AUTHORITY="MCP_EXTERNAL_CREDENTIAL_PROFILE_CONTRACT_V1"',
+        "def projection",
+        "def validate_rows",
+        "def validate_receipt_execution_binding",
+        "EXECUTION_BINDING_MIXED",
+        "EXECUTION_BINDING_REQUIRED",
+    )
+    missing=[marker for marker in provenance_markers if marker not in provenance]
+    if missing: errors.append(("C7W_EXECUTION_PROVENANCE_OWNER_INVALID",",".join(missing)))
     if (
         "PREPARE_C7W_EXECUTION_BINDINGS" not in preflight
         or "scripts/c7w_execution_bindings.py" not in preflight
@@ -127,8 +142,16 @@ def validate(root:Path)->list[tuple[str,str]]:
     missing=[marker for marker in campaign_markers if marker not in campaign]
     if missing:
         errors.append(("C7W_CAMPAIGN_OWNER_INVALID",",".join(missing)))
-    if 'AUTHORITY="MCP_EXTERNAL_CLIENT_INTEROPERABILITY_EVIDENCE_V1"' not in seal or "def validate_evidence_only_source_lineage" not in seal:
-        errors.append(("C7W_SEAL_OWNER_INVALID","scripts/seal_mcp_external_interop.py"))
+    seal_markers=(
+        'AUTHORITY="MCP_EXTERNAL_CLIENT_INTEROPERABILITY_EVIDENCE_V1"',
+        "def validate_evidence_only_source_lineage",
+        "def validate_receipt_execution_binding",
+        "validate_receipt_execution_binding(row,campaign,client)",
+        "**execution_binding",
+    )
+    missing=[marker for marker in seal_markers if marker not in seal]
+    if missing:
+        errors.append(("C7W_SEAL_OWNER_INVALID",",".join(missing)))
     if (
         'AUTHORITY="MCP_EXTERNAL_CLIENT_EXECUTION_PACKET_V1"' not in packet
         or "executionBindingsSha256" not in packet
@@ -136,8 +159,23 @@ def validate(root:Path)->list[tuple[str,str]]:
         or "_binding_snapshot" not in packet
     ):
         errors.append(("C7W_EXECUTION_PACKET_OWNER_INVALID","scripts/prepare_mcp_external_client_execution.py"))
-    if "_packet_execution_bindings" not in finalizer or "credentialProfileContractSha256" not in finalizer or "executionBindingsSha256" not in finalizer:
-        errors.append(("C7W_RECEIPT_FINALIZER_OWNER_INVALID","scripts/finalize_mcp_external_client_receipt.py"))
+    finalizer_markers=(
+        "_packet_execution_bindings",
+        "credentialProfileContractSha256",
+        "executionBindingsSha256",
+        '"executionBindings":resources',
+    )
+    missing=[marker for marker in finalizer_markers if marker not in finalizer]
+    if missing:
+        errors.append(("C7W_RECEIPT_FINALIZER_OWNER_INVALID",",".join(missing)))
+    admit_markers=(
+        "execution_provenance.validate_rows",
+        "core.validate_receipt_execution_binding",
+        "def validate_existing_campaign_rows",
+    )
+    missing=[marker for marker in admit_markers if marker not in admit]
+    if missing:
+        errors.append(("C7W_PROGRESS_PROVENANCE_OWNER_INVALID",",".join(missing)))
     for rel,text in (("scripts/prepare_mcp_external_client_execution.py",packet),("scripts/finalize_mcp_external_client_receipt.py",finalizer)):
         for placeholder in PLACEHOLDERS:
             if placeholder in text:
