@@ -146,7 +146,8 @@ class LocalC7WRunnerTests(unittest.TestCase):
             self.assertEqual(["gemini","grok"],out["missing"])
             self.assertEqual("RUN_EXTERNAL_CLIENT",out["nextActionCode"])
             self.assertEqual("gemini",out["nextClient"])
-            self.assertEqual(out["clientHandoff"]["gemini"]["admitCommand"],out["nextCommand"])
+            self.assertEqual([],out["nextCommand"])
+            self.assertEqual(out["clientHandoff"]["gemini"]["admitCommand"],out["postExternalExecutionCommand"])
             self.assertEqual(set(mod.core.CLIENTS),set(out["clientHandoff"]))
             for client in mod.core.CLIENTS:
                 self.assertTrue((state/"packets"/f"{client}.json").is_file())
@@ -190,7 +191,8 @@ class LocalC7WRunnerTests(unittest.TestCase):
             self.assertFalse(merge.call_args.kwargs["allow_campaign_supersede"])
             self.assertEqual("RUN_EXTERNAL_CLIENT",out["nextActionCode"])
             self.assertEqual("chatgpt",out["nextClientHandoff"]["clientId"])
-            self.assertEqual(out["nextClientHandoff"]["admitCommand"],out["nextCommand"])
+            self.assertEqual([],out["nextCommand"])
+            self.assertEqual(out["nextClientHandoff"]["admitCommand"],out["postExternalExecutionCommand"])
 
     def test_admit_fourth_client_hands_directly_to_independent_seal(self):
         with tempfile.TemporaryDirectory() as td:
@@ -394,13 +396,14 @@ class LocalC7WRunnerTests(unittest.TestCase):
                 out=mod.status(args)
             self.assertEqual("RUN_EXTERNAL_CLIENT",out["nextActionCode"])
             expected_capture=str(state/"captures"/"chatgpt.capture.json")
-            self.assertEqual([sys.executable,"scripts/run_mcp_external_interop.py","--state-dir",str(state),"admit","--client","chatgpt","--capture",expected_capture],out["nextCommand"])
+            self.assertEqual([],out["nextCommand"])
             handoff=out["nextClientHandoff"]
             self.assertEqual("chatgpt",handoff["clientId"])
             self.assertEqual(str(state/"packets"/"chatgpt.json"),handoff["packetPath"])
             self.assertEqual(str(state/"capture-templates"/"chatgpt.json"),handoff["captureTemplatePath"])
             self.assertEqual(expected_capture,handoff["expectedCapturePath"])
             self.assertEqual("MCP_EXTERNAL_CLIENT_CAPTURE_V1",handoff["requiredCaptureAuthority"])
+            self.assertEqual(handoff["admitCommand"],out["postExternalExecutionCommand"])
             self.assertNotIn("/secure/",json.dumps(handoff))
 
     def test_status_never_sends_next_client_on_stale_campaign_source(self):
