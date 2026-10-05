@@ -131,6 +131,8 @@ def assignment_targets_and_value(node):
         return [node.target],node.value
     if isinstance(node,ast.AugAssign):
         return [node.target],None
+    if isinstance(node,ast.NamedExpr):
+        return [node.target],node.value
     return [],None
 
 
