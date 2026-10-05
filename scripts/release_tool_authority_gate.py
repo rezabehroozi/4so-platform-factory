@@ -430,6 +430,24 @@ def c9_parser_args_value_valid(value)->bool:
     )
 
 
+def c9_mutable_args_mapping_alias_value(value)->bool:
+    if (
+        isinstance(value,ast.Attribute)
+        and value.attr=="__dict__"
+        and isinstance(value.value,ast.Name)
+        and value.value.id=="args"
+    ):
+        return True
+    return (
+        isinstance(value,ast.Call)
+        and isinstance(value.func,ast.Name)
+        and value.func.id=="vars"
+        and len(value.args)==1
+        and isinstance(value.args[0],ast.Name)
+        and value.args[0].id=="args"
+    )
+
+
 def c9_cli_args_authority_mutated(function:ast.FunctionDef|ast.AsyncFunctionDef)->bool:
     if direct_authority_alias_present(function,"args"):
         return True
@@ -437,7 +455,12 @@ def c9_cli_args_authority_mutated(function:ast.FunctionDef|ast.AsyncFunctionDef)
     mutators=("update","clear","pop","popitem","setdefault","__setitem__","__delitem__","__setattr__","__delattr__")
     for node in function_scope_nodes(function):
         targets,value=assignment_targets_and_value(node)
-        for target in (item for root_target in targets for item in assignment_target_nodes(root_target)):
+        flat_targets=[item for root_target in targets for item in assignment_target_nodes(root_target)]
+        if c9_mutable_args_mapping_alias_value(value) and any(
+            isinstance(target,ast.Name) and target.id!="args" for target in flat_targets
+        ):
+            return True
+        for target in flat_targets:
             if isinstance(target,ast.Name) and target.id=="args":
                 if not parser_binding_seen and c9_parser_args_value_valid(value):
                     parser_binding_seen=True
