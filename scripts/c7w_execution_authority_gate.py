@@ -211,8 +211,11 @@ def direct_authority_exposure(value,owner:str)->bool:
         return direct_authority_exposure(value.elt,owner)
     if isinstance(value,ast.DictComp):
         return direct_authority_exposure(value.key,owner) or direct_authority_exposure(value.value,owner)
-    if isinstance(value,ast.Subscript) and isinstance(value.slice,ast.Constant):
-        index=value.slice.value
+    if isinstance(value,ast.Subscript):
+        try:
+            index=ast.literal_eval(value.slice)
+        except (ValueError,TypeError,SyntaxError):
+            return False
         container=value.value
         if isinstance(container,(ast.Tuple,ast.List)) and isinstance(index,int):
             try:
@@ -223,7 +226,7 @@ def direct_authority_exposure(value,owner:str)->bool:
             for key,item in reversed(list(zip(container.keys,container.values))):
                 try:
                     matches=ast.literal_eval(key)==index
-                except (ValueError,TypeError):
+                except (ValueError,TypeError,SyntaxError):
                     continue
                 if matches:
                     return direct_authority_exposure(item,owner)
