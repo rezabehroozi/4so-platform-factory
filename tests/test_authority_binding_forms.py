@@ -49,12 +49,25 @@ class AuthorityBindingFormsTests(unittest.TestCase):
         self.assertIn("PROGRESS_OUTPUT_WIRING_INVALID",errors)
         self.assertIn("EVIDENCE_OUTPUT_WIRING_INVALID",errors)
 
+    def test_c7w_rejects_match_subject_alias_escape(self):
+        source='''\ndef main():\n    match args:\n        case alias:\n            pass\n    return None\n'''
+        function=ast.parse(source).body[0]
+        self.assertTrue(c7w.direct_authority_alias_present(function,"args"))
+
     def test_c9_output_rejects_for_rebind(self):
         source='''\ndef main():\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,out)\n    for out in [args.out]:\n        pass\n    return evidence\n'''
         self.assertFalse(c9.c9_main_canonical_output_bound(source))
 
     def test_c9_working_directory_rejects_definition_rebind(self):
         source='''\ndef main():\n    root=args.root.resolve()\n    result={}\n    result["workingDirectory"]=str(root)\n    def root():\n        pass\n    return result\n'''
+        self.assertFalse(c9.c9_main_working_directory_bound(source))
+
+    def test_c9_rejects_match_subject_alias_escape(self):
+        source='''\ndef main():\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,out)\n    match evidence:\n        case alias:\n            pass\n    return evidence\n'''
+        self.assertFalse(c9.c9_main_canonical_output_bound(source))
+
+    def test_c9_working_directory_rejects_match_result_alias_escape(self):
+        source='''\ndef main():\n    root=args.root.resolve()\n    result={}\n    result["workingDirectory"]=str(root)\n    match result:\n        case alias:\n            pass\n    return result\n'''
         self.assertFalse(c9.c9_main_working_directory_bound(source))
 
 
