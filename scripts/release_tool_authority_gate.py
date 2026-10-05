@@ -448,6 +448,43 @@ def c9_mutable_args_mapping_alias_value(value)->bool:
     )
 
 
+def c9_call_name(node)->str:
+    if not isinstance(node,ast.Call):
+        return ""
+    if isinstance(node.func,ast.Name):
+        return node.func.id
+    if isinstance(node.func,ast.Attribute) and isinstance(node.func.value,ast.Name):
+        return f"{node.func.value.id}.{node.func.attr}"
+    return ""
+
+
+def c9_direct_authority_exposure(value,owner:str)->bool:
+    if isinstance(value,ast.Name) and value.id==owner:
+        return True
+    if owner=="args" and c9_mutable_args_mapping_alias_value(value):
+        return True
+    if isinstance(value,(ast.Tuple,ast.List,ast.Set)):
+        return any(c9_direct_authority_exposure(item,owner) for item in value.elts)
+    if isinstance(value,ast.Dict):
+        return any(
+            c9_direct_authority_exposure(item,owner)
+            for item in [*value.keys,*value.values]
+            if item is not None
+        )
+    if isinstance(value,ast.Starred):
+        return c9_direct_authority_exposure(value.value,owner)
+    return False
+
+
+def c9_unknown_authority_helper_call(node,owner:str,allowed:tuple[str,...]=())->bool:
+    if not isinstance(node,ast.Call) or c9_call_name(node) in set(allowed):
+        return False
+    return (
+        any(c9_direct_authority_exposure(arg,owner) for arg in node.args)
+        or any(c9_direct_authority_exposure(keyword.value,owner) for keyword in node.keywords)
+    )
+
+
 def c9_cli_args_authority_mutated(function:ast.FunctionDef|ast.AsyncFunctionDef)->bool:
     if direct_authority_alias_present(function,"args"):
         return True
@@ -469,6 +506,8 @@ def c9_cli_args_authority_mutated(function:ast.FunctionDef|ast.AsyncFunctionDef)
             if c9_target_base_name(target)=="args":
                 return True
         if c9_args_attribute_call_mutation(node) is not None:
+            return True
+        if c9_unknown_authority_helper_call(node,"args"):
             return True
         if isinstance(node,ast.Call) and isinstance(node.func,ast.Attribute) and node.func.attr in mutators:
             owner=node.func.value
@@ -545,6 +584,8 @@ def c9_main_working_directory_bound(source:str)->bool:
                 working_valid=False
             if c9_mapping_mutation_call(node,"result"):
                 working_valid=False
+            if c9_unknown_authority_helper_call(node,"result",("json.dumps",)):
+                working_valid=False
     if direct_authority_alias_present(main,"result"):
         working_valid=False
     return root_valid and working_valid
@@ -608,6 +649,8 @@ def c9_main_canonical_output_bound(source:str)->bool:
                 out_valid=False
                 evidence_valid=False
             if c9_mapping_mutation_call(node,"evidence"):
+                evidence_valid=False
+            if c9_unknown_authority_helper_call(node,"evidence",("final_git_handoff",)):
                 evidence_valid=False
             if isinstance(node,ast.Call) and isinstance(node.func,ast.Name) and node.func.id=="execute":
                 evidence_valid=False
