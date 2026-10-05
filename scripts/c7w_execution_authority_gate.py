@@ -190,6 +190,16 @@ def direct_authority_exposure(value,owner:str)->bool:
     return False
 
 
+def default_authority_capture_present(function:ast.FunctionDef|ast.AsyncFunctionDef,owner:str)->bool:
+    for node in function_scope_nodes(function):
+        if not isinstance(node,(ast.FunctionDef,ast.AsyncFunctionDef,ast.Lambda)) or node is function:
+            continue
+        defaults=(*node.args.defaults,*node.args.kw_defaults)
+        if any(default is not None and direct_authority_exposure(default,owner) for default in defaults):
+            return True
+    return False
+
+
 def call_name(node)->str:
     if not isinstance(node,ast.Call):
         return ""
@@ -387,7 +397,7 @@ def canonical_output_contract_errors(source:str)->list[str]:
                     guarded[attr]=False
             if args_attribute_call_mutation(node)==attr:
                 guarded[attr]=False
-    if direct_authority_alias_present(main,"args"):
+    if direct_authority_alias_present(main,"args") or default_authority_capture_present(main,"args"):
         guarded={"progress_out":False,"evidence_out":False}
     for node in function_scope_nodes(main):
         targets,value=assignment_targets_and_value(node)
@@ -459,7 +469,7 @@ def runner_working_directory_contract_errors(source:str)->list[str]:
                     working_valid=False
             if result_mutation_call(node):
                 working_valid=False
-    if direct_authority_alias_present(main,"result"):
+    if direct_authority_alias_present(main,"result") or default_authority_capture_present(main,"result"):
         working_valid=False
     for node in function_scope_nodes(main):
         targets,value=assignment_targets_and_value(node)
