@@ -17,6 +17,11 @@ class C7WExternalActionOwnerExclusivityTests(unittest.TestCase):
         errors=mod.external_client_action_contract_errors(source)
         self.assertIn("PREPARE_EXTERNAL_ACTION_DIRECT_EMISSION_INVALID",errors)
 
+    def test_prepare_cannot_hide_external_action_behind_static_string_expression(self):
+        source='''\ndef external_client_action():\n    return {"nextActionCode":"RUN_EXTERNAL_CLIENT","nextCommand":[],"nextClientHandoff":{},"postExternalExecutionCommand":[]}\ndef prepare(flag):\n    if flag:\n        return external_client_action()\n    return {"nextActionCode":"RUN_"+"EXTERNAL_CLIENT","nextCommand":["python","admit.py"],"nextClientHandoff":{},"postExternalExecutionCommand":[]}\ndef admit(): return external_client_action()\ndef status(): return external_client_action()\n'''
+        errors=mod.external_client_action_contract_errors(source)
+        self.assertIn("PREPARE_EXTERNAL_ACTION_DIRECT_EMISSION_INVALID",errors)
+
 
 if __name__=="__main__":
     unittest.main()
