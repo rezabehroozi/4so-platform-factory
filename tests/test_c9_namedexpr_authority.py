@@ -18,6 +18,14 @@ class C9NamedExpressionAuthorityTests(unittest.TestCase):
         self.assertIsInstance(value,ast.Name)
         self.assertEqual("evidence",value.id)
 
+    def test_assignment_extractor_treats_delete_as_mutation(self):
+        deleted=ast.parse("del out\n").body[0]
+        targets,value=mod.assignment_targets_and_value(deleted)
+        self.assertEqual(1,len(targets))
+        self.assertIsInstance(targets[0],ast.Name)
+        self.assertEqual("out",targets[0].id)
+        self.assertIsNone(value)
+
     def test_canonical_output_rejects_walrus_root_rebind(self):
         source='''\ndef main():\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,out)\n    if (root := args.root):\n        pass\n    return evidence\n'''
         self.assertFalse(mod.c9_main_canonical_output_bound(source))
@@ -29,6 +37,14 @@ class C9NamedExpressionAuthorityTests(unittest.TestCase):
     def test_evidence_alias_rejects_walrus_capture(self):
         source='''\ndef main():\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,out)\n    if (alias := evidence):\n        alias.update({"drift":True})\n    return evidence\n'''
         self.assertFalse(mod.c9_main_canonical_output_bound(source))
+
+    def test_canonical_output_rejects_delete_after_execute(self):
+        source='''\ndef main():\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,out)\n    del out\n    return evidence\n'''
+        self.assertFalse(mod.c9_main_canonical_output_bound(source))
+
+    def test_working_directory_rejects_delete_after_projection(self):
+        source='''\ndef main():\n    root=args.root.resolve()\n    result={}\n    result["workingDirectory"]=str(root)\n    del result["workingDirectory"]\n    return result\n'''
+        self.assertFalse(mod.c9_main_working_directory_bound(source))
 
 
 if __name__=="__main__":
