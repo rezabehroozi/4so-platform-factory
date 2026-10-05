@@ -39,6 +39,14 @@ class ReleaseToolAuthorityScopeTests(unittest.TestCase):
         source='''\ndef execute():\n    git_source()\n    exact_source_admission()\n    if runtime_condition:\n        audit_one()\n    else:\n        audit_two()\n    require_exact_release_host()\n    require_exact_release_environment()\n'''
         self.assertTrue(mod.ordered_calls_on_same_path(source,"execute",("git_source","exact_source_admission","require_exact_release_host","require_exact_release_environment")))
 
+    def test_ordered_calls_same_path_rejects_match_case_split(self):
+        source='''\ndef execute(mode):\n    git_source()\n    match mode:\n        case "admit":\n            exact_source_admission()\n        case _:\n            require_exact_release_host()\n    require_exact_release_environment()\n'''
+        self.assertFalse(mod.ordered_calls_on_same_path(source,"execute",("git_source","exact_source_admission","require_exact_release_host","require_exact_release_environment")))
+
+    def test_ordered_calls_same_path_allows_unrelated_match(self):
+        source='''\ndef execute(mode):\n    git_source()\n    exact_source_admission()\n    match mode:\n        case "one":\n            audit_one()\n        case _:\n            audit_two()\n    require_exact_release_host()\n    require_exact_release_environment()\n'''
+        self.assertTrue(mod.ordered_calls_on_same_path(source,"execute",("git_source","exact_source_admission","require_exact_release_host","require_exact_release_environment")))
+
     def test_ordered_calls_same_path_rejects_short_circuit_target_call(self):
         source='''\ndef execute():\n    git_source()\n    runtime_condition and exact_source_admission()\n    require_exact_release_host()\n    require_exact_release_environment()\n'''
         self.assertFalse(mod.ordered_calls_on_same_path(source,"execute",("git_source","exact_source_admission","require_exact_release_host","require_exact_release_environment")))
