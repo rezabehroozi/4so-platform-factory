@@ -424,6 +424,9 @@ def external_client_action_contract_errors(source:str)->list[str]:
         wired=any(isinstance(node,ast.Call) and isinstance(node.func,ast.Name) and node.func.id=="external_client_action" for node in function_scope_nodes(fn))
         if not wired:
             errors.append(f"{owner.upper()}_EXTERNAL_ACTION_WIRING_INVALID")
+        direct_emission=any(isinstance(node,ast.Constant) and node.value=="RUN_EXTERNAL_CLIENT" for node in function_scope_nodes(fn))
+        if direct_emission:
+            errors.append(f"{owner.upper()}_EXTERNAL_ACTION_DIRECT_EMISSION_INVALID")
     return errors
 
 
