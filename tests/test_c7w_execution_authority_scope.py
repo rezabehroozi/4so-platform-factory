@@ -1,3 +1,4 @@
+import ast
 import importlib.util
 import unittest
 from pathlib import Path
@@ -17,6 +18,13 @@ class C7WExecutionAuthorityScopeTests(unittest.TestCase):
         source='''\ndef external_client_action():\n    if runtime_condition:\n        return {"nextActionCode":"RUN_EXTERNAL_CLIENT","nextCommand":[],"nextClientHandoff":{},"postExternalExecutionCommand":[]}\n    return {"nextActionCode":"RUN_EXTERNAL_CLIENT","nextCommand":["python","admit.py"],"nextClientHandoff":{},"postExternalExecutionCommand":[]}\ndef prepare(): return external_client_action()\ndef admit(): return external_client_action()\ndef status(): return external_client_action()\n'''
         errors=mod.external_client_action_contract_errors(source)
         self.assertIn("EXTERNAL_ACTION_SHAPE_INVALID",errors)
+
+    def test_canonical_guard_requires_same_candidate_attribute(self):
+        cross_wired=ast.parse(
+            'require_canonical_artifact_path(root,args.evidence_out,CANONICAL_PROGRESS_REL,"PROGRESS")',
+            mode="eval",
+        ).body
+        self.assertFalse(mod.canonical_guard_value_valid(cross_wired,"progress_out"))
 
     def test_canonical_output_wiring_ignores_nested_and_false_branch_assignments(self):
         source='''\nCANONICAL_PROGRESS_REL=Path("lab/mcp-external-client-interop-progress.json")\nCANONICAL_EVIDENCE_REL=Path("lab/mcp-external-client-interoperability-evidence.json")\ndef require_canonical_artifact_path(): pass\ndef main():\n    def dead():\n        args.progress_out=require_canonical_artifact_path(root,args.progress_out,CANONICAL_PROGRESS_REL,"PROGRESS")\n    if False:\n        args.evidence_out=require_canonical_artifact_path(root,args.evidence_out,CANONICAL_EVIDENCE_REL,"EVIDENCE")\n    return None\n'''
