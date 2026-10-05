@@ -601,6 +601,7 @@ def c9_main_working_directory_bound(source:str)->bool:
     if main is None or c9_cli_args_authority_mutated(main) or c9_default_authority_capture_present(main,"result") or c9_closure_authority_capture_present(main,"result"):
         return False
     root_valid=False
+    root_line=None
     working_valid=False
     working_line=None
     for node in main.body:
@@ -612,6 +613,7 @@ def c9_main_working_directory_bound(source:str)->bool:
             if isinstance(target,ast.Name) and target.id=="root":
                 direct_target=len(targets)==1 and targets[0] is target and not isinstance(node,ast.AugAssign)
                 root_valid=direct_target and c9_root_value_valid(value)
+                root_line=getattr(node,"lineno",0) if root_valid else None
                 working_valid=False
                 working_line=None
             elif isinstance(target,ast.Name) and target.id=="result":
@@ -627,6 +629,15 @@ def c9_main_working_directory_bound(source:str)->bool:
                 direct_target=len(targets)==1 and targets[0] is target and not isinstance(node,ast.AugAssign)
                 working_valid=direct_target and root_valid and c9_working_directory_value_valid(value)
                 working_line=getattr(node,"lineno",0) if working_valid else None
+    if root_valid and working_valid and root_line is not None and working_line is not None:
+        for node in function_scope_nodes(main):
+            line=getattr(node,"lineno",0)
+            if line<=root_line or line>=working_line:
+                continue
+            targets,_=assignment_targets_and_value(node)
+            if any(c9_target_base_name(target)=="root" for root_target in targets for target in assignment_target_nodes(root_target)):
+                root_valid=False
+                working_valid=False
     if working_valid and working_line is not None:
         for node in function_scope_nodes(main):
             if getattr(node,"lineno",0)<=working_line:
@@ -667,7 +678,9 @@ def c9_main_canonical_output_bound(source:str)->bool:
     if main is None or c9_cli_args_authority_mutated(main) or c9_default_authority_capture_present(main,"evidence") or c9_closure_authority_capture_present(main,"evidence"):
         return False
     root_valid=False
+    root_line=None
     out_valid=False
+    out_line=None
     evidence_valid=False
     evidence_line=None
     for node in main.body:
@@ -681,16 +694,33 @@ def c9_main_canonical_output_bound(source:str)->bool:
             direct_target=len(targets)==1 and targets[0] is target and not isinstance(node,ast.AugAssign)
             if target.id=="root":
                 root_valid=direct_target and c9_root_value_valid(value)
+                root_line=getattr(node,"lineno",0) if root_valid else None
                 out_valid=False
+                out_line=None
                 evidence_valid=False
                 evidence_line=None
             elif target.id=="out":
                 out_valid=direct_target and root_valid and c9_output_value_valid(value)
+                out_line=getattr(node,"lineno",0) if out_valid else None
                 evidence_valid=False
                 evidence_line=None
             elif target.id=="evidence":
                 evidence_valid=direct_target and root_valid and out_valid and c9_evidence_value_valid(value)
                 evidence_line=getattr(node,"lineno",0) if evidence_valid else None
+    if evidence_valid and evidence_line is not None:
+        for node in function_scope_nodes(main):
+            line=getattr(node,"lineno",0)
+            if root_line is not None and root_line<line<evidence_line:
+                targets,_=assignment_targets_and_value(node)
+                if any(c9_target_base_name(target)=="root" for root_target in targets for target in assignment_target_nodes(root_target)):
+                    root_valid=False
+                    out_valid=False
+                    evidence_valid=False
+            if out_line is not None and out_line<line<evidence_line:
+                targets,_=assignment_targets_and_value(node)
+                if any(c9_target_base_name(target)=="out" for root_target in targets for target in assignment_target_nodes(root_target)):
+                    out_valid=False
+                    evidence_valid=False
     if evidence_valid and evidence_line is not None:
         for node in function_scope_nodes(main):
             if getattr(node,"lineno",0)<=evidence_line:
