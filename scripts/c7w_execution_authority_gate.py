@@ -362,7 +362,6 @@ def canonical_guard_value_valid(value,attr:str)->bool:
         and isinstance(value.args[1],ast.Attribute)
         and isinstance(value.args[1].value,ast.Name)
         and value.args[1].value.id=="args"
-        and value.args[1].attr==attr
         and isinstance(value.args[2],ast.Name)
         and value.args[2].id==expected_rel
         and isinstance(value.args[3],ast.Constant)
@@ -413,6 +412,14 @@ def external_client_action_contract_errors(source:str)->list[str]:
         action=mapping.get("nextActionCode")
         command=mapping.get("nextCommand")
         return isinstance(action,ast.Constant) and action.value=="RUN_EXTERNAL_CLIENT" and isinstance(command,ast.List) and not command.elts and "nextClientHandoff" in mapping and "postExternalExecutionCommand" in mapping
+    def static_string_value(node):
+        if isinstance(node,ast.Constant) and isinstance(node.value,str):
+            return node.value
+        if isinstance(node,ast.BinOp) and isinstance(node.op,ast.Add):
+            left=static_string_value(node.left); right=static_string_value(node.right)
+            if left is not None and right is not None:
+                return left+right
+        return None
     errors=[]
     if not returns or not all(valid_return(node) for node in returns):
         errors.append("EXTERNAL_ACTION_SHAPE_INVALID")
@@ -424,7 +431,7 @@ def external_client_action_contract_errors(source:str)->list[str]:
         wired=any(isinstance(node,ast.Call) and isinstance(node.func,ast.Name) and node.func.id=="external_client_action" for node in function_scope_nodes(fn))
         if not wired:
             errors.append(f"{owner.upper()}_EXTERNAL_ACTION_WIRING_INVALID")
-        direct_emission=any(isinstance(node,ast.Constant) and node.value=="RUN_EXTERNAL_CLIENT" for node in function_scope_nodes(fn))
+        direct_emission=any(static_string_value(node)=="RUN_EXTERNAL_CLIENT" for node in function_scope_nodes(fn))
         if direct_emission:
             errors.append(f"{owner.upper()}_EXTERNAL_ACTION_DIRECT_EMISSION_INVALID")
     return errors
