@@ -49,7 +49,7 @@ def direct_git_calls_without_env(source:str)->list[int]:
             and func.attr=="run"
             and isinstance(func.value,ast.Name)
             and func.value.id=="subprocess"
-            and isinstance(command,ast.List)
+            and isinstance(command,(ast.List,ast.Tuple))
             and command.elts
             and isinstance(command.elts[0],ast.Constant)
             and command.elts[0].value=="git"
