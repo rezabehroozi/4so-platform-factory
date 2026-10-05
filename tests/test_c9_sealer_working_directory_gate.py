@@ -49,6 +49,12 @@ class C9SealerWorkingDirectoryGateTests(unittest.TestCase):
         source='''\ndef main():\n    root=args.root.resolve()\n    result={}\n    result["workingDirectory"]=str(root)\n    alias=result\n    alias.pop("workingDirectory")\n    return result\n'''
         self.assertFalse(mod.c9_main_working_directory_bound(source))
 
+    def test_rejects_unknown_helper_receiving_working_directory_authority(self):
+        tainted='''\ndef taint(value): pass\ndef main():\n    root=args.root.resolve()\n    result={}\n    result["workingDirectory"]=str(root)\n    taint(result)\n    return result\n'''
+        safe='''\ndef main():\n    root=args.root.resolve()\n    result={}\n    result["workingDirectory"]=str(root)\n    print(json.dumps(result,sort_keys=True))\n    return 0\n'''
+        self.assertFalse(mod.c9_main_working_directory_bound(tainted))
+        self.assertTrue(mod.c9_main_working_directory_bound(safe))
+
     def test_requires_canonical_output_before_execute_on_same_path(self):
         good='''\ndef main():\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,out)\n    return evidence\n'''
         bypass='''\ndef main():\n    root=args.root.resolve()\n    evidence=execute(root,args.out)\n    return evidence\n'''
@@ -88,6 +94,14 @@ class C9SealerWorkingDirectoryGateTests(unittest.TestCase):
     def test_rejects_evidence_alias_mutation(self):
         source='''\ndef main():\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,out)\n    alias=evidence\n    alias.update({"drift":True})\n    return evidence\n'''
         self.assertFalse(mod.c9_main_canonical_output_bound(source))
+
+    def test_rejects_unknown_helper_receiving_evidence_or_cli_args(self):
+        evidence_tainted='''\ndef taint(value): pass\ndef main():\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,out)\n    taint(evidence)\n    return evidence\n'''
+        args_tainted='''\ndef taint(value): pass\ndef main():\n    parser=argparse.ArgumentParser()\n    args=parser.parse_args()\n    taint(args)\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,out)\n    return evidence\n'''
+        safe_handoff='''\ndef main():\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,out)\n    handoff=final_git_handoff(root,out,evidence)\n    return evidence\n'''
+        self.assertFalse(mod.c9_main_canonical_output_bound(evidence_tainted))
+        self.assertFalse(mod.c9_main_canonical_output_bound(args_tainted))
+        self.assertTrue(mod.c9_main_canonical_output_bound(safe_handoff))
 
 
 if __name__=="__main__":
