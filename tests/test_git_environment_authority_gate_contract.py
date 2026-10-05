@@ -25,6 +25,10 @@ class GitEnvironmentAuthorityGateContractTests(unittest.TestCase):
         self.assertTrue(release_gate.direct_git_calls_without_env(self.BAD))
         self.assertEqual([],release_gate.direct_git_calls_without_env(self.GOOD))
 
+    def test_release_gate_detects_tuple_git_call_without_env(self):
+        self.assertTrue(release_gate.direct_git_calls_without_env(self.TUPLE_BAD))
+        self.assertEqual([],release_gate.direct_git_calls_without_env(self.TUPLE_GOOD))
+
     def test_c7w_gate_detects_direct_git_call_without_env(self):
         self.assertTrue(c7w_gate.direct_git_calls_without_env(self.BAD))
         self.assertEqual([],c7w_gate.direct_git_calls_without_env(self.GOOD))
