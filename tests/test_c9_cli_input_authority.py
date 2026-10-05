@@ -22,6 +22,12 @@ class C9CLIInputAuthorityTests(unittest.TestCase):
         for source in (root_mutation,out_mutation,aliased):
             self.assertFalse(mod.c9_main_canonical_output_bound(source))
 
+    def test_rejects_derived_mutable_args_mapping_aliases(self):
+        dict_alias='''\ndef main():\n    namespace=args.__dict__\n    namespace["root"]=Path("other")\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,out)\n    return evidence\n'''
+        vars_alias='''\ndef main():\n    namespace=vars(args)\n    namespace["out"]=Path("other.json")\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,out)\n    return evidence\n'''
+        self.assertFalse(mod.c9_main_canonical_output_bound(dict_alias))
+        self.assertFalse(mod.c9_main_canonical_output_bound(vars_alias))
+
 
 if __name__=="__main__":
     unittest.main()
