@@ -52,6 +52,12 @@ class C7WExecutionAuthorityScopeTests(unittest.TestCase):
         source='''\nCANONICAL_PROGRESS_REL=Path("lab/mcp-external-client-interop-progress.json")\nCANONICAL_EVIDENCE_REL=Path("lab/mcp-external-client-interoperability-evidence.json")\ndef require_canonical_artifact_path(*args): pass\ndef main():\n    args.progress_out=require_canonical_artifact_path(root,args.progress_out,CANONICAL_PROGRESS_REL,"PROGRESS")\n    args.evidence_out=require_canonical_artifact_path(root,args.evidence_out,CANONICAL_EVIDENCE_REL,"EVIDENCE")\n    alias=args\n    setattr(alias,"progress_out",Path("alternate-progress.json"))\n    return None\n'''
         self.assertIn("PROGRESS_OUTPUT_WIRING_INVALID",mod.canonical_output_contract_errors(source))
 
+    def test_canonical_output_wiring_rejects_unknown_args_helper_exposure(self):
+        source='''\nCANONICAL_PROGRESS_REL=Path("lab/mcp-external-client-interop-progress.json")\nCANONICAL_EVIDENCE_REL=Path("lab/mcp-external-client-interoperability-evidence.json")\ndef require_canonical_artifact_path(*args): pass\ndef taint(value): pass\ndef main():\n    args.progress_out=require_canonical_artifact_path(root,args.progress_out,CANONICAL_PROGRESS_REL,"PROGRESS")\n    args.evidence_out=require_canonical_artifact_path(root,args.evidence_out,CANONICAL_EVIDENCE_REL,"EVIDENCE")\n    taint(args)\n    return None\n'''
+        errors=mod.canonical_output_contract_errors(source)
+        self.assertIn("PROGRESS_OUTPUT_WIRING_INVALID",errors)
+        self.assertIn("EVIDENCE_OUTPUT_WIRING_INVALID",errors)
+
     def test_working_directory_wiring_rejects_conditional_projection(self):
         source='''\ndef main():\n    result={}\n    if runtime_condition:\n        result["workingDirectory"]=str(root)\n    return result\n'''
         errors=mod.runner_working_directory_contract_errors(source)
@@ -78,6 +84,12 @@ class C7WExecutionAuthorityScopeTests(unittest.TestCase):
     def test_working_directory_wiring_rejects_result_alias_mutation(self):
         source='''\ndef main():\n    result={}\n    result["workingDirectory"]=str(root)\n    alias=result\n    alias.pop("workingDirectory")\n    return result\n'''
         self.assertIn("RUNNER_WORKING_DIRECTORY_WIRING_INVALID",mod.runner_working_directory_contract_errors(source))
+
+    def test_working_directory_wiring_rejects_unknown_result_helper_exposure(self):
+        tainted='''\ndef taint(value): pass\ndef main():\n    result={}\n    result["workingDirectory"]=str(root)\n    taint(result)\n    return result\n'''
+        safe='''\ndef main():\n    result={}\n    result["workingDirectory"]=str(root)\n    print(json.dumps(result,sort_keys=True))\n    return 0\n'''
+        self.assertIn("RUNNER_WORKING_DIRECTORY_WIRING_INVALID",mod.runner_working_directory_contract_errors(tainted))
+        self.assertEqual([],mod.runner_working_directory_contract_errors(safe))
 
 
 if __name__=="__main__":
