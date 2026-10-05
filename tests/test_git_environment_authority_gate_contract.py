@@ -18,6 +18,8 @@ c7w_gate=load("scripts/c7w_execution_authority_gate.py","c7w_execution_authority
 class GitEnvironmentAuthorityGateContractTests(unittest.TestCase):
     BAD='import subprocess\ndef f():\n    subprocess.run(["git","rev-parse","HEAD"],check=False)\n'
     GOOD='import subprocess\ndef f(env):\n    subprocess.run(["git","rev-parse","HEAD"],env=env,check=False)\n'
+    TUPLE_BAD='import subprocess\ndef f():\n    subprocess.run(("git","rev-parse","HEAD"),check=False)\n'
+    TUPLE_GOOD='import subprocess\ndef f(env):\n    subprocess.run(("git","rev-parse","HEAD"),env=env,check=False)\n'
 
     def test_release_gate_detects_direct_git_call_without_env(self):
         self.assertTrue(release_gate.direct_git_calls_without_env(self.BAD))
@@ -26,6 +28,10 @@ class GitEnvironmentAuthorityGateContractTests(unittest.TestCase):
     def test_c7w_gate_detects_direct_git_call_without_env(self):
         self.assertTrue(c7w_gate.direct_git_calls_without_env(self.BAD))
         self.assertEqual([],c7w_gate.direct_git_calls_without_env(self.GOOD))
+
+    def test_c7w_gate_detects_tuple_git_call_without_env(self):
+        self.assertTrue(c7w_gate.direct_git_calls_without_env(self.TUPLE_BAD))
+        self.assertEqual([],c7w_gate.direct_git_calls_without_env(self.TUPLE_GOOD))
 
 
 if __name__=="__main__":
