@@ -320,6 +320,18 @@ def assignment_targets_and_value(node):
         return [node.target],node.value
     if isinstance(node,ast.Delete):
         return list(node.targets),None
+    if isinstance(node,(ast.For,ast.AsyncFor)):
+        return [node.target],None
+    if isinstance(node,(ast.With,ast.AsyncWith)):
+        return [item.optional_vars for item in node.items if item.optional_vars is not None],None
+    if isinstance(node,ast.ExceptHandler) and node.name:
+        return [ast.Name(id=node.name,ctx=ast.Store())],None
+    if isinstance(node,(ast.FunctionDef,ast.AsyncFunctionDef,ast.ClassDef)):
+        return [ast.Name(id=node.name,ctx=ast.Store())],None
+    if isinstance(node,(ast.Import,ast.ImportFrom)):
+        return [ast.Name(id=(alias.asname or alias.name.split(".",1)[0]),ctx=ast.Store()) for alias in node.names],None
+    if isinstance(node,ast.MatchAs) and node.name:
+        return [ast.Name(id=node.name,ctx=ast.Store())],None
     return [],None
 
 
