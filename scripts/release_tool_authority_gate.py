@@ -420,13 +420,56 @@ def c9_mapping_mutation_call(node,owner:str)->bool:
     )
 
 
+def c9_parser_args_value_valid(value)->bool:
+    return (
+        isinstance(value,ast.Call)
+        and isinstance(value.func,ast.Attribute)
+        and value.func.attr=="parse_args"
+        and isinstance(value.func.value,ast.Name)
+        and value.func.value.id=="parser"
+    )
+
+
+def c9_cli_args_authority_mutated(function:ast.FunctionDef|ast.AsyncFunctionDef)->bool:
+    if direct_authority_alias_present(function,"args"):
+        return True
+    parser_binding_seen=False
+    mutators=("update","clear","pop","popitem","setdefault","__setitem__","__delitem__","__setattr__","__delattr__")
+    for node in function_scope_nodes(function):
+        targets,value=assignment_targets_and_value(node)
+        for target in (item for root_target in targets for item in assignment_target_nodes(root_target)):
+            if isinstance(target,ast.Name) and target.id=="args":
+                if not parser_binding_seen and c9_parser_args_value_valid(value):
+                    parser_binding_seen=True
+                    continue
+                return True
+            if c9_target_base_name(target)=="args":
+                return True
+        if c9_args_attribute_call_mutation(node) is not None:
+            return True
+        if isinstance(node,ast.Call) and isinstance(node.func,ast.Attribute) and node.func.attr in mutators:
+            owner=node.func.value
+            if c9_target_base_name(owner)=="args":
+                return True
+            if (
+                isinstance(owner,ast.Call)
+                and isinstance(owner.func,ast.Name)
+                and owner.func.id=="vars"
+                and len(owner.args)==1
+                and isinstance(owner.args[0],ast.Name)
+                and owner.args[0].id=="args"
+            ):
+                return True
+    return False
+
+
 def c9_main_working_directory_bound(source:str)->bool:
     try:
         tree=ast.parse(source)
     except (SyntaxError,ValueError):
         return False
     main=next((node for node in tree.body if isinstance(node,ast.FunctionDef) and node.name=="main"),None)
-    if main is None:
+    if main is None or c9_cli_args_authority_mutated(main):
         return False
     root_valid=False
     working_valid=False
@@ -490,7 +533,7 @@ def c9_main_canonical_output_bound(source:str)->bool:
     except (SyntaxError,ValueError):
         return False
     main=next((node for node in tree.body if isinstance(node,ast.FunctionDef) and node.name=="main"),None)
-    if main is None:
+    if main is None or c9_cli_args_authority_mutated(main):
         return False
     root_valid=False
     out_valid=False
