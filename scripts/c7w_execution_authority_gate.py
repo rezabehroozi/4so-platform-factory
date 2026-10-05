@@ -200,6 +200,43 @@ def default_authority_capture_present(function:ast.FunctionDef|ast.AsyncFunction
     return False
 
 
+def nested_scope_closure_capture(node,owner:str)->bool:
+    params={arg.arg for arg in (*node.args.posonlyargs,*node.args.args,*node.args.kwonlyargs)}
+    if node.args.vararg is not None: params.add(node.args.vararg.arg)
+    if node.args.kwarg is not None: params.add(node.args.kwarg.arg)
+    if owner in params:
+        return False
+    local_bound=False
+    global_declared=False
+    nonlocal_declared=False
+    loaded=False
+    roots=[node.body] if isinstance(node,ast.Lambda) else list(node.body)
+    stack=list(roots)
+    while stack:
+        current=stack.pop()
+        if isinstance(current,(ast.FunctionDef,ast.AsyncFunctionDef,ast.Lambda,ast.ClassDef)):
+            continue
+        if isinstance(current,ast.Global) and owner in current.names:
+            global_declared=True
+        elif isinstance(current,ast.Nonlocal) and owner in current.names:
+            nonlocal_declared=True
+        elif isinstance(current,ast.Name) and current.id==owner:
+            if isinstance(current.ctx,ast.Load): loaded=True
+            elif isinstance(current.ctx,(ast.Store,ast.Del)): local_bound=True
+        stack.extend(ast.iter_child_nodes(current))
+    if nonlocal_declared:
+        return True
+    return loaded and not local_bound and not global_declared
+
+
+def closure_authority_capture_present(function:ast.FunctionDef|ast.AsyncFunctionDef,owner:str)->bool:
+    for node in function_scope_nodes(function):
+        if isinstance(node,(ast.FunctionDef,ast.AsyncFunctionDef,ast.Lambda)) and node is not function:
+            if nested_scope_closure_capture(node,owner):
+                return True
+    return False
+
+
 def call_name(node)->str:
     if not isinstance(node,ast.Call):
         return ""
@@ -245,8 +282,8 @@ def args_attribute_call_mutation(node)->str|None:
         return None
     func=node.func
     if isinstance(func,ast.Name) and func.id in ("setattr","delattr") and len(node.args)>=2:
-        owner,name=node.args[:2]
-        if isinstance(owner,ast.Name) and owner.id=="args" and isinstance(name,ast.Constant) and isinstance(name.value,str):
+        obj,name=node.args[:2]
+        if isinstance(obj,ast.Name) and obj.id=="args" and isinstance(name,ast.Constant) and isinstance(name.value,str):
             return name.value
     if isinstance(func,ast.Attribute) and isinstance(func.value,ast.Name) and func.value.id=="args" and func.attr in ("__setattr__","__delattr__") and node.args:
         name=node.args[0]
@@ -286,341 +323,149 @@ def external_client_action_contract_errors(source:str)->list[str]:
     if helper is None:
         return ["EXTERNAL_ACTION_OWNER_MISSING"]
     returns=[node for node in function_scope_nodes(helper) if isinstance(node,ast.Return)]
-
     def valid_return(node:ast.Return)->bool:
-        if not isinstance(node.value,ast.Dict):
-            return False
+        if not isinstance(node.value,ast.Dict): return False
         mapping={}
         for key,value in zip(node.value.keys,node.value.values):
-            if isinstance(key,ast.Constant) and isinstance(key.value,str):
-                mapping[key.value]=value
-        action=mapping.get("nextActionCode")
-        command=mapping.get("nextCommand")
-        return (
-            isinstance(action,ast.Constant)
-            and action.value=="RUN_EXTERNAL_CLIENT"
-            and isinstance(command,ast.List)
-            and not command.elts
-            and "nextClientHandoff" in mapping
-            and "postExternalExecutionCommand" in mapping
-        )
-
+            if isinstance(key,ast.Constant) and isinstance(key.value,str): mapping[key.value]=value
+        action=mapping.get("nextActionCode"); command=mapping.get("nextCommand")
+        return isinstance(action,ast.Constant) and action.value=="RUN_EXTERNAL_CLIENT" and isinstance(command,ast.List) and not command.elts and "nextClientHandoff" in mapping and "postExternalExecutionCommand" in mapping
     errors=[]
-    if not returns or not all(valid_return(node) for node in returns):
-        errors.append("EXTERNAL_ACTION_SHAPE_INVALID")
+    if not returns or not all(valid_return(node) for node in returns): errors.append("EXTERNAL_ACTION_SHAPE_INVALID")
     for owner in ("prepare","admit","status"):
         fn=functions.get(owner)
-        if fn is None:
-            errors.append(f"{owner.upper()}_OWNER_MISSING")
-            continue
-        wired=any(
-            isinstance(node,ast.Call)
-            and isinstance(node.func,ast.Name)
-            and node.func.id=="external_client_action"
-            for node in function_scope_nodes(fn)
-        )
-        if not wired:
-            errors.append(f"{owner.upper()}_EXTERNAL_ACTION_WIRING_INVALID")
+        if fn is None: errors.append(f"{owner.upper()}_OWNER_MISSING"); continue
+        wired=any(isinstance(node,ast.Call) and isinstance(node.func,ast.Name) and node.func.id=="external_client_action" for node in function_scope_nodes(fn))
+        if not wired: errors.append(f"{owner.upper()}_EXTERNAL_ACTION_WIRING_INVALID")
     return errors
 
 
 def canonical_output_contract_errors(source:str)->list[str]:
-    try:
-        tree=ast.parse(source)
-    except (SyntaxError,ValueError):
-        return ["RUNNER_SYNTAX_INVALID"]
-    expected={
-        "CANONICAL_PROGRESS_REL":"lab/mcp-external-client-interop-progress.json",
-        "CANONICAL_EVIDENCE_REL":"lab/mcp-external-client-interoperability-evidence.json",
-    }
-    constants={}
-    functions={node.name:node for node in tree.body if isinstance(node,ast.FunctionDef)}
+    try: tree=ast.parse(source)
+    except (SyntaxError,ValueError): return ["RUNNER_SYNTAX_INVALID"]
+    expected={"CANONICAL_PROGRESS_REL":"lab/mcp-external-client-interop-progress.json","CANONICAL_EVIDENCE_REL":"lab/mcp-external-client-interoperability-evidence.json"}
+    constants={}; functions={node.name:node for node in tree.body if isinstance(node,ast.FunctionDef)}
     for node in tree.body:
-        if not isinstance(node,ast.Assign) or len(node.targets)!=1 or not isinstance(node.targets[0],ast.Name):
-            continue
+        if not isinstance(node,ast.Assign) or len(node.targets)!=1 or not isinstance(node.targets[0],ast.Name): continue
         name=node.targets[0].id
-        if name not in expected or not isinstance(node.value,ast.Call):
-            continue
-        if not isinstance(node.value.func,ast.Name) or node.value.func.id!="Path" or len(node.value.args)!=1:
-            continue
+        if name not in expected or not isinstance(node.value,ast.Call): continue
+        if not isinstance(node.value.func,ast.Name) or node.value.func.id!="Path" or len(node.value.args)!=1: continue
         arg=node.value.args[0]
-        if isinstance(arg,ast.Constant) and isinstance(arg.value,str):
-            constants[name]=arg.value
+        if isinstance(arg,ast.Constant) and isinstance(arg.value,str): constants[name]=arg.value
     errors=[]
     for name,value in expected.items():
-        if constants.get(name)!=value:
-            errors.append(name+"_INVALID")
-    if "require_canonical_artifact_path" not in functions:
-        errors.append("CANONICAL_OUTPUT_GUARD_MISSING")
+        if constants.get(name)!=value: errors.append(name+"_INVALID")
+    if "require_canonical_artifact_path" not in functions: errors.append("CANONICAL_OUTPUT_GUARD_MISSING")
     main=functions.get("main")
-    if main is None:
-        errors.append("MAIN_OWNER_MISSING")
-        return errors
-    guarded={"progress_out":False,"evidence_out":False}
-    guard_lines={"progress_out":None,"evidence_out":None}
+    if main is None: errors.append("MAIN_OWNER_MISSING"); return errors
+    guarded={"progress_out":False,"evidence_out":False}; guard_lines={"progress_out":None,"evidence_out":None}
     for node in main.body:
-        if isinstance(node,(ast.Return,ast.Raise)):
-            break
+        if isinstance(node,(ast.Return,ast.Raise)): break
         targets,value=assignment_targets_and_value(node)
-        if not targets:
-            continue
+        if not targets: continue
         for target in (item for root_target in targets for item in assignment_target_nodes(root_target)):
-            if not (
-                isinstance(target,ast.Attribute)
-                and isinstance(target.value,ast.Name)
-                and target.value.id=="args"
-                and target.attr in guarded
-            ):
-                continue
-            attr=target.attr
-            direct_target=len(targets)==1 and targets[0] is target and not isinstance(node,ast.AugAssign)
-            guarded[attr]=direct_target and canonical_guard_value_valid(value,attr)
-            guard_lines[attr]=getattr(node,"lineno",0) if guarded[attr] else None
+            if not (isinstance(target,ast.Attribute) and isinstance(target.value,ast.Name) and target.value.id=="args" and target.attr in guarded): continue
+            attr=target.attr; direct_target=len(targets)==1 and targets[0] is target and not isinstance(node,ast.AugAssign)
+            guarded[attr]=direct_target and canonical_guard_value_valid(value,attr); guard_lines[attr]=getattr(node,"lineno",0) if guarded[attr] else None
     for attr in guarded:
         line=guard_lines[attr]
-        if not guarded[attr] or line is None:
-            continue
+        if not guarded[attr] or line is None: continue
         for node in function_scope_nodes(main):
-            if getattr(node,"lineno",0)<=line:
-                continue
+            if getattr(node,"lineno",0)<=line: continue
             targets,value=assignment_targets_and_value(node)
             for target in (item for root_target in targets for item in assignment_target_nodes(root_target)):
-                if not (
-                    isinstance(target,ast.Attribute)
-                    and isinstance(target.value,ast.Name)
-                    and target.value.id=="args"
-                    and target.attr==attr
-                ):
-                    continue
+                if not (isinstance(target,ast.Attribute) and isinstance(target.value,ast.Name) and target.value.id=="args" and target.attr==attr): continue
                 direct_target=len(targets)==1 and targets[0] is target and not isinstance(node,ast.AugAssign)
-                if not (direct_target and canonical_guard_value_valid(value,attr)):
-                    guarded[attr]=False
-            if args_attribute_call_mutation(node)==attr:
-                guarded[attr]=False
-    if direct_authority_alias_present(main,"args") or default_authority_capture_present(main,"args"):
+                if not (direct_target and canonical_guard_value_valid(value,attr)): guarded[attr]=False
+            if args_attribute_call_mutation(node)==attr: guarded[attr]=False
+    if direct_authority_alias_present(main,"args") or default_authority_capture_present(main,"args") or closure_authority_capture_present(main,"args"):
         guarded={"progress_out":False,"evidence_out":False}
     for node in function_scope_nodes(main):
-        targets,value=assignment_targets_and_value(node)
-        flat_targets=[item for root_target in targets for item in assignment_target_nodes(root_target)]
-        if direct_authority_exposure(value,"args") and any(
-            isinstance(target,ast.Name) and target.id!="args" for target in flat_targets
-        ):
-            guarded={"progress_out":False,"evidence_out":False}
-        if unknown_authority_helper_call(node,"args",("prepare","admit","seal","status")):
-            guarded={"progress_out":False,"evidence_out":False}
-    if not guarded["progress_out"]:
-        errors.append("PROGRESS_OUTPUT_WIRING_INVALID")
-    if not guarded["evidence_out"]:
-        errors.append("EVIDENCE_OUTPUT_WIRING_INVALID")
+        targets,value=assignment_targets_and_value(node); flat_targets=[item for root_target in targets for item in assignment_target_nodes(root_target)]
+        if direct_authority_exposure(value,"args") and any(isinstance(target,ast.Name) and target.id!="args" for target in flat_targets): guarded={"progress_out":False,"evidence_out":False}
+        if unknown_authority_helper_call(node,"args",("prepare","admit","seal","status")): guarded={"progress_out":False,"evidence_out":False}
+    if not guarded["progress_out"]: errors.append("PROGRESS_OUTPUT_WIRING_INVALID")
+    if not guarded["evidence_out"]: errors.append("EVIDENCE_OUTPUT_WIRING_INVALID")
     return errors
 
 
 def runner_working_directory_contract_errors(source:str)->list[str]:
-    try:
-        tree=ast.parse(source)
-    except (SyntaxError,ValueError):
-        return ["RUNNER_SYNTAX_INVALID"]
+    try: tree=ast.parse(source)
+    except (SyntaxError,ValueError): return ["RUNNER_SYNTAX_INVALID"]
     main=next((node for node in tree.body if isinstance(node,ast.FunctionDef) and node.name=="main"),None)
-    if main is None:
-        return ["MAIN_OWNER_MISSING"]
-    working_valid=False
-    working_line=None
+    if main is None: return ["MAIN_OWNER_MISSING"]
+    working_valid=False; working_line=None
     for node in main.body:
-        if isinstance(node,(ast.Return,ast.Raise)):
-            break
+        if isinstance(node,(ast.Return,ast.Raise)): break
         targets,value=assignment_targets_and_value(node)
-        if not targets:
-            continue
+        if not targets: continue
         flat_targets=[item for root_target in targets for item in assignment_target_nodes(root_target)]
-        if any(isinstance(target,ast.Name) and target.id=="result" for target in flat_targets):
-            working_valid=False
-            working_line=None
+        if any(isinstance(target,ast.Name) and target.id=="result" for target in flat_targets): working_valid=False; working_line=None
         for target in flat_targets:
-            if not (
-                isinstance(target,ast.Subscript)
-                and isinstance(target.value,ast.Name)
-                and target.value.id=="result"
-                and isinstance(target.slice,ast.Constant)
-                and target.slice.value=="workingDirectory"
-            ):
-                continue
+            if not (isinstance(target,ast.Subscript) and isinstance(target.value,ast.Name) and target.value.id=="result" and isinstance(target.slice,ast.Constant) and target.slice.value=="workingDirectory"): continue
             direct_target=len(targets)==1 and targets[0] is target and not isinstance(node,ast.AugAssign)
-            working_valid=direct_target and working_directory_value_valid(value)
-            working_line=getattr(node,"lineno",0) if working_valid else None
+            working_valid=direct_target and working_directory_value_valid(value); working_line=getattr(node,"lineno",0) if working_valid else None
     if working_valid and working_line is not None:
         for node in function_scope_nodes(main):
-            if getattr(node,"lineno",0)<=working_line:
-                continue
-            targets,value=assignment_targets_and_value(node)
-            flat_targets=[item for root_target in targets for item in assignment_target_nodes(root_target)]
-            if any(isinstance(target,ast.Name) and target.id=="result" for target in flat_targets):
-                working_valid=False
+            if getattr(node,"lineno",0)<=working_line: continue
+            targets,value=assignment_targets_and_value(node); flat_targets=[item for root_target in targets for item in assignment_target_nodes(root_target)]
+            if any(isinstance(target,ast.Name) and target.id=="result" for target in flat_targets): working_valid=False
             for target in flat_targets:
-                if not (
-                    isinstance(target,ast.Subscript)
-                    and isinstance(target.value,ast.Name)
-                    and target.value.id=="result"
-                    and isinstance(target.slice,ast.Constant)
-                    and target.slice.value=="workingDirectory"
-                ):
-                    continue
+                if not (isinstance(target,ast.Subscript) and isinstance(target.value,ast.Name) and target.value.id=="result" and isinstance(target.slice,ast.Constant) and target.slice.value=="workingDirectory"): continue
                 direct_target=len(targets)==1 and targets[0] is target and not isinstance(node,ast.AugAssign)
-                if not (direct_target and working_directory_value_valid(value)):
-                    working_valid=False
-            if result_mutation_call(node):
-                working_valid=False
-    if direct_authority_alias_present(main,"result") or default_authority_capture_present(main,"result"):
-        working_valid=False
+                if not (direct_target and working_directory_value_valid(value)): working_valid=False
+            if result_mutation_call(node): working_valid=False
+    if direct_authority_alias_present(main,"result") or default_authority_capture_present(main,"result") or closure_authority_capture_present(main,"result"): working_valid=False
     for node in function_scope_nodes(main):
-        targets,value=assignment_targets_and_value(node)
-        flat_targets=[item for root_target in targets for item in assignment_target_nodes(root_target)]
-        if direct_authority_exposure(value,"result") and any(
-            isinstance(target,ast.Name) and target.id!="result" for target in flat_targets
-        ):
-            working_valid=False
-        if unknown_authority_helper_call(node,"result",("json.dumps",)):
-            working_valid=False
+        targets,value=assignment_targets_and_value(node); flat_targets=[item for root_target in targets for item in assignment_target_nodes(root_target)]
+        if direct_authority_exposure(value,"result") and any(isinstance(target,ast.Name) and target.id!="result" for target in flat_targets): working_valid=False
+        if unknown_authority_helper_call(node,"result",("json.dumps",)): working_valid=False
     return [] if working_valid else ["RUNNER_WORKING_DIRECTORY_WIRING_INVALID"]
 
 
 def validate(root:Path)->list[tuple[str,str]]:
     root=root.resolve(); errors:list[tuple[str,str]]=[]
     source={rel:read(root,rel,errors) for rel in REQUIRED_FILES}
-    preflight=source["scripts/c7w_preflight.py"]
-    materializer=source["scripts/prepare_c7w_oauth_bindings.py"]
-    reconciler=source["scripts/reconcile_c7w_trusted_clients.py"]
-    execution=source["scripts/c7w_execution_bindings.py"]
-    profiles=source["scripts/c7w_credential_profiles.py"]
-    provenance=source["scripts/c7w_execution_provenance.py"]
-    runner=source["scripts/run_mcp_external_interop.py"]
-    campaign=source["scripts/prepare_mcp_external_interop_campaign.py"]
-    seal=source["scripts/seal_mcp_external_interop.py"]
-    packet=source["scripts/prepare_mcp_external_client_execution.py"]
-    finalizer=source["scripts/finalize_mcp_external_client_receipt.py"]
-    admit=source["scripts/admit_mcp_external_receipt.py"]
-
-    for rel,text in (
-        ("scripts/c7w_preflight.py",preflight),
-        ("scripts/c7w_execution_bindings.py",execution),
-        ("scripts/run_mcp_external_interop.py",runner),
-        ("scripts/prepare_mcp_external_interop_campaign.py",campaign),
-        ("scripts/seal_mcp_external_interop.py",seal),
-    ):
+    preflight=source["scripts/c7w_preflight.py"]; materializer=source["scripts/prepare_c7w_oauth_bindings.py"]; reconciler=source["scripts/reconcile_c7w_trusted_clients.py"]; execution=source["scripts/c7w_execution_bindings.py"]; profiles=source["scripts/c7w_credential_profiles.py"]; provenance=source["scripts/c7w_execution_provenance.py"]; runner=source["scripts/run_mcp_external_interop.py"]; campaign=source["scripts/prepare_mcp_external_interop_campaign.py"]; seal=source["scripts/seal_mcp_external_interop.py"]; packet=source["scripts/prepare_mcp_external_client_execution.py"]; finalizer=source["scripts/finalize_mcp_external_client_receipt.py"]; admit=source["scripts/admit_mcp_external_receipt.py"]
+    for rel,text in (("scripts/c7w_preflight.py",preflight),("scripts/c7w_execution_bindings.py",execution),("scripts/run_mcp_external_interop.py",runner),("scripts/prepare_mcp_external_interop_campaign.py",campaign),("scripts/seal_mcp_external_interop.py",seal)):
         missing_env=direct_git_calls_without_env(text)
-        if missing_env:
-            errors.append(("C7W_GIT_ENVIRONMENT_AUTHORITY_INVALID",f"{rel}:lines={','.join(str(x) for x in missing_env)}"))
-
-    reconciliation_markers=(
-        'AUTHORITY="MCP_EXTERNAL_TRUSTED_CLIENT_RECONCILIATION_V1"',"def reconcile_plan","def reconcile(","before=fetch_rows","create_row(","after=fetch_rows",'"status=409"',"def preflight_command",
-    )
+        if missing_env: errors.append(("C7W_GIT_ENVIRONMENT_AUTHORITY_INVALID",f"{rel}:lines={','.join(str(x) for x in missing_env)}"))
+    reconciliation_markers=('AUTHORITY="MCP_EXTERNAL_TRUSTED_CLIENT_RECONCILIATION_V1"',"def reconcile_plan","def reconcile(","before=fetch_rows","create_row(","after=fetch_rows",'"status=409"',"def preflight_command")
     missing=[marker for marker in reconciliation_markers if marker not in reconciler]
     if missing: errors.append(("C7W_RECONCILIATION_OWNER_INVALID",",".join(missing)))
-    if "def trusted_client_reconcile_command" not in preflight or "scripts/reconcile_c7w_trusted_clients.py" not in preflight or '"RECONCILE_C7W_TRUSTED_CLIENTS"' not in preflight:
-        errors.append(("C7W_RECONCILIATION_WIRING_INVALID","scripts/c7w_preflight.py"))
-    if ".state/private/c7w-oauth-client-bindings.json" not in materializer or "followup_preflight_command" not in materializer:
-        errors.append(("C7W_OAUTH_MATERIALIZER_OWNER_INVALID","scripts/prepare_c7w_oauth_bindings.py"))
-
-    execution_markers=(
-        'AUTHORITY="MCP_EXTERNAL_EXECUTION_BINDINGS_V1"',
-        'DEFAULT_OUTPUT=Path(".state/private/c7w-execution-bindings.json")',
-        "def validate_document",
-        "def canonical_output_path",
-        "def materialize",
-        "credentialProfileContractSha256",
-    )
+    if "def trusted_client_reconcile_command" not in preflight or "scripts/reconcile_c7w_trusted_clients.py" not in preflight or '"RECONCILE_C7W_TRUSTED_CLIENTS"' not in preflight: errors.append(("C7W_RECONCILIATION_WIRING_INVALID","scripts/c7w_preflight.py"))
+    if ".state/private/c7w-oauth-client-bindings.json" not in materializer or "followup_preflight_command" not in materializer: errors.append(("C7W_OAUTH_MATERIALIZER_OWNER_INVALID","scripts/prepare_c7w_oauth_bindings.py"))
+    execution_markers=('AUTHORITY="MCP_EXTERNAL_EXECUTION_BINDINGS_V1"','DEFAULT_OUTPUT=Path(".state/private/c7w-execution-bindings.json")',"def validate_document","def canonical_output_path","def materialize","credentialProfileContractSha256")
     missing=[marker for marker in execution_markers if marker not in execution]
     if missing: errors.append(("C7W_EXECUTION_BINDINGS_OWNER_INVALID",",".join(missing)))
-    if (
-        'AUTHORITY="MCP_EXTERNAL_CREDENTIAL_PROFILE_CONTRACT_V1"' not in profiles
-        or "def contract" not in profiles
-        or "def contract_digest" not in profiles
-    ):
-        errors.append(("C7W_CREDENTIAL_PROFILE_OWNER_INVALID","scripts/c7w_credential_profiles.py"))
-    provenance_markers=(
-        'EXECUTION_BINDING_AUTHORITY="MCP_EXTERNAL_EXECUTION_BINDINGS_V1"',
-        'CREDENTIAL_PROFILE_CONTRACT_AUTHORITY="MCP_EXTERNAL_CREDENTIAL_PROFILE_CONTRACT_V1"',
-        "def credential_contract_digest",
-        "credential_profiles.contract_digest()",
-        "credential_digest!=credential_contract_digest()",
-        "EXECUTION_BINDING_CREDENTIAL_CONTRACT_INVALID",
-        "def projection",
-        "def validate_rows",
-        "def validate_receipt_execution_binding",
-        "EXECUTION_BINDING_MIXED",
-        "EXECUTION_BINDING_REQUIRED",
-    )
+    if 'AUTHORITY="MCP_EXTERNAL_CREDENTIAL_PROFILE_CONTRACT_V1"' not in profiles or "def contract" not in profiles or "def contract_digest" not in profiles: errors.append(("C7W_CREDENTIAL_PROFILE_OWNER_INVALID","scripts/c7w_credential_profiles.py"))
+    provenance_markers=('EXECUTION_BINDING_AUTHORITY="MCP_EXTERNAL_EXECUTION_BINDINGS_V1"','CREDENTIAL_PROFILE_CONTRACT_AUTHORITY="MCP_EXTERNAL_CREDENTIAL_PROFILE_CONTRACT_V1"',"def credential_contract_digest","credential_profiles.contract_digest()","credential_digest!=credential_contract_digest()","EXECUTION_BINDING_CREDENTIAL_CONTRACT_INVALID","def projection","def validate_rows","def validate_receipt_execution_binding","EXECUTION_BINDING_MIXED","EXECUTION_BINDING_REQUIRED")
     missing=[marker for marker in provenance_markers if marker not in provenance]
     if missing: errors.append(("C7W_EXECUTION_PROVENANCE_OWNER_INVALID",",".join(missing)))
-    if (
-        "PREPARE_C7W_EXECUTION_BINDINGS" not in preflight
-        or "scripts/c7w_execution_bindings.py" not in preflight
-        or "executionBindingsSha256" not in preflight
-        or "DEFAULT_EXECUTION_BINDING_REL" not in preflight
-        or "MCP_EXTERNAL_EXECUTION_BINDINGS_PATH_INVALID" not in preflight
-    ):
-        errors.append(("C7W_EXECUTION_BINDINGS_WIRING_INVALID","scripts/c7w_preflight.py"))
-    if 'AUTHORITY="MCP_EXTERNAL_LOCAL_EXECUTION_RUNNER_V1"' not in runner or "def runner_command" not in runner:
-        errors.append(("C7W_LOCAL_RUNNER_OWNER_INVALID","scripts/run_mcp_external_interop.py"))
+    if "PREPARE_C7W_EXECUTION_BINDINGS" not in preflight or "scripts/c7w_execution_bindings.py" not in preflight or "executionBindingsSha256" not in preflight or "DEFAULT_EXECUTION_BINDING_REL" not in preflight or "MCP_EXTERNAL_EXECUTION_BINDINGS_PATH_INVALID" not in preflight: errors.append(("C7W_EXECUTION_BINDINGS_WIRING_INVALID","scripts/c7w_preflight.py"))
+    if 'AUTHORITY="MCP_EXTERNAL_LOCAL_EXECUTION_RUNNER_V1"' not in runner or "def runner_command" not in runner: errors.append(("C7W_LOCAL_RUNNER_OWNER_INVALID","scripts/run_mcp_external_interop.py"))
     external_action_errors=external_client_action_contract_errors(runner)
-    if external_action_errors:
-        errors.append(("C7W_LOCAL_RUNNER_EXTERNAL_ACTION_INVALID",",".join(external_action_errors)))
+    if external_action_errors: errors.append(("C7W_LOCAL_RUNNER_EXTERNAL_ACTION_INVALID",",".join(external_action_errors)))
     canonical_output_errors=canonical_output_contract_errors(runner)
-    if canonical_output_errors:
-        errors.append(("C7W_LOCAL_RUNNER_CANONICAL_OUTPUT_INVALID",",".join(canonical_output_errors)))
+    if canonical_output_errors: errors.append(("C7W_LOCAL_RUNNER_CANONICAL_OUTPUT_INVALID",",".join(canonical_output_errors)))
     working_directory_errors=runner_working_directory_contract_errors(runner)
-    if working_directory_errors:
-        errors.append(("C7W_LOCAL_RUNNER_WORKING_DIRECTORY_INVALID",",".join(working_directory_errors)))
-    campaign_markers=(
-        'AUTHORITY=core.CAMPAIGN_AUTHORITY',
-        "def source_commit_sha",
-        "def execution_binding_snapshot",
-        "def normalize_execution_binding_snapshot",
-        "canonical_execution_binding_required(matrix_path)",
-        "executionBindingsSha256",
-        "MCP_EXTERNAL_CAMPAIGN_EXECUTION_BINDING_DRIFT",
-    )
+    if working_directory_errors: errors.append(("C7W_LOCAL_RUNNER_WORKING_DIRECTORY_INVALID",",".join(working_directory_errors)))
+    campaign_markers=('AUTHORITY=core.CAMPAIGN_AUTHORITY',"def source_commit_sha","def execution_binding_snapshot","def normalize_execution_binding_snapshot","canonical_execution_binding_required(matrix_path)","executionBindingsSha256","MCP_EXTERNAL_CAMPAIGN_EXECUTION_BINDING_DRIFT")
     missing=[marker for marker in campaign_markers if marker not in campaign]
-    if missing:
-        errors.append(("C7W_CAMPAIGN_OWNER_INVALID",",".join(missing)))
-    seal_markers=(
-        'AUTHORITY="MCP_EXTERNAL_CLIENT_INTEROPERABILITY_EVIDENCE_V1"',
-        "def validate_evidence_only_source_lineage",
-        "def validate_receipt_execution_binding",
-        "validate_receipt_execution_binding(row,campaign,client)",
-        "**execution_binding",
-        'execution_provenance.validate_rows(rows,source_commit_sha,"MCP_EXTERNAL_EVIDENCE",require_bound=True)',
-    )
+    if missing: errors.append(("C7W_CAMPAIGN_OWNER_INVALID",",".join(missing)))
+    seal_markers=('AUTHORITY="MCP_EXTERNAL_CLIENT_INTEROPERABILITY_EVIDENCE_V1"',"def validate_evidence_only_source_lineage","def validate_receipt_execution_binding","validate_receipt_execution_binding(row,campaign,client)","**execution_binding",'execution_provenance.validate_rows(rows,source_commit_sha,"MCP_EXTERNAL_EVIDENCE",require_bound=True)')
     missing=[marker for marker in seal_markers if marker not in seal]
-    if missing:
-        errors.append(("C7W_SEAL_OWNER_INVALID",",".join(missing)))
-    if (
-        'AUTHORITY="MCP_EXTERNAL_CLIENT_EXECUTION_PACKET_V1"' not in packet
-        or "executionBindingsSha256" not in packet
-        or "credentialProfileContract" not in packet
-        or "_binding_snapshot" not in packet
-    ):
-        errors.append(("C7W_EXECUTION_PACKET_OWNER_INVALID","scripts/prepare_mcp_external_client_execution.py"))
-    finalizer_markers=(
-        "_packet_execution_bindings",
-        "credentialProfileContractSha256",
-        "executionBindingsSha256",
-        '"executionBindings":resources',
-    )
+    if missing: errors.append(("C7W_SEAL_OWNER_INVALID",",".join(missing)))
+    if 'AUTHORITY="MCP_EXTERNAL_CLIENT_EXECUTION_PACKET_V1"' not in packet or "executionBindingsSha256" not in packet or "credentialProfileContract" not in packet or "_binding_snapshot" not in packet: errors.append(("C7W_EXECUTION_PACKET_OWNER_INVALID","scripts/prepare_mcp_external_client_execution.py"))
+    finalizer_markers=("_packet_execution_bindings","credentialProfileContractSha256","executionBindingsSha256",'"executionBindings":resources')
     missing=[marker for marker in finalizer_markers if marker not in finalizer]
-    if missing:
-        errors.append(("C7W_RECEIPT_FINALIZER_OWNER_INVALID",",".join(missing)))
-    admit_markers=(
-        "execution_provenance.validate_rows",
-        "core.validate_receipt_execution_binding",
-        "def validate_existing_campaign_rows",
-    )
+    if missing: errors.append(("C7W_RECEIPT_FINALIZER_OWNER_INVALID",",".join(missing)))
+    admit_markers=("execution_provenance.validate_rows","core.validate_receipt_execution_binding","def validate_existing_campaign_rows")
     missing=[marker for marker in admit_markers if marker not in admit]
-    if missing:
-        errors.append(("C7W_PROGRESS_PROVENANCE_OWNER_INVALID",",".join(missing)))
+    if missing: errors.append(("C7W_PROGRESS_PROVENANCE_OWNER_INVALID",",".join(missing)))
     for rel,text in (("scripts/prepare_mcp_external_client_execution.py",packet),("scripts/finalize_mcp_external_client_receipt.py",finalizer)):
         for placeholder in PLACEHOLDERS:
-            if placeholder in text:
-                errors.append(("C7W_EXECUTION_PLACEHOLDER_FORBIDDEN",f"{rel}:{placeholder}"))
+            if placeholder in text: errors.append(("C7W_EXECUTION_PLACEHOLDER_FORBIDDEN",f"{rel}:{placeholder}"))
     return errors
 
 
