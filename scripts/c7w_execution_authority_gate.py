@@ -203,6 +203,14 @@ def direct_authority_exposure(value,owner:str)->bool:
         return any(direct_authority_exposure(item,owner) for item in [*value.keys,*value.values] if item is not None)
     if isinstance(value,ast.Starred):
         return direct_authority_exposure(value.value,owner)
+    if isinstance(value,ast.IfExp):
+        return direct_authority_exposure(value.body,owner) or direct_authority_exposure(value.orelse,owner)
+    if isinstance(value,ast.BoolOp):
+        return any(direct_authority_exposure(item,owner) for item in value.values)
+    if isinstance(value,(ast.ListComp,ast.SetComp,ast.GeneratorExp)):
+        return direct_authority_exposure(value.elt,owner)
+    if isinstance(value,ast.DictComp):
+        return direct_authority_exposure(value.key,owner) or direct_authority_exposure(value.value,owner)
     return False
 
 
