@@ -180,11 +180,7 @@ def direct_authority_exposure(value,owner:str)->bool:
     if isinstance(value,(ast.Tuple,ast.List,ast.Set)):
         return any(direct_authority_exposure(item,owner) for item in value.elts)
     if isinstance(value,ast.Dict):
-        return any(
-            direct_authority_exposure(item,owner)
-            for item in [*value.keys,*value.values]
-            if item is not None
-        )
+        return any(direct_authority_exposure(item,owner) for item in [*value.keys,*value.values] if item is not None)
     if isinstance(value,ast.Starred):
         return direct_authority_exposure(value.value,owner)
     return False
@@ -241,6 +237,44 @@ def closure_authority_capture_present(function:ast.FunctionDef|ast.AsyncFunction
     return False
 
 
+def runner_root_value_valid(value)->bool:
+    return (
+        isinstance(value,ast.Call)
+        and isinstance(value.func,ast.Attribute)
+        and value.func.attr=="resolve"
+        and not value.args
+        and isinstance(value.func.value,ast.Call)
+        and isinstance(value.func.value.func,ast.Attribute)
+        and value.func.value.func.attr=="cwd"
+        and not value.func.value.args
+        and isinstance(value.func.value.func.value,ast.Name)
+        and value.func.value.func.value.id=="Path"
+    )
+
+
+def canonical_runner_root_bound(function:ast.FunctionDef|ast.AsyncFunctionDef)->bool:
+    binding_line=None
+    for node in function.body:
+        targets,value=assignment_targets_and_value(node)
+        for target in (item for root_target in targets for item in assignment_target_nodes(root_target)):
+            if isinstance(target,ast.Name) and target.id=="root":
+                direct=len(targets)==1 and targets[0] is target and not isinstance(node,ast.AugAssign)
+                if binding_line is not None or not direct or not runner_root_value_valid(value):
+                    return False
+                binding_line=getattr(node,"lineno",0)
+    if binding_line is None or closure_authority_capture_present(function,"root"):
+        return False
+    for node in function_scope_nodes(function):
+        if getattr(node,"lineno",0)<=binding_line:
+            continue
+        targets,_=assignment_targets_and_value(node)
+        if any(isinstance(target,ast.Name) and target.id=="root" for root_target in targets for target in assignment_target_nodes(root_target)):
+            return False
+        if isinstance(node,ast.Delete) and any(isinstance(target,ast.Name) and target.id=="root" for target in node.targets):
+            return False
+    return True
+
+
 def call_name(node)->str:
     if not isinstance(node,ast.Call):
         return ""
@@ -254,10 +288,7 @@ def call_name(node)->str:
 def unknown_authority_helper_call(node,owner:str,allowed:tuple[str,...]=())->bool:
     if not isinstance(node,ast.Call) or call_name(node) in set(allowed):
         return False
-    return (
-        any(direct_authority_exposure(arg,owner) for arg in node.args)
-        or any(direct_authority_exposure(keyword.value,owner) for keyword in node.keywords)
-    )
+    return any(direct_authority_exposure(arg,owner) for arg in node.args) or any(direct_authority_exposure(keyword.value,owner) for keyword in node.keywords)
 
 
 def canonical_guard_value_valid(value,attr:str)->bool:
@@ -297,24 +328,11 @@ def args_attribute_call_mutation(node)->str|None:
 
 
 def working_directory_value_valid(value)->bool:
-    return (
-        isinstance(value,ast.Call)
-        and isinstance(value.func,ast.Name)
-        and value.func.id=="str"
-        and len(value.args)==1
-        and isinstance(value.args[0],ast.Name)
-        and value.args[0].id=="root"
-    )
+    return isinstance(value,ast.Call) and isinstance(value.func,ast.Name) and value.func.id=="str" and len(value.args)==1 and isinstance(value.args[0],ast.Name) and value.args[0].id=="root"
 
 
 def result_mutation_call(node)->bool:
-    return (
-        isinstance(node,ast.Call)
-        and isinstance(node.func,ast.Attribute)
-        and isinstance(node.func.value,ast.Name)
-        and node.func.value.id=="result"
-        and node.func.attr in ("update","clear","pop","popitem","__setitem__","__delitem__")
-    )
+    return isinstance(node,ast.Call) and isinstance(node.func,ast.Attribute) and isinstance(node.func.value,ast.Name) and node.func.value.id=="result" and node.func.attr in ("update","clear","pop","popitem","__setitem__","__delitem__")
 
 
 def external_client_action_contract_errors(source:str)->list[str]:
@@ -327,7 +345,6 @@ def external_client_action_contract_errors(source:str)->list[str]:
     if helper is None:
         return ["EXTERNAL_ACTION_OWNER_MISSING"]
     returns=[node for node in function_scope_nodes(helper) if isinstance(node,ast.Return)]
-
     def valid_return(node:ast.Return)->bool:
         if not isinstance(node.value,ast.Dict):
             return False
@@ -337,15 +354,7 @@ def external_client_action_contract_errors(source:str)->list[str]:
                 mapping[key.value]=value
         action=mapping.get("nextActionCode")
         command=mapping.get("nextCommand")
-        return (
-            isinstance(action,ast.Constant)
-            and action.value=="RUN_EXTERNAL_CLIENT"
-            and isinstance(command,ast.List)
-            and not command.elts
-            and "nextClientHandoff" in mapping
-            and "postExternalExecutionCommand" in mapping
-        )
-
+        return isinstance(action,ast.Constant) and action.value=="RUN_EXTERNAL_CLIENT" and isinstance(command,ast.List) and not command.elts and "nextClientHandoff" in mapping and "postExternalExecutionCommand" in mapping
     errors=[]
     if not returns or not all(valid_return(node) for node in returns):
         errors.append("EXTERNAL_ACTION_SHAPE_INVALID")
@@ -354,12 +363,7 @@ def external_client_action_contract_errors(source:str)->list[str]:
         if fn is None:
             errors.append(f"{owner.upper()}_OWNER_MISSING")
             continue
-        wired=any(
-            isinstance(node,ast.Call)
-            and isinstance(node.func,ast.Name)
-            and node.func.id=="external_client_action"
-            for node in function_scope_nodes(fn)
-        )
+        wired=any(isinstance(node,ast.Call) and isinstance(node.func,ast.Name) and node.func.id=="external_client_action" for node in function_scope_nodes(fn))
         if not wired:
             errors.append(f"{owner.upper()}_EXTERNAL_ACTION_WIRING_INVALID")
     return errors
@@ -370,10 +374,7 @@ def canonical_output_contract_errors(source:str)->list[str]:
         tree=ast.parse(source)
     except (SyntaxError,ValueError):
         return ["RUNNER_SYNTAX_INVALID"]
-    expected={
-        "CANONICAL_PROGRESS_REL":"lab/mcp-external-client-interop-progress.json",
-        "CANONICAL_EVIDENCE_REL":"lab/mcp-external-client-interoperability-evidence.json",
-    }
+    expected={"CANONICAL_PROGRESS_REL":"lab/mcp-external-client-interop-progress.json","CANONICAL_EVIDENCE_REL":"lab/mcp-external-client-interoperability-evidence.json"}
     constants={}
     functions={node.name:node for node in tree.body if isinstance(node,ast.FunctionDef)}
     for node in tree.body:
@@ -406,12 +407,7 @@ def canonical_output_contract_errors(source:str)->list[str]:
         if not targets:
             continue
         for target in (item for root_target in targets for item in assignment_target_nodes(root_target)):
-            if not (
-                isinstance(target,ast.Attribute)
-                and isinstance(target.value,ast.Name)
-                and target.value.id=="args"
-                and target.attr in guarded
-            ):
+            if not (isinstance(target,ast.Attribute) and isinstance(target.value,ast.Name) and target.value.id=="args" and target.attr in guarded):
                 continue
             attr=target.attr
             direct_target=len(targets)==1 and targets[0] is target and not isinstance(node,ast.AugAssign)
@@ -426,26 +422,19 @@ def canonical_output_contract_errors(source:str)->list[str]:
                 continue
             targets,value=assignment_targets_and_value(node)
             for target in (item for root_target in targets for item in assignment_target_nodes(root_target)):
-                if not (
-                    isinstance(target,ast.Attribute)
-                    and isinstance(target.value,ast.Name)
-                    and target.value.id=="args"
-                    and target.attr==attr
-                ):
+                if not (isinstance(target,ast.Attribute) and isinstance(target.value,ast.Name) and target.value.id=="args" and target.attr==attr):
                     continue
                 direct_target=len(targets)==1 and targets[0] is target and not isinstance(node,ast.AugAssign)
                 if not (direct_target and canonical_guard_value_valid(value,attr)):
                     guarded[attr]=False
             if args_attribute_call_mutation(node)==attr:
                 guarded[attr]=False
-    if direct_authority_alias_present(main,"args") or default_authority_capture_present(main,"args") or closure_authority_capture_present(main,"args"):
+    if not canonical_runner_root_bound(main) or direct_authority_alias_present(main,"args") or default_authority_capture_present(main,"args") or closure_authority_capture_present(main,"args"):
         guarded={"progress_out":False,"evidence_out":False}
     for node in function_scope_nodes(main):
         targets,value=assignment_targets_and_value(node)
         flat_targets=[item for root_target in targets for item in assignment_target_nodes(root_target)]
-        if direct_authority_exposure(value,"args") and any(
-            isinstance(target,ast.Name) and target.id!="args" for target in flat_targets
-        ):
+        if direct_authority_exposure(value,"args") and any(isinstance(target,ast.Name) and target.id!="args" for target in flat_targets):
             guarded={"progress_out":False,"evidence_out":False}
         if unknown_authority_helper_call(node,"args",("prepare","admit","seal","status")):
             guarded={"progress_out":False,"evidence_out":False}
@@ -477,13 +466,7 @@ def runner_working_directory_contract_errors(source:str)->list[str]:
             working_valid=False
             working_line=None
         for target in flat_targets:
-            if not (
-                isinstance(target,ast.Subscript)
-                and isinstance(target.value,ast.Name)
-                and target.value.id=="result"
-                and isinstance(target.slice,ast.Constant)
-                and target.slice.value=="workingDirectory"
-            ):
+            if not (isinstance(target,ast.Subscript) and isinstance(target.value,ast.Name) and target.value.id=="result" and isinstance(target.slice,ast.Constant) and target.slice.value=="workingDirectory"):
                 continue
             direct_target=len(targets)==1 and targets[0] is target and not isinstance(node,ast.AugAssign)
             working_valid=direct_target and working_directory_value_valid(value)
@@ -497,27 +480,19 @@ def runner_working_directory_contract_errors(source:str)->list[str]:
             if any(isinstance(target,ast.Name) and target.id=="result" for target in flat_targets):
                 working_valid=False
             for target in flat_targets:
-                if not (
-                    isinstance(target,ast.Subscript)
-                    and isinstance(target.value,ast.Name)
-                    and target.value.id=="result"
-                    and isinstance(target.slice,ast.Constant)
-                    and target.slice.value=="workingDirectory"
-                ):
+                if not (isinstance(target,ast.Subscript) and isinstance(target.value,ast.Name) and target.value.id=="result" and isinstance(target.slice,ast.Constant) and target.slice.value=="workingDirectory"):
                     continue
                 direct_target=len(targets)==1 and targets[0] is target and not isinstance(node,ast.AugAssign)
                 if not (direct_target and working_directory_value_valid(value)):
                     working_valid=False
             if result_mutation_call(node):
                 working_valid=False
-    if direct_authority_alias_present(main,"result") or default_authority_capture_present(main,"result") or closure_authority_capture_present(main,"result"):
+    if not canonical_runner_root_bound(main) or direct_authority_alias_present(main,"result") or default_authority_capture_present(main,"result") or closure_authority_capture_present(main,"result"):
         working_valid=False
     for node in function_scope_nodes(main):
         targets,value=assignment_targets_and_value(node)
         flat_targets=[item for root_target in targets for item in assignment_target_nodes(root_target)]
-        if direct_authority_exposure(value,"result") and any(
-            isinstance(target,ast.Name) and target.id!="result" for target in flat_targets
-        ):
+        if direct_authority_exposure(value,"result") and any(isinstance(target,ast.Name) and target.id!="result" for target in flat_targets):
             working_valid=False
         if unknown_authority_helper_call(node,"result",("json.dumps",)):
             working_valid=False
@@ -540,128 +515,48 @@ def validate(root:Path)->list[tuple[str,str]]:
     finalizer=source["scripts/finalize_mcp_external_client_receipt.py"]
     admit=source["scripts/admit_mcp_external_receipt.py"]
 
-    for rel,text in (
-        ("scripts/c7w_preflight.py",preflight),
-        ("scripts/c7w_execution_bindings.py",execution),
-        ("scripts/run_mcp_external_interop.py",runner),
-        ("scripts/prepare_mcp_external_interop_campaign.py",campaign),
-        ("scripts/seal_mcp_external_interop.py",seal),
-    ):
+    for rel,text in (("scripts/c7w_preflight.py",preflight),("scripts/c7w_execution_bindings.py",execution),("scripts/run_mcp_external_interop.py",runner),("scripts/prepare_mcp_external_interop_campaign.py",campaign),("scripts/seal_mcp_external_interop.py",seal)):
         missing_env=direct_git_calls_without_env(text)
         if missing_env:
             errors.append(("C7W_GIT_ENVIRONMENT_AUTHORITY_INVALID",f"{rel}:lines={','.join(str(x) for x in missing_env)}"))
 
-    reconciliation_markers=(
-        'AUTHORITY="MCP_EXTERNAL_TRUSTED_CLIENT_RECONCILIATION_V1"',"def reconcile_plan","def reconcile(","before=fetch_rows","create_row(","after=fetch_rows",'"status=409"',"def preflight_command",
-    )
+    reconciliation_markers=('AUTHORITY="MCP_EXTERNAL_TRUSTED_CLIENT_RECONCILIATION_V1"',"def reconcile_plan","def reconcile(","before=fetch_rows","create_row(","after=fetch_rows",'"status=409"',"def preflight_command")
     missing=[marker for marker in reconciliation_markers if marker not in reconciler]
     if missing: errors.append(("C7W_RECONCILIATION_OWNER_INVALID",",".join(missing)))
-    if "def trusted_client_reconcile_command" not in preflight or "scripts/reconcile_c7w_trusted_clients.py" not in preflight or '"RECONCILE_C7W_TRUSTED_CLIENTS"' not in preflight:
-        errors.append(("C7W_RECONCILIATION_WIRING_INVALID","scripts/c7w_preflight.py"))
-    if ".state/private/c7w-oauth-client-bindings.json" not in materializer or "followup_preflight_command" not in materializer:
-        errors.append(("C7W_OAUTH_MATERIALIZER_OWNER_INVALID","scripts/prepare_c7w_oauth_bindings.py"))
+    if "def trusted_client_reconcile_command" not in preflight or "scripts/reconcile_c7w_trusted_clients.py" not in preflight or '"RECONCILE_C7W_TRUSTED_CLIENTS"' not in preflight: errors.append(("C7W_RECONCILIATION_WIRING_INVALID","scripts/c7w_preflight.py"))
+    if ".state/private/c7w-oauth-client-bindings.json" not in materializer or "followup_preflight_command" not in materializer: errors.append(("C7W_OAUTH_MATERIALIZER_OWNER_INVALID","scripts/prepare_c7w_oauth_bindings.py"))
 
-    execution_markers=(
-        'AUTHORITY="MCP_EXTERNAL_EXECUTION_BINDINGS_V1"',
-        'DEFAULT_OUTPUT=Path(".state/private/c7w-execution-bindings.json")',
-        "def validate_document",
-        "def canonical_output_path",
-        "def materialize",
-        "credentialProfileContractSha256",
-    )
+    execution_markers=('AUTHORITY="MCP_EXTERNAL_EXECUTION_BINDINGS_V1"','DEFAULT_OUTPUT=Path(".state/private/c7w-execution-bindings.json")',"def validate_document","def canonical_output_path","def materialize","credentialProfileContractSha256")
     missing=[marker for marker in execution_markers if marker not in execution]
     if missing: errors.append(("C7W_EXECUTION_BINDINGS_OWNER_INVALID",",".join(missing)))
-    if (
-        'AUTHORITY="MCP_EXTERNAL_CREDENTIAL_PROFILE_CONTRACT_V1"' not in profiles
-        or "def contract" not in profiles
-        or "def contract_digest" not in profiles
-    ):
-        errors.append(("C7W_CREDENTIAL_PROFILE_OWNER_INVALID","scripts/c7w_credential_profiles.py"))
-    provenance_markers=(
-        'EXECUTION_BINDING_AUTHORITY="MCP_EXTERNAL_EXECUTION_BINDINGS_V1"',
-        'CREDENTIAL_PROFILE_CONTRACT_AUTHORITY="MCP_EXTERNAL_CREDENTIAL_PROFILE_CONTRACT_V1"',
-        "def credential_contract_digest",
-        "credential_profiles.contract_digest()",
-        "credential_digest!=credential_contract_digest()",
-        "EXECUTION_BINDING_CREDENTIAL_CONTRACT_INVALID",
-        "def projection",
-        "def validate_rows",
-        "def validate_receipt_execution_binding",
-        "EXECUTION_BINDING_MIXED",
-        "EXECUTION_BINDING_REQUIRED",
-    )
+    if 'AUTHORITY="MCP_EXTERNAL_CREDENTIAL_PROFILE_CONTRACT_V1"' not in profiles or "def contract" not in profiles or "def contract_digest" not in profiles: errors.append(("C7W_CREDENTIAL_PROFILE_OWNER_INVALID","scripts/c7w_credential_profiles.py"))
+    provenance_markers=('EXECUTION_BINDING_AUTHORITY="MCP_EXTERNAL_EXECUTION_BINDINGS_V1"','CREDENTIAL_PROFILE_CONTRACT_AUTHORITY="MCP_EXTERNAL_CREDENTIAL_PROFILE_CONTRACT_V1"',"def credential_contract_digest","credential_profiles.contract_digest()","credential_digest!=credential_contract_digest()","EXECUTION_BINDING_CREDENTIAL_CONTRACT_INVALID","def projection","def validate_rows","def validate_receipt_execution_binding","EXECUTION_BINDING_MIXED","EXECUTION_BINDING_REQUIRED")
     missing=[marker for marker in provenance_markers if marker not in provenance]
     if missing: errors.append(("C7W_EXECUTION_PROVENANCE_OWNER_INVALID",",".join(missing)))
-    if (
-        "PREPARE_C7W_EXECUTION_BINDINGS" not in preflight
-        or "scripts/c7w_execution_bindings.py" not in preflight
-        or "executionBindingsSha256" not in preflight
-        or "DEFAULT_EXECUTION_BINDING_REL" not in preflight
-        or "MCP_EXTERNAL_EXECUTION_BINDINGS_PATH_INVALID" not in preflight
-    ):
-        errors.append(("C7W_EXECUTION_BINDINGS_WIRING_INVALID","scripts/c7w_preflight.py"))
-    if 'AUTHORITY="MCP_EXTERNAL_LOCAL_EXECUTION_RUNNER_V1"' not in runner or "def runner_command" not in runner:
-        errors.append(("C7W_LOCAL_RUNNER_OWNER_INVALID","scripts/run_mcp_external_interop.py"))
+    if "PREPARE_C7W_EXECUTION_BINDINGS" not in preflight or "scripts/c7w_execution_bindings.py" not in preflight or "executionBindingsSha256" not in preflight or "DEFAULT_EXECUTION_BINDING_REL" not in preflight or "MCP_EXTERNAL_EXECUTION_BINDINGS_PATH_INVALID" not in preflight: errors.append(("C7W_EXECUTION_BINDINGS_WIRING_INVALID","scripts/c7w_preflight.py"))
+    if 'AUTHORITY="MCP_EXTERNAL_LOCAL_EXECUTION_RUNNER_V1"' not in runner or "def runner_command" not in runner: errors.append(("C7W_LOCAL_RUNNER_OWNER_INVALID","scripts/run_mcp_external_interop.py"))
     external_action_errors=external_client_action_contract_errors(runner)
-    if external_action_errors:
-        errors.append(("C7W_LOCAL_RUNNER_EXTERNAL_ACTION_INVALID",",".join(external_action_errors)))
+    if external_action_errors: errors.append(("C7W_LOCAL_RUNNER_EXTERNAL_ACTION_INVALID",",".join(external_action_errors)))
     canonical_output_errors=canonical_output_contract_errors(runner)
-    if canonical_output_errors:
-        errors.append(("C7W_LOCAL_RUNNER_CANONICAL_OUTPUT_INVALID",",".join(canonical_output_errors)))
+    if canonical_output_errors: errors.append(("C7W_LOCAL_RUNNER_CANONICAL_OUTPUT_INVALID",",".join(canonical_output_errors)))
     working_directory_errors=runner_working_directory_contract_errors(runner)
-    if working_directory_errors:
-        errors.append(("C7W_LOCAL_RUNNER_WORKING_DIRECTORY_INVALID",",".join(working_directory_errors)))
-    campaign_markers=(
-        'AUTHORITY=core.CAMPAIGN_AUTHORITY',
-        "def source_commit_sha",
-        "def execution_binding_snapshot",
-        "def normalize_execution_binding_snapshot",
-        "canonical_execution_binding_required(matrix_path)",
-        "executionBindingsSha256",
-        "MCP_EXTERNAL_CAMPAIGN_EXECUTION_BINDING_DRIFT",
-    )
+    if working_directory_errors: errors.append(("C7W_LOCAL_RUNNER_WORKING_DIRECTORY_INVALID",",".join(working_directory_errors)))
+    campaign_markers=('AUTHORITY=core.CAMPAIGN_AUTHORITY',"def source_commit_sha","def execution_binding_snapshot","def normalize_execution_binding_snapshot","canonical_execution_binding_required(matrix_path)","executionBindingsSha256","MCP_EXTERNAL_CAMPAIGN_EXECUTION_BINDING_DRIFT")
     missing=[marker for marker in campaign_markers if marker not in campaign]
-    if missing:
-        errors.append(("C7W_CAMPAIGN_OWNER_INVALID",",".join(missing)))
-    seal_markers=(
-        'AUTHORITY="MCP_EXTERNAL_CLIENT_INTEROPERABILITY_EVIDENCE_V1"',
-        "def validate_evidence_only_source_lineage",
-        "def validate_receipt_execution_binding",
-        "validate_receipt_execution_binding(row,campaign,client)",
-        "**execution_binding",
-        'execution_provenance.validate_rows(rows,source_commit_sha,"MCP_EXTERNAL_EVIDENCE",require_bound=True)',
-    )
+    if missing: errors.append(("C7W_CAMPAIGN_OWNER_INVALID",",".join(missing)))
+    seal_markers=('AUTHORITY="MCP_EXTERNAL_CLIENT_INTEROPERABILITY_EVIDENCE_V1"',"def validate_evidence_only_source_lineage","def validate_receipt_execution_binding","validate_receipt_execution_binding(row,campaign,client)","**execution_binding",'execution_provenance.validate_rows(rows,source_commit_sha,"MCP_EXTERNAL_EVIDENCE",require_bound=True)')
     missing=[marker for marker in seal_markers if marker not in seal]
-    if missing:
-        errors.append(("C7W_SEAL_OWNER_INVALID",",".join(missing)))
-    if (
-        'AUTHORITY="MCP_EXTERNAL_CLIENT_EXECUTION_PACKET_V1"' not in packet
-        or "executionBindingsSha256" not in packet
-        or "credentialProfileContract" not in packet
-        or "_binding_snapshot" not in packet
-    ):
-        errors.append(("C7W_EXECUTION_PACKET_OWNER_INVALID","scripts/prepare_mcp_external_client_execution.py"))
-    finalizer_markers=(
-        "_packet_execution_bindings",
-        "credentialProfileContractSha256",
-        "executionBindingsSha256",
-        '"executionBindings":resources',
-    )
+    if missing: errors.append(("C7W_SEAL_OWNER_INVALID",",".join(missing)))
+    if 'AUTHORITY="MCP_EXTERNAL_CLIENT_EXECUTION_PACKET_V1"' not in packet or "executionBindingsSha256" not in packet or "credentialProfileContract" not in packet or "_binding_snapshot" not in packet: errors.append(("C7W_EXECUTION_PACKET_OWNER_INVALID","scripts/prepare_mcp_external_client_execution.py"))
+    finalizer_markers=("_packet_execution_bindings","credentialProfileContractSha256","executionBindingsSha256",'"executionBindings":resources')
     missing=[marker for marker in finalizer_markers if marker not in finalizer]
-    if missing:
-        errors.append(("C7W_RECEIPT_FINALIZER_OWNER_INVALID",",".join(missing)))
-    admit_markers=(
-        "execution_provenance.validate_rows",
-        "core.validate_receipt_execution_binding",
-        "def validate_existing_campaign_rows",
-    )
+    if missing: errors.append(("C7W_RECEIPT_FINALIZER_OWNER_INVALID",",".join(missing)))
+    admit_markers=("execution_provenance.validate_rows","core.validate_receipt_execution_binding","def validate_existing_campaign_rows")
     missing=[marker for marker in admit_markers if marker not in admit]
-    if missing:
-        errors.append(("C7W_PROGRESS_PROVENANCE_OWNER_INVALID",",".join(missing)))
+    if missing: errors.append(("C7W_PROGRESS_PROVENANCE_OWNER_INVALID",",".join(missing)))
     for rel,text in (("scripts/prepare_mcp_external_client_execution.py",packet),("scripts/finalize_mcp_external_client_receipt.py",finalizer)):
         for placeholder in PLACEHOLDERS:
-            if placeholder in text:
-                errors.append(("C7W_EXECUTION_PLACEHOLDER_FORBIDDEN",f"{rel}:{placeholder}"))
+            if placeholder in text: errors.append(("C7W_EXECUTION_PLACEHOLDER_FORBIDDEN",f"{rel}:{placeholder}"))
     return errors
 
 
