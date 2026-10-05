@@ -11,8 +11,9 @@ class C9CLIInputAuthorityTests(unittest.TestCase):
     def test_working_directory_rejects_precanonical_args_root_mutation(self):
         direct='''\ndef main():\n    setattr(args,"root",Path("other"))\n    root=args.root.resolve()\n    result={}\n    result["workingDirectory"]=str(root)\n    return result\n'''
         aliased='''\ndef main():\n    alias=args\n    setattr(alias,"root",Path("other"))\n    root=args.root.resolve()\n    result={}\n    result["workingDirectory"]=str(root)\n    return result\n'''
-        self.assertFalse(mod.c9_main_working_directory_bound(direct))
-        self.assertFalse(mod.c9_main_working_directory_bound(aliased))
+        rebound='''\ndef main():\n    args=other\n    root=args.root.resolve()\n    result={}\n    result["workingDirectory"]=str(root)\n    return result\n'''
+        for source in (direct,aliased,rebound):
+            self.assertFalse(mod.c9_main_working_directory_bound(source))
 
     def test_canonical_output_rejects_precanonical_args_mutation(self):
         root_mutation='''\ndef main():\n    args.root=Path("other")\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,out)\n    return evidence\n'''
