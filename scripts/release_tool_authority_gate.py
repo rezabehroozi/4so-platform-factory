@@ -268,6 +268,19 @@ def ordered_calls_on_same_path(source:str,function_name:str,names:tuple[str,...]
             body_states=process_block(statement.body,{state})
             else_states=process_block(statement.orelse,{state}) if statement.orelse else {state}
             return body_states|else_states
+        if isinstance(statement,ast.Match):
+            state=advance(state,statement.subject)
+            live=set()
+            exhaustive=False
+            for case in statement.cases:
+                if case.guard is not None and contains_target_call(case.guard):
+                    invalid=True
+                live.update(process_block(case.body,{state}))
+                if isinstance(case.pattern,ast.MatchAs) and case.pattern.pattern is None and case.guard is None:
+                    exhaustive=True
+            if not exhaustive:
+                live.add(state)
+            return live
         if isinstance(statement,(ast.Return,ast.Raise)):
             value=statement.value if isinstance(statement,ast.Return) else statement.exc
             advance(state,value)
