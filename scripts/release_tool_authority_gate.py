@@ -318,6 +318,8 @@ def assignment_targets_and_value(node):
         return [node.target],None
     if isinstance(node,ast.NamedExpr):
         return [node.target],node.value
+    if isinstance(node,ast.Delete):
+        return list(node.targets),None
     return [],None
 
 
