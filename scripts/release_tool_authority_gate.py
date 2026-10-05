@@ -493,6 +493,14 @@ def c9_direct_authority_exposure(value,owner:str)->bool:
         )
     if isinstance(value,ast.Starred):
         return c9_direct_authority_exposure(value.value,owner)
+    if isinstance(value,ast.IfExp):
+        return c9_direct_authority_exposure(value.body,owner) or c9_direct_authority_exposure(value.orelse,owner)
+    if isinstance(value,ast.BoolOp):
+        return any(c9_direct_authority_exposure(item,owner) for item in value.values)
+    if isinstance(value,(ast.ListComp,ast.SetComp,ast.GeneratorExp)):
+        return c9_direct_authority_exposure(value.elt,owner)
+    if isinstance(value,ast.DictComp):
+        return c9_direct_authority_exposure(value.key,owner) or c9_direct_authority_exposure(value.value,owner)
     return False
 
 
