@@ -152,6 +152,63 @@ def direct_authority_alias_present(function:ast.FunctionDef|ast.AsyncFunctionDef
     return False
 
 
+def mutable_authority_mapping_alias_value(value,owner:str)->bool:
+    if owner!="args":
+        return False
+    if (
+        isinstance(value,ast.Attribute)
+        and value.attr=="__dict__"
+        and isinstance(value.value,ast.Name)
+        and value.value.id==owner
+    ):
+        return True
+    return (
+        isinstance(value,ast.Call)
+        and isinstance(value.func,ast.Name)
+        and value.func.id=="vars"
+        and len(value.args)==1
+        and isinstance(value.args[0],ast.Name)
+        and value.args[0].id==owner
+    )
+
+
+def direct_authority_exposure(value,owner:str)->bool:
+    if isinstance(value,ast.Name) and value.id==owner:
+        return True
+    if mutable_authority_mapping_alias_value(value,owner):
+        return True
+    if isinstance(value,(ast.Tuple,ast.List,ast.Set)):
+        return any(direct_authority_exposure(item,owner) for item in value.elts)
+    if isinstance(value,ast.Dict):
+        return any(
+            direct_authority_exposure(item,owner)
+            for item in [*value.keys,*value.values]
+            if item is not None
+        )
+    if isinstance(value,ast.Starred):
+        return direct_authority_exposure(value.value,owner)
+    return False
+
+
+def call_name(node)->str:
+    if not isinstance(node,ast.Call):
+        return ""
+    if isinstance(node.func,ast.Name):
+        return node.func.id
+    if isinstance(node.func,ast.Attribute) and isinstance(node.func.value,ast.Name):
+        return f"{node.func.value.id}.{node.func.attr}"
+    return ""
+
+
+def unknown_authority_helper_call(node,owner:str,allowed:tuple[str,...]=())->bool:
+    if not isinstance(node,ast.Call) or call_name(node) in set(allowed):
+        return False
+    return (
+        any(direct_authority_exposure(arg,owner) for arg in node.args)
+        or any(direct_authority_exposure(keyword.value,owner) for keyword in node.keywords)
+    )
+
+
 def canonical_guard_value_valid(value,attr:str)->bool:
     expected_rel="CANONICAL_PROGRESS_REL" if attr=="progress_out" else "CANONICAL_EVIDENCE_REL"
     expected_label="PROGRESS" if attr=="progress_out" else "EVIDENCE"
@@ -332,6 +389,15 @@ def canonical_output_contract_errors(source:str)->list[str]:
                 guarded[attr]=False
     if direct_authority_alias_present(main,"args"):
         guarded={"progress_out":False,"evidence_out":False}
+    for node in function_scope_nodes(main):
+        targets,value=assignment_targets_and_value(node)
+        flat_targets=[item for root_target in targets for item in assignment_target_nodes(root_target)]
+        if direct_authority_exposure(value,"args") and any(
+            isinstance(target,ast.Name) and target.id!="args" for target in flat_targets
+        ):
+            guarded={"progress_out":False,"evidence_out":False}
+        if unknown_authority_helper_call(node,"args",("prepare","admit","seal","status")):
+            guarded={"progress_out":False,"evidence_out":False}
     if not guarded["progress_out"]:
         errors.append("PROGRESS_OUTPUT_WIRING_INVALID")
     if not guarded["evidence_out"]:
@@ -395,6 +461,15 @@ def runner_working_directory_contract_errors(source:str)->list[str]:
                 working_valid=False
     if direct_authority_alias_present(main,"result"):
         working_valid=False
+    for node in function_scope_nodes(main):
+        targets,value=assignment_targets_and_value(node)
+        flat_targets=[item for root_target in targets for item in assignment_target_nodes(root_target)]
+        if direct_authority_exposure(value,"result") and any(
+            isinstance(target,ast.Name) and target.id!="result" for target in flat_targets
+        ):
+            working_valid=False
+        if unknown_authority_helper_call(node,"result",("json.dumps",)):
+            working_valid=False
     return [] if working_valid else ["RUNNER_WORKING_DIRECTORY_WIRING_INVALID"]
 
 
