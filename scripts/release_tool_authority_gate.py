@@ -345,10 +345,14 @@ def assignment_target_nodes(target):
 def direct_authority_alias_present(function:ast.FunctionDef|ast.AsyncFunctionDef,owner:str)->bool:
     for node in function_scope_nodes(function):
         targets,value=assignment_targets_and_value(node)
-        if not isinstance(value,ast.Name) or value.id!=owner:
+        if not c9_direct_authority_exposure(value,owner):
             continue
-        for target in (item for root_target in targets for item in assignment_target_nodes(root_target)):
-            if isinstance(target,ast.Name) and target.id!=owner:
+        for root_target in targets:
+            for target in assignment_target_nodes(root_target):
+                if isinstance(target,(ast.Tuple,ast.List)):
+                    continue
+                if isinstance(target,ast.Name) and target.id==owner:
+                    continue
                 return True
     return False
 
