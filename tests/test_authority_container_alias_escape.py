@@ -40,6 +40,8 @@ class AuthorityContainerAliasEscapeTests(unittest.TestCase):
             "[args][0]",
             '{"x":args}["x"]',
             "(None,args)[1]",
+            "(None,args)[-1]",
+            '{("x",1):args}[("x",1)]',
         )
         for expression in expressions:
             with self.subTest(expression=expression):
@@ -73,6 +75,8 @@ class AuthorityContainerAliasEscapeTests(unittest.TestCase):
             "[evidence][0]",
             '{"x":evidence}["x"]',
             "(None,evidence)[1]",
+            "(None,evidence)[-1]",
+            '{("x",1):evidence}[("x",1)]',
         )
         for expression in expressions:
             with self.subTest(expression=expression):
