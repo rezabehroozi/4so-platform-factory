@@ -476,6 +476,16 @@ def c9_direct_authority_exposure(value,owner:str)->bool:
     return False
 
 
+def c9_default_authority_capture_present(function:ast.FunctionDef|ast.AsyncFunctionDef,owner:str)->bool:
+    for node in function_scope_nodes(function):
+        if not isinstance(node,(ast.FunctionDef,ast.AsyncFunctionDef,ast.Lambda)) or node is function:
+            continue
+        defaults=(*node.args.defaults,*node.args.kw_defaults)
+        if any(default is not None and c9_direct_authority_exposure(default,owner) for default in defaults):
+            return True
+    return False
+
+
 def c9_unknown_authority_helper_call(node,owner:str,allowed:tuple[str,...]=())->bool:
     if not isinstance(node,ast.Call) or c9_call_name(node) in set(allowed):
         return False
@@ -486,7 +496,7 @@ def c9_unknown_authority_helper_call(node,owner:str,allowed:tuple[str,...]=())->
 
 
 def c9_cli_args_authority_mutated(function:ast.FunctionDef|ast.AsyncFunctionDef)->bool:
-    if direct_authority_alias_present(function,"args"):
+    if direct_authority_alias_present(function,"args") or c9_default_authority_capture_present(function,"args"):
         return True
     parser_binding_seen=False
     mutators=("update","clear","pop","popitem","setdefault","__setitem__","__delitem__","__setattr__","__delattr__")
@@ -531,7 +541,7 @@ def c9_main_working_directory_bound(source:str)->bool:
     except (SyntaxError,ValueError):
         return False
     main=next((node for node in tree.body if isinstance(node,ast.FunctionDef) and node.name=="main"),None)
-    if main is None or c9_cli_args_authority_mutated(main):
+    if main is None or c9_cli_args_authority_mutated(main) or c9_default_authority_capture_present(main,"result"):
         return False
     root_valid=False
     working_valid=False
@@ -586,7 +596,7 @@ def c9_main_working_directory_bound(source:str)->bool:
                 working_valid=False
             if c9_unknown_authority_helper_call(node,"result",("json.dumps",)):
                 working_valid=False
-    if direct_authority_alias_present(main,"result"):
+    if direct_authority_alias_present(main,"result") or c9_default_authority_capture_present(main,"result"):
         working_valid=False
     return root_valid and working_valid
 
@@ -597,7 +607,7 @@ def c9_main_canonical_output_bound(source:str)->bool:
     except (SyntaxError,ValueError):
         return False
     main=next((node for node in tree.body if isinstance(node,ast.FunctionDef) and node.name=="main"),None)
-    if main is None or c9_cli_args_authority_mutated(main):
+    if main is None or c9_cli_args_authority_mutated(main) or c9_default_authority_capture_present(main,"evidence"):
         return False
     root_valid=False
     out_valid=False
@@ -654,7 +664,7 @@ def c9_main_canonical_output_bound(source:str)->bool:
                 evidence_valid=False
             if isinstance(node,ast.Call) and isinstance(node.func,ast.Name) and node.func.id=="execute":
                 evidence_valid=False
-    if direct_authority_alias_present(main,"evidence"):
+    if direct_authority_alias_present(main,"evidence") or c9_default_authority_capture_present(main,"evidence"):
         evidence_valid=False
     return root_valid and out_valid and evidence_valid
 
