@@ -20,6 +20,8 @@ class GitEnvironmentAuthorityGateContractTests(unittest.TestCase):
     GOOD='import subprocess\ndef f(env):\n    subprocess.run(["git","rev-parse","HEAD"],env=env,check=False)\n'
     TUPLE_BAD='import subprocess\ndef f():\n    subprocess.run(("git","rev-parse","HEAD"),check=False)\n'
     TUPLE_GOOD='import subprocess\ndef f(env):\n    subprocess.run(("git","rev-parse","HEAD"),env=env,check=False)\n'
+    COMPUTED_BAD='import subprocess\ndef f():\n    subprocess.run(["g"+"it","rev-parse","HEAD"],check=False)\n'
+    COMPUTED_GOOD='import subprocess\ndef f(env):\n    subprocess.run(["g"+"it","rev-parse","HEAD"],env=env,check=False)\n'
 
     def test_release_gate_detects_direct_git_call_without_env(self):
         self.assertTrue(release_gate.direct_git_calls_without_env(self.BAD))
@@ -29,6 +31,10 @@ class GitEnvironmentAuthorityGateContractTests(unittest.TestCase):
         self.assertTrue(release_gate.direct_git_calls_without_env(self.TUPLE_BAD))
         self.assertEqual([],release_gate.direct_git_calls_without_env(self.TUPLE_GOOD))
 
+    def test_release_gate_detects_computed_constant_git_call_without_env(self):
+        self.assertTrue(release_gate.direct_git_calls_without_env(self.COMPUTED_BAD))
+        self.assertEqual([],release_gate.direct_git_calls_without_env(self.COMPUTED_GOOD))
+
     def test_c7w_gate_detects_direct_git_call_without_env(self):
         self.assertTrue(c7w_gate.direct_git_calls_without_env(self.BAD))
         self.assertEqual([],c7w_gate.direct_git_calls_without_env(self.GOOD))
@@ -36,6 +42,10 @@ class GitEnvironmentAuthorityGateContractTests(unittest.TestCase):
     def test_c7w_gate_detects_tuple_git_call_without_env(self):
         self.assertTrue(c7w_gate.direct_git_calls_without_env(self.TUPLE_BAD))
         self.assertEqual([],c7w_gate.direct_git_calls_without_env(self.TUPLE_GOOD))
+
+    def test_c7w_gate_detects_computed_constant_git_call_without_env(self):
+        self.assertTrue(c7w_gate.direct_git_calls_without_env(self.COMPUTED_BAD))
+        self.assertEqual([],c7w_gate.direct_git_calls_without_env(self.COMPUTED_GOOD))
 
 
 if __name__=="__main__":
