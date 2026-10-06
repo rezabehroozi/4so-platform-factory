@@ -28,6 +28,14 @@ class C7WStateDirBrokenSymlinkTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,"MCP_EXTERNAL_LOCAL_STATE_PARENT_INVALID"):
                 mod.secure_state_dir(broken/"state")
 
+    def test_broken_state_symlink_fails_with_canonical_state_dir_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            state=root/"state"
+            self.make_broken_dir_symlink(state,root/"missing-state-target")
+            with self.assertRaisesRegex(RuntimeError,"MCP_EXTERNAL_LOCAL_STATE_DIR_INVALID"):
+                mod.secure_state_dir(state)
+
     def test_broken_child_symlink_fails_with_canonical_child_error(self):
         with tempfile.TemporaryDirectory() as tmp:
             state=Path(tmp)/"state"
