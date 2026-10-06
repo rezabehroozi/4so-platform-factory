@@ -169,6 +169,7 @@ class LocalC7WRunnerTests(unittest.TestCase):
             p=mod.paths(state)
             client="chatgpt"
             packet_path=p["packets"]/(client+".json"); packet_path.write_text("{}")
+            (p["templates"]/(client+".json")).write_text("{}")
             capture=p["captures"]/(client+".capture.json"); capture.write_text("{}")
             audit_path=p["audits"]/(client+".json"); audit_path.write_text("[]")
             raw_receipt={"authority":mod.core.RECEIPT_AUTHORITY,"clientId":client}
