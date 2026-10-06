@@ -41,7 +41,7 @@ def clean_git_env()->dict[str,str]:
 def secure_state_dir(path:Path)->Path:
     path=Path(os.path.abspath(path))
     for parent in reversed(path.parents):
-        if parent.exists() and (parent.is_symlink() or not parent.is_dir()):
+        if parent.is_symlink() or (parent.exists() and not parent.is_dir()):
             raise RuntimeError("MCP_EXTERNAL_LOCAL_STATE_PARENT_INVALID")
     path.mkdir(parents=True,exist_ok=True)
     if path.is_symlink() or not path.is_dir():
