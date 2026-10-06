@@ -39,10 +39,31 @@ class C7WReconcilerRootAuthorityTests(unittest.TestCase):
             with mock.patch.dict(os.environ,injected,clear=False):
                 self.assertEqual(root.resolve(),mod.require_repository_root(root))
 
+    def test_source_freeze_rejects_non_main_branch(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)/"repo"; root.mkdir(); self.repo(root)
+            self.git(root,"checkout","-b","feature")
+            with self.assertRaisesRegex(RuntimeError,"MCP_EXTERNAL_TRUSTED_CLIENT_BRANCH_NOT_MAIN"):
+                mod.require_source_freeze(root)
+
+    def test_source_freeze_rejects_unrelated_dirty_source(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)/"repo"; root.mkdir(); self.repo(root)
+            (root/"tracked.txt").write_text("dirty\n",encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError,"MCP_EXTERNAL_TRUSTED_CLIENT_SOURCE_NOT_FROZEN"):
+                mod.require_source_freeze(root)
+
+    def test_source_freeze_allows_c7w_evidence_only_delta(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)/"repo"; root.mkdir(); self.repo(root)
+            evidence=root/"lab"/"mcp-external-client-interop-progress.json"
+            evidence.parent.mkdir(); evidence.write_text("{}\n",encoding="utf-8")
+            self.assertEqual(root.resolve(),mod.require_source_freeze(root))
+
     def test_followup_preflight_uses_canonical_root(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td)/"repo"; root.mkdir(); self.repo(root)
-            resolved=mod.require_repository_root(root)
+            resolved=mod.require_source_freeze(root)
             command=mod.preflight_command(resolved,"https://example.invalid/mcp",resolved/".state/private/c7w-oauth-client-bindings.json","TOKEN")
             index=command.index("--root")
             self.assertEqual(str(root.resolve()),command[index+1])
