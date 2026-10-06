@@ -275,11 +275,25 @@ def client_execution_handoff(state:Path,client:str)->dict:
     if client not in core.CLIENTS:
         raise RuntimeError("MCP_EXTERNAL_LOCAL_CLIENT_HANDOFF_INVALID")
     p=paths(state)
-    capture=str(p["captures"]/(client+".capture.json"))
+    code="MCP_EXTERNAL_LOCAL_CLIENT_HANDOFF_PATH_INVALID"
+    if state.is_symlink() or not state.is_dir():
+        raise RuntimeError(code)
+    for parent in (p["packets"],p["templates"],p["captures"]):
+        if parent.is_symlink() or not parent.is_dir():
+            raise RuntimeError(code)
+    packet_path=p["packets"]/(client+".json")
+    template_path=p["templates"]/(client+".json")
+    capture_path=p["captures"]/(client+".capture.json")
+    for required in (packet_path,template_path):
+        if required.is_symlink() or not required.is_file():
+            raise RuntimeError(code)
+    if capture_path.is_symlink() or (capture_path.exists() and not capture_path.is_file()):
+        raise RuntimeError(code)
+    capture=str(capture_path)
     return {
         "clientId":client,
-        "packetPath":str(p["packets"]/(client+".json")),
-        "captureTemplatePath":str(p["templates"]/(client+".json")),
+        "packetPath":str(packet_path),
+        "captureTemplatePath":str(template_path),
         "expectedCapturePath":capture,
         "requiredCaptureAuthority":"MCP_EXTERNAL_CLIENT_CAPTURE_V1",
         "admitCommand":runner_command(state,"admit","--client",client,"--capture",capture),
