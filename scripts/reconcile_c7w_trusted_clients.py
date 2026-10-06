@@ -12,6 +12,7 @@ import argparse
 import json
 import os
 import ssl
+import subprocess
 import sys
 from pathlib import Path
 from urllib.error import HTTPError, URLError
@@ -33,6 +34,33 @@ DISPLAY_NAMES={
     "gemini":"C7W Gemini",
     "grok":"C7W Grok",
 }
+
+
+def _clean_git_env()->dict[str,str]:
+    env=os.environ.copy()
+    for key in list(env):
+        if key.startswith("GIT_"):
+            env.pop(key,None)
+    return env
+
+
+def require_repository_root(root:Path)->Path:
+    candidate=Path(os.path.abspath(root))
+    try:
+        proc=subprocess.run(
+            ["git","rev-parse","--show-toplevel"],
+            cwd=candidate,
+            env=_clean_git_env(),
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+    except OSError as exc:
+        raise RuntimeError("MCP_EXTERNAL_TRUSTED_CLIENT_REPOSITORY_ROOT_INVALID") from exc
+    top=Path(proc.stdout.strip()).resolve() if proc.returncode==0 and proc.stdout.strip() else None
+    if proc.returncode!=0 or top is None or candidate.resolve()!=top:
+        raise RuntimeError("MCP_EXTERNAL_TRUSTED_CLIENT_REPOSITORY_ROOT_INVALID")
+    return top
 
 
 def _token(token_env:str)->str:
@@ -241,7 +269,7 @@ def main()->int:
     args=parser.parse_args()
     if not str(args.endpoint or "").strip() or args.oauth_client_map is None:
         raise RuntimeError("MCP_EXTERNAL_TRUSTED_CLIENT_RECONCILIATION_INPUTS_MISSING")
-    root=Path(os.path.abspath(args.root))
+    root=require_repository_root(args.root)
     oauth_path=_private_oauth_map(root,args.oauth_client_map)
     bindings,_=campaign.load_oauth_bindings(oauth_path)
     result=reconcile(args.endpoint,bindings,args.token_env)
