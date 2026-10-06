@@ -705,9 +705,9 @@ def admit_output_path(root:Path,out:Path)->Path:
     root=root.resolve(); raw=out if out.is_absolute() else root/out
     raw=Path(os.path.abspath(raw))
     for parent in reversed(raw.parents):
-        if parent.exists() and (parent.is_symlink() or not parent.is_dir()):
+        if parent.is_symlink() or (parent.exists() and not parent.is_dir()):
             raise RuntimeError("FINAL_EXACT_RELEASE_OUTPUT_PARENT_SYMLINK_FORBIDDEN")
-    if raw.exists() and raw.is_symlink():
+    if raw.is_symlink():
         raise RuntimeError("FINAL_EXACT_RELEASE_OUTPUT_SYMLINK_FORBIDDEN")
     raw.parent.mkdir(parents=True,exist_ok=True)
     if raw.parent.is_symlink() or not raw.parent.is_dir():
