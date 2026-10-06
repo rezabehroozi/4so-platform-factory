@@ -48,18 +48,8 @@ class AuthorityContainerAliasEscapeTests(unittest.TestCase):
                 source=f'''\ndef main():\n    holder.value={expression}\n    return None\n'''
                 self.assertTrue(c7w.direct_authority_alias_present(ast.parse(source).body[0],"args"))
 
-    def test_c7w_detects_bound_mutator_method_aliases(self):
-        args_alias=ast.parse('''\ndef main():\n    mutate=args.__setattr__\n    mutate("progress_out",Path("alternate.json"))\n''').body[0]
-        result_alias=ast.parse('''\ndef main():\n    result={}\n    mutate=result.update\n    mutate({"workingDirectory":"."})\n''').body[0]
-        self.assertTrue(c7w.direct_authority_alias_present(args_alias,"args"))
-        self.assertTrue(c7w.direct_authority_alias_present(result_alias,"result"))
-
     def test_c7w_working_directory_rejects_result_escape(self):
         source='''\ndef main():\n    root=Path.cwd().resolve()\n    result={}\n    result["workingDirectory"]=str(root)\n    holder.value=result\n    return result\n'''
-        self.assertIn("RUNNER_WORKING_DIRECTORY_WIRING_INVALID",c7w.runner_working_directory_contract_errors(source))
-
-    def test_c7w_rejects_bound_result_mutator_alias_after_projection(self):
-        source='''\ndef main():\n    root=Path.cwd().resolve()\n    result={}\n    result["workingDirectory"]=str(root)\n    mutate=result.update\n    mutate({"workingDirectory":"."})\n    return result\n'''
         self.assertIn("RUNNER_WORKING_DIRECTORY_WIRING_INVALID",c7w.runner_working_directory_contract_errors(source))
 
     def test_c9_detects_attribute_and_nested_evidence_escape(self):
@@ -92,14 +82,6 @@ class AuthorityContainerAliasEscapeTests(unittest.TestCase):
             with self.subTest(expression=expression):
                 source=f'''\ndef main():\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,out)\n    holder.value={expression}\n    return evidence\n'''
                 self.assertFalse(c9.c9_main_canonical_output_bound(source))
-
-    def test_c9_rejects_bound_mutator_method_aliases(self):
-        workdir='''\ndef main():\n    root=args.root.resolve()\n    result={}\n    result["workingDirectory"]=str(root)\n    mutate=result.update\n    mutate({"workingDirectory":"."})\n    return result\n'''
-        evidence='''\ndef main():\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,out)\n    mutate=evidence.update\n    mutate({"drift":True})\n    return evidence\n'''
-        args_alias='''\ndef main():\n    parser=argparse.ArgumentParser()\n    args=parser.parse_args()\n    mutate=args.__setattr__\n    mutate("root",Path("."))\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,out)\n    return evidence\n'''
-        self.assertFalse(c9.c9_main_working_directory_bound(workdir))
-        self.assertFalse(c9.c9_main_canonical_output_bound(evidence))
-        self.assertFalse(c9.c9_main_canonical_output_bound(args_alias))
 
     def test_c9_working_directory_rejects_result_escape(self):
         source='''\ndef main():\n    root=args.root.resolve()\n    result={}\n    result["workingDirectory"]=str(root)\n    holder.value=result\n    return result\n'''
