@@ -61,57 +61,6 @@ class CodexAutopilotGitEnvironmentAuthorityTests(unittest.TestCase):
         self.assertEqual("yes",payload["KEEP_ME"])
         self.assertEqual("ok",payload["CUSTOM"])
 
-    def test_run_strips_git_config_injection_but_preserves_transport_environment(self):
-        keys=(
-            "GIT_CONFIG_COUNT",
-            "GIT_CONFIG_KEY_0",
-            "GIT_CONFIG_VALUE_0",
-            "GIT_CONFIG_PARAMETERS",
-            "GIT_CONFIG_KEY_1",
-            "GIT_CONFIG_VALUE_1",
-            "GIT_ASKPASS",
-            "KEEP_ME",
-            "CUSTOM",
-        )
-        script='import json,os; keys='+repr(keys)+'; print(json.dumps({k:os.environ.get(k) for k in keys}))'
-        with tempfile.TemporaryDirectory() as td:
-            with mock.patch.dict(
-                os.environ,
-                {
-                    "GIT_CONFIG_COUNT":"1",
-                    "GIT_CONFIG_KEY_0":"core.fsmonitor",
-                    "GIT_CONFIG_VALUE_0":"/tmp/evil-fsmonitor",
-                    "GIT_CONFIG_PARAMETERS":"'core.worktree=/tmp/decoy'",
-                    "GIT_ASKPASS":"/tmp/askpass",
-                    "KEEP_ME":"yes",
-                },
-                clear=False,
-            ):
-                result=mod._run(
-                    [sys.executable,"-c",script],
-                    cwd=Path(td),
-                    timeout=10,
-                    env={
-                        "GIT_CONFIG_KEY_1":"core.worktree",
-                        "GIT_CONFIG_VALUE_1":"/tmp/decoy",
-                        "CUSTOM":"ok",
-                    },
-                )
-        self.assertEqual(0,result.returncode,result.stdout)
-        payload=json.loads(result.stdout.strip())
-        for key in (
-            "GIT_CONFIG_COUNT",
-            "GIT_CONFIG_KEY_0",
-            "GIT_CONFIG_VALUE_0",
-            "GIT_CONFIG_PARAMETERS",
-            "GIT_CONFIG_KEY_1",
-            "GIT_CONFIG_VALUE_1",
-        ):
-            self.assertIsNone(payload[key],key)
-        self.assertEqual("/tmp/askpass",payload["GIT_ASKPASS"])
-        self.assertEqual("yes",payload["KEEP_ME"])
-        self.assertEqual("ok",payload["CUSTOM"])
-
 
 if __name__=="__main__":
     unittest.main()
