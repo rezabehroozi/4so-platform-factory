@@ -63,6 +63,41 @@ def require_repository_root(root:Path)->Path:
     return top
 
 
+def require_source_freeze(root:Path)->Path:
+    root=require_repository_root(root)
+    git_env=_clean_git_env()
+    branch=subprocess.run(
+        ["git","symbolic-ref","--quiet","--short","HEAD"],
+        cwd=root,
+        env=git_env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if branch.returncode!=0 or branch.stdout.strip()!="main":
+        raise RuntimeError("MCP_EXTERNAL_TRUSTED_CLIENT_BRANCH_NOT_MAIN")
+    indexed=subprocess.run(
+        ["git","ls-files","-v","-z"],
+        cwd=root,
+        env=git_env,
+        capture_output=True,
+        check=False,
+    )
+    if indexed.returncode!=0 or any(raw and not raw.startswith(b"H ") for raw in indexed.stdout.split(b"\x00")):
+        raise RuntimeError("MCP_EXTERNAL_TRUSTED_CLIENT_GIT_INDEX_FLAGS_FORBIDDEN")
+    allowed=sorted(core.C7W_EVIDENCE_ONLY_PATHS)
+    command=["git","status","--porcelain=v1","-z","--untracked-files=all"]
+    all_status=subprocess.run(command,cwd=root,env=git_env,capture_output=True,check=False)
+    allowed_status=subprocess.run(command+["--",*allowed],cwd=root,env=git_env,capture_output=True,check=False)
+    if all_status.returncode!=0 or allowed_status.returncode!=0:
+        raise RuntimeError("MCP_EXTERNAL_TRUSTED_CLIENT_GIT_STATUS_UNAVAILABLE")
+    all_records={row for row in all_status.stdout.split(b"\x00") if row}
+    allowed_records={row for row in allowed_status.stdout.split(b"\x00") if row}
+    if all_records-allowed_records:
+        raise RuntimeError("MCP_EXTERNAL_TRUSTED_CLIENT_SOURCE_NOT_FROZEN")
+    return root
+
+
 def _token(token_env:str)->str:
     name=str(token_env or "").strip()
     value=str(os.getenv(name) or "").strip() if name else ""
@@ -269,7 +304,7 @@ def main()->int:
     args=parser.parse_args()
     if not str(args.endpoint or "").strip() or args.oauth_client_map is None:
         raise RuntimeError("MCP_EXTERNAL_TRUSTED_CLIENT_RECONCILIATION_INPUTS_MISSING")
-    root=require_repository_root(args.root)
+    root=require_source_freeze(args.root)
     oauth_path=_private_oauth_map(root,args.oauth_client_map)
     bindings,_=campaign.load_oauth_bindings(oauth_path)
     result=reconcile(args.endpoint,bindings,args.token_env)
