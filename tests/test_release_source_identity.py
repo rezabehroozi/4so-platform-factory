@@ -1,6 +1,9 @@
 import importlib.util
 import json
 import os
+import re
+import shutil
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -68,6 +71,38 @@ class ReleaseSourceIdentityTests(unittest.TestCase):
             self.assertNotIn("GIT_INDEX_FILE",env)
             self.assertNotIn("GIT_WORK_TREE",env)
             self.assertEqual("yes",env.get("KEEP_ME"))
+
+    @unittest.skipUnless(shutil.which("make") and shutil.which("git"), "make and git are required")
+    def test_make_source_commit_ignores_inherited_git_repository_and_config_authority(self):
+        expected=subprocess.check_output(["git","rev-parse","HEAD"],cwd=ROOT,text=True).strip()
+        self.assertRegex(expected,r"^[0-9a-f]{40}$")
+        with tempfile.TemporaryDirectory() as td:
+            decoy=Path(td)
+            subprocess.run(["git","init","-q"],cwd=decoy,check=True)
+            subprocess.run(["git","config","user.email","test@example.invalid"],cwd=decoy,check=True)
+            subprocess.run(["git","config","user.name","Test"],cwd=decoy,check=True)
+            (decoy/"decoy.txt").write_text("decoy\n")
+            subprocess.run(["git","add","decoy.txt"],cwd=decoy,check=True)
+            subprocess.run(["git","commit","-qm","decoy"],cwd=decoy,check=True)
+            decoy_head=subprocess.check_output(["git","rev-parse","HEAD"],cwd=decoy,text=True).strip()
+            self.assertNotEqual(expected,decoy_head)
+            env=os.environ.copy()
+            env.update({
+                "GIT_DIR":str(decoy/".git"),
+                "GIT_WORK_TREE":str(decoy),
+                "GIT_CONFIG_COUNT":"1",
+                "GIT_CONFIG_KEY_0":"core.worktree",
+                "GIT_CONFIG_VALUE_0":str(decoy),
+            })
+            output=subprocess.check_output(
+                ["make","-f",str(ROOT/"Makefile"),"--no-print-directory","--eval","print-source: ; @echo $(SOURCE_COMMIT)","print-source"],
+                cwd=ROOT,
+                env=env,
+                text=True,
+            ).strip()
+        observed=output.splitlines()[-1].strip()
+        self.assertRegex(observed,r"^[0-9a-f]{40}$")
+        self.assertEqual(expected,observed)
 
     def test_release_and_container_build_contracts_preserve_source_commit(self):
         make=(ROOT/"Makefile").read_text()
