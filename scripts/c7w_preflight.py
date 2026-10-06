@@ -28,10 +28,15 @@ EVIDENCE_REL=Path("lab/mcp-external-client-interoperability-evidence.json")
 
 def git_source_commit(root:Path)->str:
     root=Path(os.path.abspath(root)); git_env=runner.clean_git_env()
-    top=subprocess.run(["git","rev-parse","--show-toplevel"],cwd=root,env=git_env,text=True,capture_output=True,check=False)
-    if top.returncode!=0 or Path(top.stdout.strip()).resolve()!=root:
+    if root.is_symlink() or not root.is_dir():
         raise RuntimeError("MCP_EXTERNAL_LOCAL_SOURCE_REPOSITORY_INVALID")
-    proc=subprocess.run(["git","rev-parse","HEAD"],cwd=root,env=git_env,text=True,capture_output=True,check=False)
+    try:
+        top=subprocess.run(["git","rev-parse","--show-toplevel"],cwd=root,env=git_env,text=True,capture_output=True,check=False)
+        if top.returncode!=0 or Path(top.stdout.strip()).resolve()!=root:
+            raise RuntimeError("MCP_EXTERNAL_LOCAL_SOURCE_REPOSITORY_INVALID")
+        proc=subprocess.run(["git","rev-parse","HEAD"],cwd=root,env=git_env,text=True,capture_output=True,check=False)
+    except OSError as exc:
+        raise RuntimeError("MCP_EXTERNAL_LOCAL_SOURCE_REPOSITORY_INVALID") from exc
     value=proc.stdout.strip().lower() if proc.returncode==0 else ""
     if not core.COMMIT.fullmatch(value): raise RuntimeError("MCP_EXTERNAL_LOCAL_SOURCE_REPOSITORY_INVALID")
     return value
