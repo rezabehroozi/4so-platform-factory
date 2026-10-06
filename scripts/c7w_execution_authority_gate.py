@@ -362,6 +362,7 @@ def canonical_guard_value_valid(value,attr:str)->bool:
         and isinstance(value.args[1],ast.Attribute)
         and isinstance(value.args[1].value,ast.Name)
         and value.args[1].value.id=="args"
+        and value.args[1].attr==attr
         and isinstance(value.args[2],ast.Name)
         and value.args[2].id==expected_rel
         and isinstance(value.args[3],ast.Constant)
