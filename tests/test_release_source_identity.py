@@ -42,6 +42,33 @@ class ReleaseSourceIdentityTests(unittest.TestCase):
             with mock.patch.dict(os.environ,{"SOURCE_COMMIT":""},clear=False), mock.patch.object(build.subprocess,"run",return_value=failed):
                 self.assertEqual(sha,build.release_source_commit(root))
 
+    def test_release_source_commit_git_probe_ignores_inherited_git_authority(self):
+        git_sha="a"*40
+        observed=SimpleNamespace(returncode=0,stdout=git_sha+"\n",stderr="")
+        with mock.patch.dict(os.environ,{"GIT_DIR":"/tmp/decoy.git","GIT_WORK_TREE":"/tmp/decoy","KEEP_ME":"yes"},clear=False):
+            with mock.patch.object(build.subprocess,"run",return_value=observed) as run:
+                self.assertEqual(git_sha,build.release_source_commit(ROOT))
+        env=run.call_args.kwargs.get("env")
+        self.assertIsInstance(env,dict)
+        self.assertNotIn("GIT_DIR",env)
+        self.assertNotIn("GIT_WORK_TREE",env)
+        self.assertEqual("yes",env.get("KEEP_ME"))
+
+    def test_release_source_files_git_probes_ignore_inherited_git_authority(self):
+        root=ROOT.resolve()
+        top=SimpleNamespace(returncode=0,stdout=str(root)+"\n",stderr="")
+        listed=SimpleNamespace(returncode=0,stdout=b"",stderr=b"")
+        with mock.patch.dict(os.environ,{"GIT_INDEX_FILE":"/tmp/decoy-index","GIT_WORK_TREE":"/tmp/decoy","KEEP_ME":"yes"},clear=False):
+            with mock.patch.object(build.subprocess,"run",side_effect=[top,listed]) as run:
+                self.assertEqual([],build.release_source_files(root))
+        self.assertEqual(2,run.call_count)
+        for call in run.call_args_list:
+            env=call.kwargs.get("env")
+            self.assertIsInstance(env,dict)
+            self.assertNotIn("GIT_INDEX_FILE",env)
+            self.assertNotIn("GIT_WORK_TREE",env)
+            self.assertEqual("yes",env.get("KEEP_ME"))
+
     def test_release_and_container_build_contracts_preserve_source_commit(self):
         make=(ROOT/"Makefile").read_text()
         builder=(ROOT/"scripts/build_release.py").read_text()
