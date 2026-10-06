@@ -215,6 +215,13 @@ def direct_authority_exposure(value,owner:str)->bool:
         return True
     if mutable_authority_mapping_alias_value(value,owner):
         return True
+    if (
+        isinstance(value,ast.Attribute)
+        and isinstance(value.value,ast.Name)
+        and value.value.id==owner
+        and value.attr in ("update","clear","pop","popitem","setdefault","__setitem__","__delitem__","__setattr__","__delattr__")
+    ):
+        return True
     if isinstance(value,(ast.Tuple,ast.List,ast.Set)):
         return any(direct_authority_exposure(item,owner) for item in value.elts)
     if isinstance(value,ast.Dict):
