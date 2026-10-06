@@ -2,7 +2,7 @@ SHELL := /usr/bin/env bash
 GO ?= go
 PYTHON ?= python3
 VERSION := $(shell cat VERSION)
-GIT_SOURCE_COMMIT := $(shell git rev-parse HEAD 2>/dev/null || true)
+GIT_SOURCE_COMMIT := $(shell $(PYTHON) -c "import os,subprocess; env={k:v for k,v in os.environ.items() if not k.startswith('GIT_')}; p=subprocess.run(['git','rev-parse','HEAD'],env=env,text=True,capture_output=True); print(p.stdout.strip() if p.returncode==0 else '')")
 ifneq ($(strip $(GIT_SOURCE_COMMIT)),)
 override SOURCE_COMMIT := $(GIT_SOURCE_COMMIT)
 else
