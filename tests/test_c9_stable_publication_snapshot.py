@@ -1,5 +1,6 @@
 import hashlib
 import importlib.util
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -48,6 +49,18 @@ class C9StablePublicationSnapshotTests(unittest.TestCase):
             self.assertEqual(trusted,published.read_bytes())
             self.assertNotEqual(source.stat().st_ino,published.stat().st_ino)
             self.assertEqual(0o444,published.stat().st_mode & 0o777)
+
+    @unittest.skipIf(not hasattr(os,"symlink"),"symlink unavailable")
+    def test_publication_rejects_broken_symlink_parent_with_canonical_error(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            source=root/"verified.zip"
+            source.write_bytes(b"verified-release-bytes")
+            broken=root/"release"
+            os.symlink(root/"missing-publication-parent",broken)
+            target=broken/"exact.zip"
+            with self.assertRaisesRegex(RuntimeError,"FINAL_EXACT_RELEASE_PUBLICATION_PARENT_INVALID"):
+                mod.publish_verified_file(source,target)
 
     def test_stable_fingerprint_binds_digest_and_size_together(self):
         with tempfile.TemporaryDirectory() as td:
