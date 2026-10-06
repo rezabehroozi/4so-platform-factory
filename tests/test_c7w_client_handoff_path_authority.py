@@ -52,6 +52,29 @@ class C7WClientHandoffPathAuthorityTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,"MCP_EXTERNAL_LOCAL_CLIENT_HANDOFF_PATH_INVALID"):
                 mod.client_execution_handoff(state,client)
 
+    def test_capture_admission_path_is_bound_to_client_state(self):
+        client=mod.core.CLIENTS[0]
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            state,p=self.prepared_state(root,client)
+            expected=p["captures"]/f"{client}.capture.json"
+            expected.write_text("{}",encoding="utf-8")
+            self.assertEqual(expected,mod.require_client_capture_path(state,client,expected))
+            external=root/"external.capture.json"; external.write_text("{}",encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError,"MCP_EXTERNAL_LOCAL_CAPTURE_PATH_INVALID"):
+                mod.require_client_capture_path(state,client,external)
+
+    def test_capture_admission_path_rejects_symlink(self):
+        client=mod.core.CLIENTS[0]
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            state,p=self.prepared_state(root,client)
+            external=root/"external.capture.json"; external.write_text("{}",encoding="utf-8")
+            expected=p["captures"]/f"{client}.capture.json"
+            self.symlink(expected,external)
+            with self.assertRaisesRegex(RuntimeError,"MCP_EXTERNAL_LOCAL_CAPTURE_PATH_INVALID"):
+                mod.require_client_capture_path(state,client,expected)
+
 
 if __name__=="__main__":
     unittest.main()
