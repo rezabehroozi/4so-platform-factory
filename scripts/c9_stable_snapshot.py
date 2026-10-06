@@ -307,8 +307,10 @@ def publish_verified_file(
 
     target_parent=target.parent
     for parent in reversed(target_parent.parents):
-        if parent.exists() and (parent.is_symlink() or not parent.is_dir()):
+        if parent.is_symlink() or (parent.exists() and not parent.is_dir()):
             raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_PARENT_INVALID")
+    if target_parent.is_symlink() or (target_parent.exists() and not target_parent.is_dir()):
+        raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_PARENT_INVALID")
     target_parent.mkdir(parents=True,exist_ok=True)
     if target_parent.is_symlink() or not target_parent.is_dir():
         raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_PARENT_INVALID")
