@@ -39,6 +39,11 @@ class ReleaseToolAuthorityGateContractTests(unittest.TestCase):
         ):
             self.assertIn(marker,gate)
 
+    def test_gate_includes_build_release_git_authority_owner(self):
+        gate=(ROOT/"scripts"/"release_tool_authority_gate.py").read_text(encoding="utf-8")
+        compact="".join(gate.split())
+        self.assertIn('("scripts/build_release.py",packager)',compact)
+
 
 if __name__=="__main__":
     unittest.main()
