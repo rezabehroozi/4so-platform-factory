@@ -856,6 +856,7 @@ def validate(root:Path)->list[tuple[str,str]]:
 
     git_authority_sources=(
         ("scripts/build_release_binaries.py",builder),
+        ("scripts/build_release.py",packager),
         ("scripts/package_release_exact.py",exact_packager),
         ("scripts/seal_final_exact_release.py",sealer),
         ("scripts/final_exact_release_admission.py",admission),
