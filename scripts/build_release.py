@@ -23,11 +23,19 @@ GENERATED_METADATA = {"ARTIFACT-MANIFEST.json", "BUILD-PROVENANCE.json", "SBOM.s
 COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 
 
+def clean_git_env() -> dict[str, str]:
+    env=os.environ.copy()
+    for key in list(env):
+        if key.startswith("GIT_"):
+            env.pop(key,None)
+    return env
+
+
 def release_source_commit(root: Path) -> str:
     explicit=str(os.environ.get("SOURCE_COMMIT") or "").strip().lower()
     if explicit and not COMMIT_RE.fullmatch(explicit):
         raise SystemExit("RELEASE_SOURCE_COMMIT_ENV_INVALID")
-    probe=subprocess.run(["git","rev-parse","HEAD"],cwd=root,text=True,capture_output=True,check=False)
+    probe=subprocess.run(["git","rev-parse","HEAD"],cwd=root,env=clean_git_env(),text=True,capture_output=True,check=False)
     observed=probe.stdout.strip().lower() if probe.returncode==0 else ""
     if COMMIT_RE.fullmatch(observed):
         if explicit and explicit!=observed:
@@ -74,9 +82,11 @@ def source_files(root: Path, *, apply_excludes: bool = False) -> list[Path]:
 
 
 def release_source_files(root: Path) -> list[Path]:
+    git_env=clean_git_env()
     probe = subprocess.run(
         ["git", "rev-parse", "--show-toplevel"],
         cwd=root,
+        env=git_env,
         text=True,
         capture_output=True,
         check=False,
@@ -121,6 +131,7 @@ def release_source_files(root: Path) -> list[Path]:
     listed = subprocess.run(
         ["git", "ls-files", "-v", "-z"],
         cwd=root,
+        env=git_env,
         capture_output=True,
         check=False,
     )
