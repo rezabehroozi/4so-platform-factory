@@ -40,6 +40,25 @@ class StageResult:
 
 
 ROOT = Path(__file__).resolve().parents[1]
+_GIT_REPOSITORY_SELECTION_ENV = frozenset({
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_COMMON_DIR",
+    "GIT_CEILING_DIRECTORIES",
+    "GIT_DISCOVERY_ACROSS_FILESYSTEM",
+})
+
+
+def _repository_git_env(extra: dict[str, str] | None = None) -> dict[str, str]:
+    merged = os.environ.copy()
+    if extra:
+        merged.update(extra)
+    for key in _GIT_REPOSITORY_SELECTION_ENV:
+        merged.pop(key, None)
+    return merged
 
 
 def _absolute_path_no_symlink_resolution(raw: str) -> Path:
@@ -90,9 +109,7 @@ def _terminate_process_tree(process: subprocess.Popen[str], *, grace_seconds: fl
 
 
 def _run(command: tuple[str, ...] | list[str], *, cwd: Path, timeout: int, env: dict[str, str] | None = None, track_state_root: Path | None = None, active_label: str | None = None) -> subprocess.CompletedProcess[str]:
-    merged = os.environ.copy()
-    if env:
-        merged.update(env)
+    merged = _repository_git_env(env)
     command_list = list(command)
     process = subprocess.Popen(
         command_list, cwd=cwd, env=merged, text=True,
@@ -914,15 +931,16 @@ def _git_dirty_paths(root: Path) -> list[str] | None:
     Git is used only as a local change-index here, never as execution authority.
     If it is unavailable or ambiguous, callers fall back to the full safe manifest.
     """
+    git_env = _repository_git_env()
     try:
         tracked = subprocess.run(
             ["git", "diff", "--name-only", "-z", "HEAD", "--"],
-            cwd=root, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            cwd=root, env=git_env, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
             check=False, timeout=10,
         )
         untracked = subprocess.run(
             ["git", "ls-files", "--others", "--exclude-standard", "-z"],
-            cwd=root, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            cwd=root, env=git_env, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
             check=False, timeout=10,
         )
     except (OSError, subprocess.TimeoutExpired):
@@ -1691,6 +1709,7 @@ def _git_head(root: Path) -> str:
         result = subprocess.run(
             ["git", "rev-parse", "HEAD"],
             cwd=root,
+            env=_repository_git_env(),
             text=True,
             capture_output=True,
             check=False,
