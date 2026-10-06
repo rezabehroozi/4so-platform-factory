@@ -84,5 +84,29 @@ class DevCheckpointTests(unittest.TestCase):
         payload = json.loads((root / ".local-dev" / "SESSION_STATE.json").read_text())
         self.assertEqual(expected, payload["head"])
 
+    @unittest.skipUnless(os.name == "posix", "dev-checkpoint shell authority test requires POSIX")
+    def test_status_ignores_inherited_git_config_injection(self):
+        td, root = self.init_repo()
+        self.addCleanup(td.cleanup)
+        marker = root / "fsmonitor-ran"
+        fsmonitor = root / "fsmonitor.sh"
+        fsmonitor.write_text("#!/usr/bin/env sh\nprintf 'ran\\n' >> " + __import__('shlex').quote(str(marker)) + "\nexit 0\n")
+        fsmonitor.chmod(0o755)
+        expected = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
+        p = self.run_script(
+            root,
+            "status",
+            env={
+                "GIT_CONFIG_COUNT": "1",
+                "GIT_CONFIG_KEY_0": "core.fsmonitor",
+                "GIT_CONFIG_VALUE_0": str(fsmonitor),
+                "GIT_CONFIG_PARAMETERS": "'core.worktree=/tmp/decoy'",
+            },
+        )
+        self.assertEqual(p.returncode, 0, p.stderr)
+        payload = json.loads((root / ".local-dev" / "SESSION_STATE.json").read_text())
+        self.assertEqual(expected, payload["head"])
+        self.assertFalse(marker.exists(), "inherited Git config executed an injected fsmonitor")
+
 if __name__ == "__main__":
     unittest.main()
