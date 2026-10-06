@@ -58,6 +58,8 @@ class LocalC7WRunnerTests(unittest.TestCase):
             p=mod.paths(state)
             self.assertEqual(state/"captures",p["captures"])
             self.assertTrue(p["captures"].is_dir())
+            (p["packets"]/"chatgpt.json").write_text("{}",encoding="utf-8")
+            (p["templates"]/"chatgpt.json").write_text("{}",encoding="utf-8")
             handoff=mod.client_execution_handoff(state,"chatgpt")
             self.assertEqual(str(p["captures"]/"chatgpt.capture.json"),handoff["expectedCapturePath"])
             self.assertNotIn("/secure/",json.dumps(handoff))
@@ -167,7 +169,7 @@ class LocalC7WRunnerTests(unittest.TestCase):
             p=mod.paths(state)
             client="chatgpt"
             packet_path=p["packets"]/(client+".json"); packet_path.write_text("{}")
-            capture=Path(td)/"capture.json"; capture.write_text("{}")
+            capture=p["captures"]/(client+".capture.json"); capture.write_text("{}")
             audit_path=p["audits"]/(client+".json"); audit_path.write_text("[]")
             raw_receipt={"authority":mod.core.RECEIPT_AUTHORITY,"clientId":client}
             normalized={"clientId":client,"requestIds":{},"executedAt":"2026-10-01T00:00:00Z","campaignCreatedAt":"2026-10-01T00:00:00Z","campaignExpiresAt":"2026-10-02T00:00:00Z","executionAuditWindowSeconds":60}
@@ -199,7 +201,7 @@ class LocalC7WRunnerTests(unittest.TestCase):
             state=mod.secure_state_dir(Path(td)/"state")
             p=mod.paths(state); client="grok"
             (p["packets"]/(client+".json")).write_text("{}")
-            capture=Path(td)/"capture.json"; capture.write_text("{}")
+            capture=p["captures"]/(client+".capture.json"); capture.write_text("{}")
             args=SimpleNamespace(state_dir=state,matrix=ROOT/"lab/mcp-external-client-interop-matrix.json",client=client,capture=capture,token_env="TOKEN",attempts=1,interval_seconds=0.0,progress_out=Path(td)/"progress.json",evidence_out=Path(td)/"evidence.json",allow_campaign_supersede=False)
             with (
                 mock.patch.object(mod.core,"load",return_value={"sourceCommitSHA":"a"*40}),
@@ -391,6 +393,8 @@ class LocalC7WRunnerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td); state=mod.secure_state_dir(root/"state")
             (state/"campaign.json").write_text("{}")
+            (state/"packets"/"chatgpt.json").write_text("{}",encoding="utf-8")
+            (state/"capture-templates"/"chatgpt.json").write_text("{}",encoding="utf-8")
             args=SimpleNamespace(state_dir=state,matrix=ROOT/"lab/mcp-external-client-interop-matrix.json",progress_out=root/"progress.json",evidence_out=root/"evidence.json")
             with mock.patch.object(mod,"progress_status",return_value={"complete":False,"certified":[],"missing":["chatgpt","claude","gemini","grok"],"nextClient":"chatgpt","campaignPrepared":True}):
                 out=mod.status(args)
