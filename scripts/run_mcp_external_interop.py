@@ -73,8 +73,11 @@ def paths(state:Path)->dict[str,Path]:
 
 def complete_bulk_artifacts_present(state:Path)->bool:
     p=paths(state)
+    parents=(p["receipts"],p["audits"])
+    if any(parent.is_symlink() or not parent.is_dir() for parent in parents):
+        return False
     for client in core.CLIENTS:
-        for parent in (p["receipts"],p["audits"]):
+        for parent in parents:
             path=parent/(client+".json")
             if path.is_symlink() or not path.is_file():
                 return False
