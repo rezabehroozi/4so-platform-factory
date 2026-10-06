@@ -62,5 +62,27 @@ class DevCheckpointTests(unittest.TestCase):
         self.assertEqual(status["pushState"], "PUSH_PENDING")
         self.assertIn("not a network Git remote", status["pushError"])
 
+    def test_status_ignores_inherited_repository_selection_git_environment(self):
+        td, root = self.init_repo()
+        self.addCleanup(td.cleanup)
+        decoy_td, decoy = self.init_repo()
+        self.addCleanup(decoy_td.cleanup)
+        (decoy / "a.txt").write_text("decoy\n")
+        subprocess.run(["git", "add", "a.txt"], cwd=decoy, check=True)
+        subprocess.run(["git", "commit", "-qm", "decoy"], cwd=decoy, check=True)
+        expected = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
+        p = self.run_script(
+            root,
+            "status",
+            env={
+                "GIT_DIR": str(decoy / ".git"),
+                "GIT_WORK_TREE": str(decoy),
+                "GIT_INDEX_FILE": str(decoy / ".git" / "index"),
+            },
+        )
+        self.assertEqual(p.returncode, 0, p.stderr)
+        payload = json.loads((root / ".local-dev" / "SESSION_STATE.json").read_text())
+        self.assertEqual(expected, payload["head"])
+
 if __name__ == "__main__":
     unittest.main()
