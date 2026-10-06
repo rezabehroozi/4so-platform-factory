@@ -300,6 +300,24 @@ def client_execution_handoff(state:Path,client:str)->dict:
     }
 
 
+def require_client_capture_path(state:Path,client:str,candidate:Path)->Path:
+    client=str(client or "").strip().lower()
+    code="MCP_EXTERNAL_LOCAL_CAPTURE_PATH_INVALID"
+    if client not in core.CLIENTS:
+        raise RuntimeError(code)
+    state=Path(os.path.abspath(state))
+    p=paths(state)
+    capture_parent=p["captures"]
+    raw=Path(candidate)
+    actual=Path(os.path.abspath(raw if raw.is_absolute() else Path.cwd()/raw))
+    expected=capture_parent/(client+".capture.json")
+    if state.is_symlink() or not state.is_dir() or capture_parent.is_symlink() or not capture_parent.is_dir():
+        raise RuntimeError(code)
+    if actual!=expected or expected.is_symlink() or not expected.is_file():
+        raise RuntimeError(code)
+    return expected
+
+
 def external_client_action(state:Path,client:str)->dict:
     handoff=client_execution_handoff(state,client)
     return {
@@ -478,6 +496,7 @@ def admit(args:argparse.Namespace)->dict:
     campaign=core.load(p["campaign"],"ACTIVE_CAMPAIGN")
     require_active_campaign_source(root,campaign)
     client=str(args.client).strip().lower()
+    args.capture=require_client_capture_path(state,client,args.capture)
     packet_path=p["packets"]/(client+".json")
     if not packet_path.is_file() or packet_path.is_symlink():
         raise RuntimeError("MCP_EXTERNAL_LOCAL_PACKET_MISSING")
