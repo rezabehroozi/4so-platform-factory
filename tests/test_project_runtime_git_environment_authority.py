@@ -49,6 +49,26 @@ class ProjectRuntimeGitEnvironmentAuthorityTests(unittest.TestCase):
         self.assertEqual("yes",env["SAFE_RUNTIME"])
         self.assertFalse(any(key.startswith("GIT_") for key in env))
 
+    def test_command_wrapper_execs_child_with_clean_git_environment(self):
+        gated={"command":["python3","child.py"],"runId":"run-test"}
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            with mock.patch.dict(
+                os.environ,
+                {
+                    "GIT_CONFIG_COUNT":"1",
+                    "GIT_CONFIG_KEY_0":"core.fsmonitor",
+                    "GIT_CONFIG_VALUE_0":"/tmp/evil-fsmonitor",
+                    "GIT_DIR":"/tmp/decoy.git",
+                    "SAFE_RUNTIME":"yes",
+                },
+                clear=False,
+            ), mock.patch.object(mod,"ticks",return_value="123"), mock.patch.object(mod,"read_state",return_value=gated), mock.patch.object(mod,"command_gate_state",return_value=gated), mock.patch.object(mod,"execution_source_status",return_value={"matched":True}), mock.patch.object(mod.os,"execvpe",side_effect=OSError("stop")) as execvpe, mock.patch.object(mod,"record_command_exec_failure"):
+                self.assertEqual(125,mod.command_wrapper(root,"run-test"))
+        env=execvpe.call_args.args[2]
+        self.assertEqual("yes",env.get("SAFE_RUNTIME"))
+        self.assertFalse(any(key.startswith("GIT_") for key in env),env)
+
 
 if __name__=="__main__":
     unittest.main()
