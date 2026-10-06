@@ -9,15 +9,18 @@ push_enabled="${DEV_PUSH:-0}"
 push_timeout="${DEV_PUSH_TIMEOUT_SECONDS:-30}"
 message=""
 
-# Repository/object selection must come from the checked-out workspace, not an
-# inherited Git authority. Keep credential transports such as GIT_ASKPASS and
-# GIT_SSH_COMMAND intact for the optional network push path.
+# Repository/object selection and per-command Git configuration must come from
+# the checked-out workspace, not inherited process authority. Keep credential
+# transports such as GIT_ASKPASS and GIT_SSH_COMMAND intact for optional push.
 for git_authority_var in \
   GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR \
   GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES \
   GIT_NAMESPACE GIT_PREFIX GIT_CEILING_DIRECTORIES; do
   unset "$git_authority_var"
 done
+while IFS= read -r git_config_var; do
+  [[ -n "$git_config_var" ]] && unset "$git_config_var"
+done < <(compgen -A variable GIT_CONFIG || true)
 
 usage() {
   cat <<USAGE
