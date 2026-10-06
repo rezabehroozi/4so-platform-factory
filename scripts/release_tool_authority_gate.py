@@ -52,6 +52,14 @@ def literal_assignment(source:str,name:str):
 
 
 def direct_git_calls_without_env(source:str)->list[int]:
+    def static_string(node):
+        if isinstance(node,ast.Constant) and isinstance(node.value,str):
+            return node.value
+        if isinstance(node,ast.BinOp) and isinstance(node.op,ast.Add):
+            left=static_string(node.left); right=static_string(node.right)
+            if left is not None and right is not None:
+                return left+right
+        return None
     try:
         tree=ast.parse(source)
     except (SyntaxError,ValueError):
@@ -69,8 +77,7 @@ def direct_git_calls_without_env(source:str)->list[int]:
             and func.value.id=="subprocess"
             and isinstance(command,(ast.List,ast.Tuple))
             and command.elts
-            and isinstance(command.elts[0],ast.Constant)
-            and command.elts[0].value=="git"
+            and static_string(command.elts[0])=="git"
         ):
             continue
         if not any(keyword.arg=="env" for keyword in node.keywords):
