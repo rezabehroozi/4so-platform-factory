@@ -353,10 +353,6 @@ def read_lock(root,override=None):
     return d
 
 def reconcile(root,state,override=None,write=True):
-    # Observation must never overwrite newer worker-owned state.  In
-    # particular, a status/watchdog poll may hold a stale RUNNING snapshot
-    # while the detached worker commits COMPLETED.  Only a proven orphan/stale
-    # transition is persisted; liveness fields are derived for the observer.
     s=dict(state)
     worker=alive(s.get("activePid"),s.get("activePidStartTicks"))
     child=alive(s.get("commandPid"),s.get("commandPidStartTicks"))
@@ -381,9 +377,6 @@ def reconcile(root,state,override=None,write=True):
                      activePid=None,activePidStartTicks=None,commandPid=None,commandPidStartTicks=None)
             transition=True
     elif status=="WAITING" and not worker and not child:
-        # Durable WAITING is an intentional recovery/readback state, not proof
-        # of a stale execution.  Preserve the reason and checkpoint until an
-        # operator explicitly resolves or resumes it.
         pass
     elif status in ACTIVE:
         if worker or lock_matches:
@@ -396,9 +389,6 @@ def reconcile(root,state,override=None,write=True):
                      activePid=None,activePidStartTicks=None,commandPid=None,commandPidStartTicks=None)
             transition=True
     if write and transition:
-        # Compare-and-swap under the local state mutex.  A worker can complete
-        # between liveness observation and this mutation; revision fencing
-        # prevents an observer from overwriting that newer terminal state.
         expected=int(state.get("stateRevision") or 0)
         written,current=write_state(root,s,override,expected_revision=expected)
         if not written:
@@ -431,9 +421,6 @@ def acquire(root,run_id,override=None):
     owner_pid=os.getpid(); owner_ticks=ticks(owner_pid)
     if not owner_ticks: raise RuntimeError("PROJECT_RUNTIME_LOCK_OWNER_IDENTITY_UNAVAILABLE")
     p=lock_file(root,override); p.parent.mkdir(parents=True,exist_ok=True)
-    # Serialize stale-lock observation, unlink and replacement. Without this
-    # mutex two reclaimers can both observe the same stale inode and one can
-    # unlink the other's freshly-created live lock.
     with state_guard(root,override):
         for _ in range(2):
             payload={"authority":LOCK_AUTHORITY,"runId":run_id,"pid":owner_pid,"startTicks":owner_ticks,"hostname":socket.gethostname(),"acquiredAt":now()}
@@ -455,10 +442,6 @@ def transfer(root,run_id,to_pid,to_ticks,override=None):
     lk.update(pid=to_pid,startTicks=to_ticks,transferredAt=now()); atomic_json(p,lk)
 
 def activate_worker(root,state,run_id,worker_pid,worker_ticks,override=None):
-    # Persist worker identity before transferring the execution lock.  The
-    # worker cannot leave its handoff wait until transfer() succeeds, so this
-    # ordering prevents the parent from overwriting a newer commandPid written
-    # by the worker after it starts the child process.
     s=dict(state)
     s.update(status="RUNNING",activePid=worker_pid,activePidStartTicks=worker_ticks,lastHeartbeat=now(),safeToRetry=False)
     write_state(root,s,override)
@@ -519,7 +502,6 @@ def release(root,run_id,pid,start,override=None):
         p.unlink(missing_ok=True); fsync_dir(p)
 
 def owned_worktree_mutation_scope_allowed(phase,task,command):
-    """Only exact C6 Python Autopilot repair entrypoints may mutate the worktree."""
     command=[str(item) for item in (command or [])]
     if str(phase or "")!="C6-multi-agent-test-autopilot" or str(task or "") not in {"codex-autopilot","codex-autopilot-agent"}:
         return False
@@ -584,7 +566,7 @@ def command_wrapper(root,run_id,override=None):
             if source.get("matched") is not True:
                 record_command_exec_failure(root,gated,"LOCAL_GIT_AUTHORITY_CHANGED_BEFORE_EXECUTION",override); return 125
             try:
-                os.execvpe(command[0],command,os.environ.copy())
+                os.execvpe(command[0],command,clean_git_env())
             except OSError as exc:
                 record_command_exec_failure(root,gated,f"COMMAND_EXEC_ERROR {exc}",override); return 125
             raise RuntimeError("PROJECT_RUNTIME_COMMAND_EXEC_RETURNED")
@@ -737,8 +719,6 @@ def resume(root,override=None,allow_detached=False):
     if allow_owned and not worktree_match:
         s["ownedWorktreeMutationObserved"]=True
         s["ownedWorktreeMutationAuthority"]=OWNED_WORKTREE_MUTATION_AUTHORITY
-        # The inner Autopilot checkpoint owns path/delta admission. Rebind only
-        # the outer pre-exec fingerprint after immutable HEAD/branch survive.
         s["worktreeFingerprint"]=info.get("worktreeFingerprint","")
         s["worktreeDirty"]=info.get("worktreeDirty")
     s["currentOriginMain"]=info.get("originMain","")
@@ -845,8 +825,6 @@ def worker(root,run_id,override=None):
             if source.get("ownedWorktreeMutationObserved"):
                 s["ownedWorktreeMutationObserved"]=True
                 s["ownedWorktreeMutationAuthority"]=OWNED_WORKTREE_MUTATION_AUTHORITY
-                # Persist the accepted final baseline so later same-job cache or
-                # crash resume is bound to the repaired tree, not the pre-repair tree.
                 s["worktreeFingerprint"]=info.get("worktreeFingerprint","")
                 s["worktreeDirty"]=info.get("worktreeDirty")
         if source.get("matched") is not True:
