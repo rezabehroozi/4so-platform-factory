@@ -49,6 +49,8 @@ def secure_state_dir(path:Path)->Path:
     path.chmod(0o700)
     for name in ("packets","capture-templates","captures","receipts","audits"):
         child=path/name
+        if child.is_symlink() or (child.exists() and not child.is_dir()):
+            raise RuntimeError(f"MCP_EXTERNAL_LOCAL_STATE_CHILD_INVALID {name}")
         child.mkdir(exist_ok=True)
         if child.is_symlink() or not child.is_dir():
             raise RuntimeError(f"MCP_EXTERNAL_LOCAL_STATE_CHILD_INVALID {name}")
