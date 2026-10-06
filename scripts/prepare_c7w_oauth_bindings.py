@@ -39,7 +39,10 @@ def clean_git_env()->dict[str,str]:
 
 def require_repository_root(root:Path)->Path:
     root=Path(os.path.abspath(root))
-    proc=subprocess.run(["git","rev-parse","--show-toplevel"],cwd=root,env=clean_git_env(),text=True,capture_output=True,check=False)
+    try:
+        proc=subprocess.run(["git","rev-parse","--show-toplevel"],cwd=root,env=clean_git_env(),text=True,capture_output=True,check=False)
+    except OSError as exc:
+        raise RuntimeError("MCP_EXTERNAL_OAUTH_BINDINGS_REPOSITORY_ROOT_INVALID") from exc
     if proc.returncode!=0:
         raise RuntimeError("MCP_EXTERNAL_OAUTH_BINDINGS_REPOSITORY_ROOT_INVALID")
     try:
