@@ -354,14 +354,21 @@ def assignment_targets_and_value(node):
         return [ast.Name(id=(alias.asname or alias.name.split(".",1)[0]),ctx=ast.Store()) for alias in node.names],None
     if isinstance(node,ast.Match):
         targets=[]
-        def whole_subject_aliases(pattern):
-            if isinstance(pattern,ast.MatchAs) and pattern.name:
-                return [ast.Name(id=pattern.name,ctx=ast.Store())]
-            if isinstance(pattern,ast.MatchOr):
-                return [target for child in pattern.patterns for target in whole_subject_aliases(child)]
-            return []
+        def pattern_bound_names(pattern):
+            bound=[]
+            for candidate in ast.walk(pattern):
+                name=None
+                if isinstance(candidate,ast.MatchAs):
+                    name=candidate.name
+                elif isinstance(candidate,ast.MatchStar):
+                    name=candidate.name
+                elif isinstance(candidate,ast.MatchMapping):
+                    name=candidate.rest
+                if name:
+                    bound.append(ast.Name(id=name,ctx=ast.Store()))
+            return bound
         for case in node.cases:
-            targets.extend(whole_subject_aliases(case.pattern))
+            targets.extend(pattern_bound_names(case.pattern))
         return targets,node.subject
     if isinstance(node,ast.MatchAs) and node.name:
         return [ast.Name(id=node.name,ctx=ast.Store())],None
