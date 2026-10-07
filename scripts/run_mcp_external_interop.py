@@ -100,6 +100,49 @@ def captured_artifact_recovery_handoff(value:dict,state:Path)->dict:
     return out
 
 
+def stale_campaign_source_handoff(root:Path,state:Path,progress_path:Path,value:dict,exc:BaseException)->dict:
+    head=subprocess.run(["git","rev-parse","HEAD"],cwd=root,env=clean_git_env(),text=True,capture_output=True,check=False)
+    current_sha=head.stdout.strip().lower() if head.returncode==0 else ""
+    replacement=Path(f".state/c7w-external-interop-{current_sha[:12] or 'current'}")
+    supersede=progress_path.exists()
+    out=dict(value)
+    out.update({
+        "authority":AUTHORITY,
+        "action":"STATUS",
+        "stateDir":str(state),
+        "recoveryRequired":True,
+        "recoveryReason":"CAMPAIGN_SOURCE_DRIFT",
+        "nextActionCode":"RERUN_C7W_ON_CURRENT_SOURCE",
+        "nextCommand":runner_command(replacement,"prepare"),
+        "requiredInputs":["C7W_MCP_ENDPOINT","C7W_OAUTH_CLIENT_MAP","C7W_PLATFORM_ADMIN_TOKEN"],
+        "replacementStateDir":str(replacement),
+        "replacementAdmitRequiresCampaignSupersede":supersede,
+        "followupAdmitEnvironment":{"C7W_ALLOW_CAMPAIGN_SUPERSEDE":"true"} if supersede else {},
+        "historicalStateDir":str(state),
+        "detail":str(exc)+"; active campaign source is stale, so preserve the historical state and prepare a fresh source-bound campaign before any seal or external client continuation",
+        "physicalCertified":False,
+    })
+    return out
+
+
+def orphan_bulk_artifact_handoff(value:dict,state:Path)->dict:
+    campaign_path=paths(state)["campaign"]
+    out=dict(value)
+    out.update({
+        "authority":AUTHORITY,
+        "action":"STATUS",
+        "stateDir":str(state),
+        "recoveryRequired":True,
+        "recoveryReason":"BULK_ARTIFACT_CAMPAIGN_STATE_MISSING",
+        "nextActionCode":"RESTORE_C7W_CAMPAIGN_STATE",
+        "nextCommand":[],
+        "requiredStatePath":str(campaign_path),
+        "detail":"all four receipt/audit artifact pairs exist but their campaign authority is missing; restore the exact historical campaign state before reconciliation, and do not seal or overwrite this state with a new campaign",
+        "physicalCertified":False,
+    })
+    return out
+
+
 def require_canonical_matrix(root:Path,candidate:Path)->Path:
     root=root.resolve()
     raw=Path(candidate)
@@ -659,6 +702,12 @@ def status(args:argparse.Namespace)->dict:
             if historical["complete"]:
                 value=historical
             elif complete_bulk_artifacts_present(state):
+                p=paths(state)
+                campaign=core.load(p["campaign"],"EXPIRED_CAMPAIGN")
+                try:
+                    require_active_campaign_source(root,campaign)
+                except RuntimeError as source_exc:
+                    return stale_campaign_source_handoff(root,state,args.progress_out,historical,source_exc)
                 return captured_artifact_recovery_handoff(historical,state)
             else:
                 p=paths(state)
@@ -752,27 +801,19 @@ def status(args:argparse.Namespace)->dict:
             raise RuntimeError("MCP_EXTERNAL_LOCAL_EVIDENCE_DRIFT")
         value.update(git_handoff(root,args.evidence_out,args.progress_out))
     else:
-        if complete_bulk_artifacts_present(state):
-            return captured_artifact_recovery_handoff(value,state)
         if value.get("campaignPrepared"):
             p=paths(state)
             campaign=core.load(p["campaign"],"ACTIVE_CAMPAIGN")
             try:
                 require_active_campaign_source(root,campaign)
             except RuntimeError as exc:
-                head=subprocess.run(["git","rev-parse","HEAD"],cwd=root,env=clean_git_env(),text=True,capture_output=True,check=False)
-                current_sha=head.stdout.strip().lower() if head.returncode==0 else ""
-                value.update({
-                    "nextActionCode":"RERUN_C7W_ON_CURRENT_SOURCE",
-                    "nextCommand":runner_command(Path(f".state/c7w-external-interop-{current_sha[:12] or 'current'}"),"prepare"),
-                    "requiredInputs":["C7W_MCP_ENDPOINT","C7W_OAUTH_CLIENT_MAP","C7W_PLATFORM_ADMIN_TOKEN"],
-                    "replacementAdmitRequiresCampaignSupersede":args.progress_out.exists(),
-                    "followupAdmitEnvironment":{"C7W_ALLOW_CAMPAIGN_SUPERSEDE":"true"} if args.progress_out.exists() else {},
-                    "detail":str(exc)+"; active campaign source is stale before the next external client execution",
-                })
-                return value
+                return stale_campaign_source_handoff(root,state,args.progress_out,value,exc)
+            if complete_bulk_artifacts_present(state):
+                return captured_artifact_recovery_handoff(value,state)
             next_client=value.get("nextClient")
             value.update(external_client_action(state,next_client))
+        elif complete_bulk_artifacts_present(state):
+            return orphan_bulk_artifact_handoff(value,state)
         else:
             value.update({
                 "nextActionCode":"PREPARE_C7W_CAMPAIGN",
