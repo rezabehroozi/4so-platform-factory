@@ -1,5 +1,6 @@
 import importlib.util, json, os, stat, tempfile, unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT=Path(__file__).resolve().parents[1]
 SPEC=importlib.util.spec_from_file_location("prepare_c7w_oauth_bindings",ROOT/"scripts"/"prepare_c7w_oauth_bindings.py")
@@ -43,6 +44,28 @@ class PrepareC7WOAuthBindingsTests(unittest.TestCase):
             changed=dict(clients); changed["grok"]="oauth-grok-changed"
             with self.assertRaisesRegex(RuntimeError,"OUTPUT_CONFLICT"):
                 mod.materialize(out,changed)
+
+    def test_existing_bytes_does_not_reopen_replaced_path(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            out=root/"binding.json"
+            replacement=root/"replacement.json"
+            original=b"original-private-oauth-binding"
+            replacement_bytes=b"replacement-private-oauth-binding"
+            out.write_bytes(original)
+            replacement.write_bytes(replacement_bytes)
+            if os.name!="nt":
+                out.chmod(0o600); replacement.chmod(0o600)
+            real_read_bytes=Path.read_bytes
+
+            def replace_before_reopen(path):
+                if path==out:
+                    os.replace(replacement,out)
+                return real_read_bytes(path)
+
+            with mock.patch.object(Path,"read_bytes",autospec=True,side_effect=replace_before_reopen):
+                observed=mod._existing_bytes(out)
+            self.assertEqual(original,observed)
 
     def test_output_must_live_under_state_private_boundary(self):
         with tempfile.TemporaryDirectory() as td:
