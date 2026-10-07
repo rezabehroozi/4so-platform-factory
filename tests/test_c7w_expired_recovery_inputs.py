@@ -58,6 +58,37 @@ class C7WExpiredRecoveryInputTests(unittest.TestCase):
             args=mod.parser().parse_args(argv)
         self.assertFalse(args.allow_campaign_supersede)
 
+    def test_stale_source_rerun_preserves_incomplete_progress_supersede_handoff(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            state=mod.secure_state_dir(root/"state")
+            (state/"campaign.json").write_text('{"sourceCommitSHA":"1111111111111111111111111111111111111111"}',encoding="utf-8")
+            progress=root/"progress.json"
+            progress.write_text("{}",encoding="utf-8")
+            args=SimpleNamespace(
+                state_dir=state,
+                matrix=ROOT/"lab/mcp-external-client-interop-matrix.json",
+                progress_out=progress,
+                evidence_out=root/"evidence.json",
+            )
+            current="2"*40
+            with (
+                mock.patch.object(mod,"progress_status",return_value={
+                    "complete":False,
+                    "certified":["chatgpt"],
+                    "missing":["claude","gemini","grok"],
+                    "nextClient":"claude",
+                    "campaignPrepared":True,
+                }),
+                mock.patch.object(mod,"require_active_campaign_source",side_effect=RuntimeError("MCP_EXTERNAL_LOCAL_ACTIVE_CAMPAIGN_SOURCE_DELTA_NOT_EVIDENCE_ONLY")),
+                mock.patch.object(mod.subprocess,"run",return_value=SimpleNamespace(returncode=0,stdout=current+"\n")),
+            ):
+                out=mod.status(args)
+        self.assertEqual("RERUN_C7W_ON_CURRENT_SOURCE",out["nextActionCode"])
+        self.assertTrue(out["replacementAdmitRequiresCampaignSupersede"])
+        self.assertEqual({"C7W_ALLOW_CAMPAIGN_SUPERSEDE":"true"},out["followupAdmitEnvironment"])
+        self.assertEqual("prepare",out["nextCommand"][-1])
+
 
 if __name__=="__main__":
     unittest.main()
