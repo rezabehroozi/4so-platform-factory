@@ -128,6 +128,8 @@ def _existing_state_handoff(root:Path)->dict|None:
         except RuntimeError as exc:
             code=str(exc).split()[0] if str(exc).strip() else "MCP_EXTERNAL_CANONICAL_EVIDENCE_INVALID"
             if code.endswith("_SOURCE_DELTA_NOT_EVIDENCE_ONLY"):
+                if not progress_present or progress.is_symlink() or not progress.is_file():
+                    out=_base(ready=False,blockers=["MCP_EXTERNAL_CANONICAL_EVIDENCE_WITHOUT_PROGRESS"]); out.update({"sourceCommitSHA":current_sha,"workingDirectory":str(root),"nextActionCode":"INSPECT_C7W_CANONICAL_EVIDENCE","nextCommand":["git","status","--short","--",str(PROGRESS_REL),str(EVIDENCE_REL)],"detail":"canonical final C7W evidence exists without a safe canonical progress snapshot; restore both artifacts before source-drift recovery"}); return out
                 return _source_drift_status_handoff(root,evidence,current_sha,code)
             out=_base(ready=False,blockers=[code]); out.update({"sourceCommitSHA":current_sha,"workingDirectory":str(root),"nextActionCode":"INSPECT_C7W_CANONICAL_EVIDENCE","nextCommand":["git","status","--short","--",str(PROGRESS_REL),str(EVIDENCE_REL)],"detail":"canonical final C7W evidence source lineage is invalid; restore exact evidence before any Git/C9 handoff"}); return out
     elif progress_present:
