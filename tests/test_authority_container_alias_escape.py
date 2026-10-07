@@ -54,8 +54,18 @@ class AuthorityContainerAliasEscapeTests(unittest.TestCase):
         self.assertTrue(c7w.direct_authority_alias_present(args_alias,"args"))
         self.assertTrue(c7w.direct_authority_alias_present(result_alias,"result"))
 
+    def test_c7w_detects_iterator_and_comprehension_aliases(self):
+        loop=ast.parse('''\ndef main():\n    for alias in [args]:\n        alias.__setattr__("progress_out",Path("alternate.json"))\n''').body[0]
+        comprehension=ast.parse('''\ndef main():\n    [alias.__setattr__("progress_out",Path("alternate.json")) for alias in [args]]\n''').body[0]
+        self.assertTrue(c7w.direct_authority_alias_present(loop,"args"))
+        self.assertTrue(c7w.direct_authority_alias_present(comprehension,"args"))
+
     def test_c7w_working_directory_rejects_result_escape(self):
         source='''\ndef main():\n    root=Path.cwd().resolve()\n    result={}\n    result["workingDirectory"]=str(root)\n    holder.value=result\n    return result\n'''
+        self.assertIn("RUNNER_WORKING_DIRECTORY_WIRING_INVALID",c7w.runner_working_directory_contract_errors(source))
+
+    def test_c7w_rejects_iterator_result_escape_after_projection(self):
+        source='''\ndef main():\n    root=Path.cwd().resolve()\n    result={}\n    result["workingDirectory"]=str(root)\n    for alias in [result]:\n        alias.update({"workingDirectory":"."})\n    return result\n'''
         self.assertIn("RUNNER_WORKING_DIRECTORY_WIRING_INVALID",c7w.runner_working_directory_contract_errors(source))
 
     def test_c7w_rejects_bound_result_mutator_alias_after_projection(self):
@@ -100,6 +110,16 @@ class AuthorityContainerAliasEscapeTests(unittest.TestCase):
         self.assertFalse(c9.c9_main_working_directory_bound(workdir))
         self.assertFalse(c9.c9_main_canonical_output_bound(evidence))
         self.assertFalse(c9.c9_main_canonical_output_bound(args_alias))
+
+    def test_c9_detects_iterator_and_comprehension_aliases(self):
+        loop=ast.parse('''\ndef main():\n    for alias in [evidence]:\n        alias.clear()\n''').body[0]
+        comprehension=ast.parse('''\ndef main():\n    [alias.clear() for alias in [evidence]]\n''').body[0]
+        self.assertTrue(c9.direct_authority_alias_present(loop,"evidence"))
+        self.assertTrue(c9.direct_authority_alias_present(comprehension,"evidence"))
+
+    def test_c9_rejects_iterator_evidence_escape(self):
+        source='''\ndef main():\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,out)\n    for alias in [evidence]:\n        alias.clear()\n    return evidence\n'''
+        self.assertFalse(c9.c9_main_canonical_output_bound(source))
 
     def test_c9_working_directory_rejects_result_escape(self):
         source='''\ndef main():\n    root=args.root.resolve()\n    result={}\n    result["workingDirectory"]=str(root)\n    holder.value=result\n    return result\n'''
