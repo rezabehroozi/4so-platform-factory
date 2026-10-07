@@ -28,6 +28,13 @@ DEFAULT_STATE=Path(".state/c7w-external-interop")
 CANONICAL_MATRIX_REL=Path("lab/mcp-external-client-interop-matrix.json")
 CANONICAL_PROGRESS_REL=Path("lab/mcp-external-client-interop-progress.json")
 CANONICAL_EVIDENCE_REL=Path("lab/mcp-external-client-interoperability-evidence.json")
+SOURCE_FREEZE_FAILURES={
+    "MCP_EXTERNAL_LOCAL_GIT_ROOT_INVALID",
+    "MCP_EXTERNAL_LOCAL_BRANCH_NOT_MAIN",
+    "MCP_EXTERNAL_LOCAL_GIT_INDEX_FLAGS_FORBIDDEN",
+    "MCP_EXTERNAL_LOCAL_GIT_STATUS_UNAVAILABLE",
+    "MCP_EXTERNAL_LOCAL_SOURCE_NOT_FROZEN",
+}
 
 
 def clean_git_env()->dict[str,str]:
@@ -100,7 +107,31 @@ def captured_artifact_recovery_handoff(value:dict,state:Path)->dict:
     return out
 
 
+def source_freeze_failure(exc:BaseException)->bool:
+    code=str(exc).split()[0] if str(exc).strip() else ""
+    return code in SOURCE_FREEZE_FAILURES
+
+
+def source_freeze_recovery_handoff(value:dict,state:Path,exc:BaseException)->dict:
+    out=dict(value)
+    out.update({
+        "authority":AUTHORITY,
+        "action":"STATUS",
+        "stateDir":str(state),
+        "recoveryRequired":True,
+        "recoveryReason":"SOURCE_FREEZE_REQUIRED",
+        "nextActionCode":"RESTORE_C7W_SOURCE_FREEZE",
+        "nextCommand":["git","status","--short"],
+        "requiredInputs":[],
+        "detail":str(exc)+"; restore canonical clean main at the C7W evidence-only source boundary before resuming, replacing, or sealing any campaign state",
+        "physicalCertified":False,
+    })
+    return out
+
+
 def stale_campaign_source_handoff(root:Path,state:Path,progress_path:Path,value:dict,exc:BaseException)->dict:
+    if source_freeze_failure(exc):
+        return source_freeze_recovery_handoff(value,state,exc)
     head=subprocess.run(["git","rev-parse","HEAD"],cwd=root,env=clean_git_env(),text=True,capture_output=True,check=False)
     current_sha=head.stdout.strip().lower() if head.returncode==0 else ""
     replacement=Path(f".state/c7w-external-interop-{current_sha[:12] or 'current'}")
@@ -746,6 +777,8 @@ def status(args:argparse.Namespace)->dict:
             try:
                 require_active_campaign_source(root,campaign)
             except RuntimeError as exc:
+                if source_freeze_failure(exc):
+                    return source_freeze_recovery_handoff(value,state,exc)
                 if "SOURCE_DELTA_NOT_EVIDENCE_ONLY" not in str(exc):
                     raise
                 if not complete_bulk_artifacts_present(state):
