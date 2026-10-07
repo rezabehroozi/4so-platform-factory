@@ -112,12 +112,18 @@ def _safe_private_parent(output:Path,root:Path)->None:
         raise RuntimeError("MCP_EXTERNAL_OAUTH_BINDINGS_OUTPUT_PATH_INVALID")
 
 
-def _existing_bytes(output:Path)->bytes|None:
-    if not output.exists() and not output.is_symlink():
-        return None
-    if output.is_symlink():
-        raise RuntimeError("MCP_EXTERNAL_OAUTH_BINDINGS_OUTPUT_CONFLICT")
-    info=output.lstat()
+def _private_file_snapshot(info)->tuple:
+    return (
+        info.st_dev,
+        info.st_ino,
+        info.st_mode,
+        info.st_size,
+        getattr(info,"st_mtime_ns",int(info.st_mtime*1_000_000_000)),
+        getattr(info,"st_ctime_ns",int(info.st_ctime*1_000_000_000)),
+    )
+
+
+def _validate_private_file_info(info)->None:
     if (
         not stat.S_ISREG(info.st_mode)
         or info.st_size<=0
@@ -125,7 +131,47 @@ def _existing_bytes(output:Path)->bytes|None:
         or (os.name!="nt" and stat.S_IMODE(info.st_mode)&0o077)
     ):
         raise RuntimeError("MCP_EXTERNAL_OAUTH_BINDINGS_OUTPUT_CONFLICT")
-    return output.read_bytes()
+
+
+def _existing_bytes(output:Path)->bytes|None:
+    try:
+        named_before=output.lstat()
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        raise RuntimeError("MCP_EXTERNAL_OAUTH_BINDINGS_OUTPUT_CONFLICT") from exc
+    _validate_private_file_info(named_before)
+    flags=os.O_RDONLY|getattr(os,"O_CLOEXEC",0)|getattr(os,"O_BINARY",0)|getattr(os,"O_NOFOLLOW",0)
+    try:
+        fd=os.open(output,flags)
+    except OSError as exc:
+        raise RuntimeError("MCP_EXTERNAL_OAUTH_BINDINGS_OUTPUT_CONFLICT") from exc
+    try:
+        opened=os.fstat(fd)
+        _validate_private_file_info(opened)
+        if (opened.st_dev,opened.st_ino)!=(named_before.st_dev,named_before.st_ino):
+            raise RuntimeError("MCP_EXTERNAL_OAUTH_BINDINGS_OUTPUT_CONFLICT")
+        chunks=[]
+        remaining=64*1024+1
+        while remaining>0:
+            chunk=os.read(fd,min(65536,remaining))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining-=len(chunk)
+        raw=b"".join(chunks)
+        finished=os.fstat(fd)
+    finally:
+        os.close(fd)
+    if len(raw)!=opened.st_size or _private_file_snapshot(opened)!=_private_file_snapshot(finished):
+        raise RuntimeError("MCP_EXTERNAL_OAUTH_BINDINGS_OUTPUT_CONFLICT")
+    try:
+        named_after=output.lstat()
+    except OSError as exc:
+        raise RuntimeError("MCP_EXTERNAL_OAUTH_BINDINGS_OUTPUT_CONFLICT") from exc
+    if _private_file_snapshot(named_after)!=_private_file_snapshot(opened):
+        raise RuntimeError("MCP_EXTERNAL_OAUTH_BINDINGS_OUTPUT_CONFLICT")
+    return raw
 
 
 def materialize(output:Path,clients:dict[str,str],*,root:Path|None=None)->dict:
