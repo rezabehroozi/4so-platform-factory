@@ -97,6 +97,21 @@ def canonical_artifact_source_sha(root:Path,path:Path,current_sha:str,label:str)
     return source_sha
 
 
+def _source_drift_status_handoff(root:Path,path:Path,current_sha:str,code:str)->dict:
+    value=core.load(path,"MCP_EXTERNAL_PREFLIGHT_STALE_ARTIFACT")
+    certified_sha=str(value.get("sourceCommitSHA") or "").strip().lower() if isinstance(value,dict) else ""
+    if not core.COMMIT.fullmatch(certified_sha):
+        raise RuntimeError("MCP_EXTERNAL_PREFLIGHT_STALE_ARTIFACT_SOURCE_INVALID")
+    state=Path(f".state/c7w-external-interop-{certified_sha[:12]}")
+    absolute=Path(os.path.abspath(root/state))
+    identity={"sourceCommitSHA":current_sha,"certifiedSourceCommitSHA":certified_sha,"stateDir":str(state),"workingDirectory":str(root)}
+    if not absolute.exists() and not absolute.is_symlink():
+        out=_base(ready=False,blockers=[code]); out.update({**identity,"nextActionCode":"RESTORE_C7W_LOCAL_STATE","nextCommand":["git","status","--short","--",str(PROGRESS_REL),str(EVIDENCE_REL)],"detail":"canonical C7W evidence/progress belongs to an older source and its certified private state is missing; restore that state before owner recovery decides whether to resume, supersede incomplete progress, or retire complete evidence"}); return out
+    if absolute.is_symlink() or not absolute.is_dir():
+        out=_base(ready=False,blockers=["MCP_EXTERNAL_LOCAL_STATE_DIR_INVALID"]); out.update({**identity,"nextActionCode":"INSPECT_C7W_LOCAL_STATE","nextCommand":[],"detail":"the certified-source C7W state path exists but is not a safe directory; repair it before source-drift recovery"}); return out
+    out=_base(ready=False,blockers=[code]); out.update({**identity,"nextActionCode":"RUN_C7W_STATUS","nextCommand":runner.runner_command(state,"status"),"detail":"canonical C7W evidence/progress belongs to an older source; delegate recovery to the certified-state owner so incomplete progress can be fenced-superseded and complete evidence can be retired without bypassing authority"}); return out
+
+
 def _existing_state_handoff(root:Path)->dict|None:
     try: current_sha=git_source_commit(root)
     except RuntimeError: return None
@@ -111,14 +126,20 @@ def _existing_state_handoff(root:Path)->dict|None:
         try:
             certified_sha=canonical_artifact_source_sha(root,evidence,current_sha,"MCP_EXTERNAL_PREFLIGHT_EVIDENCE")
         except RuntimeError as exc:
-            out=_base(ready=False,blockers=[str(exc).split()[0] if str(exc).strip() else "MCP_EXTERNAL_CANONICAL_EVIDENCE_INVALID"]); out.update({"sourceCommitSHA":current_sha,"workingDirectory":str(root),"nextActionCode":"INSPECT_C7W_CANONICAL_EVIDENCE","nextCommand":["git","status","--short","--",str(PROGRESS_REL),str(EVIDENCE_REL)],"detail":"canonical final C7W evidence source lineage is invalid; restore exact evidence before any Git/C9 handoff"}); return out
+            code=str(exc).split()[0] if str(exc).strip() else "MCP_EXTERNAL_CANONICAL_EVIDENCE_INVALID"
+            if code.endswith("_SOURCE_DELTA_NOT_EVIDENCE_ONLY"):
+                return _source_drift_status_handoff(root,evidence,current_sha,code)
+            out=_base(ready=False,blockers=[code]); out.update({"sourceCommitSHA":current_sha,"workingDirectory":str(root),"nextActionCode":"INSPECT_C7W_CANONICAL_EVIDENCE","nextCommand":["git","status","--short","--",str(PROGRESS_REL),str(EVIDENCE_REL)],"detail":"canonical final C7W evidence source lineage is invalid; restore exact evidence before any Git/C9 handoff"}); return out
     elif progress_present:
         if progress.is_symlink() or not progress.is_file():
             out=_base(ready=False,blockers=["MCP_EXTERNAL_CANONICAL_PROGRESS_INVALID"]); out.update({"sourceCommitSHA":current_sha,"workingDirectory":str(root),"nextActionCode":"INSPECT_C7W_CANONICAL_PROGRESS","nextCommand":["git","status","--short","--",str(PROGRESS_REL)],"detail":"canonical C7W progress exists at an unsafe path; restore that progress before campaign recovery"}); return out
         try:
             certified_sha=canonical_artifact_source_sha(root,progress,current_sha,"MCP_EXTERNAL_PREFLIGHT_PROGRESS")
         except RuntimeError as exc:
-            out=_base(ready=False,blockers=[str(exc).split()[0] if str(exc).strip() else "MCP_EXTERNAL_CANONICAL_PROGRESS_INVALID"]); out.update({"sourceCommitSHA":current_sha,"workingDirectory":str(root),"nextActionCode":"INSPECT_C7W_CANONICAL_PROGRESS","nextCommand":["git","status","--short","--",str(PROGRESS_REL)],"detail":"canonical C7W progress source lineage is invalid; restore source-bound progress before campaign recovery"}); return out
+            code=str(exc).split()[0] if str(exc).strip() else "MCP_EXTERNAL_CANONICAL_PROGRESS_INVALID"
+            if code.endswith("_SOURCE_DELTA_NOT_EVIDENCE_ONLY"):
+                return _source_drift_status_handoff(root,progress,current_sha,code)
+            out=_base(ready=False,blockers=[code]); out.update({"sourceCommitSHA":current_sha,"workingDirectory":str(root),"nextActionCode":"INSPECT_C7W_CANONICAL_PROGRESS","nextCommand":["git","status","--short","--",str(PROGRESS_REL)],"detail":"canonical C7W progress source lineage is invalid; restore source-bound progress before campaign recovery"}); return out
 
     state=Path(f".state/c7w-external-interop-{certified_sha[:12]}"); absolute=Path(os.path.abspath(root/state))
     identity={"sourceCommitSHA":current_sha}
