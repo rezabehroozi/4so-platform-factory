@@ -669,6 +669,8 @@ def status(args:argparse.Namespace)->dict:
                     "nextActionCode":"RERUN_C7W_ON_CURRENT_SOURCE",
                     "nextCommand":runner_command(Path(f".state/c7w-external-interop-{current_sha[:12] or 'current'}"),"prepare"),
                     "requiredInputs":["C7W_MCP_ENDPOINT","C7W_OAUTH_CLIENT_MAP","C7W_PLATFORM_ADMIN_TOKEN"],
+                    "replacementAdmitRequiresCampaignSupersede":args.progress_out.exists(),
+                    "followupAdmitEnvironment":{"C7W_ALLOW_CAMPAIGN_SUPERSEDE":"true"} if args.progress_out.exists() else {},
                     "detail":str(exc)+"; active campaign source is stale before the next external client execution",
                 })
                 return value
