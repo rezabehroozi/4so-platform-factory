@@ -624,6 +624,7 @@ def status(args:argparse.Namespace)->dict:
                     "recoveryReason":"CAMPAIGN_EXPIRED",
                     "nextActionCode":"PREPARE_REPLACEMENT_C7W_CAMPAIGN",
                     "nextCommand":runner_command(Path(replacement),"prepare"),
+                    "requiredInputs":["C7W_MCP_ENDPOINT","C7W_OAUTH_CLIENT_MAP","C7W_PLATFORM_ADMIN_TOKEN"],
                     "replacementStateDir":replacement,
                     "replacementAdmitRequiresCampaignSupersede":args.progress_out.exists(),
                     "followupAdmitEnvironment":{"C7W_ALLOW_CAMPAIGN_SUPERSEDE":"true"} if args.progress_out.exists() else {},
