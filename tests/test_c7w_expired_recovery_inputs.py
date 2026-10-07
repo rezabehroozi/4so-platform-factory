@@ -1,0 +1,41 @@
+import importlib.util
+import tempfile
+import unittest
+from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
+
+ROOT=Path(__file__).resolve().parents[1]
+SPEC=importlib.util.spec_from_file_location("run_mcp_external_interop_expired_inputs",ROOT/"scripts/run_mcp_external_interop.py")
+mod=importlib.util.module_from_spec(SPEC)
+assert SPEC and SPEC.loader
+SPEC.loader.exec_module(mod)
+
+
+class C7WExpiredRecoveryInputTests(unittest.TestCase):
+    def test_expired_campaign_replacement_declares_prepare_inputs(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            state=mod.secure_state_dir(root/"state")
+            (state/"campaign.json").write_text('{"campaignId":"mcp-interop-expired-inputs"}',encoding="utf-8")
+            progress=root/"progress.json"
+            progress.write_text("{}",encoding="utf-8")
+            args=SimpleNamespace(
+                state_dir=state,
+                matrix=ROOT/"lab/mcp-external-client-interop-matrix.json",
+                progress_out=progress,
+                evidence_out=root/"evidence.json",
+            )
+            with mock.patch.object(mod,"progress_status",side_effect=RuntimeError("MCP_EXTERNAL_CAMPAIGN_EXPIRED")):
+                out=mod.status(args)
+        self.assertEqual("PREPARE_REPLACEMENT_C7W_CAMPAIGN",out["nextActionCode"])
+        self.assertEqual([
+            "C7W_MCP_ENDPOINT",
+            "C7W_OAUTH_CLIENT_MAP",
+            "C7W_PLATFORM_ADMIN_TOKEN",
+        ],out["requiredInputs"])
+        self.assertEqual("prepare",out["nextCommand"][-1])
+
+
+if __name__=="__main__":
+    unittest.main()
