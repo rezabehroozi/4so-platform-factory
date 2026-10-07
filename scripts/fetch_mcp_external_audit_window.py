@@ -44,12 +44,33 @@ def error_code(raw: bytes) -> str:
     return str(value.get("code") or "")
 
 
+def _verify_snapshot(path:Path,raw:bytes,receipt:dict,client:str)->dict:
+    fd,temp_name=tempfile.mkstemp(prefix="."+path.name+".verify.",dir=path.parent)
+    temp=Path(temp_name)
+    try:
+        with os.fdopen(fd,"wb") as handle:
+            handle.write(raw); handle.flush(); os.fsync(handle.fileno())
+        return core.verify_server_audit(temp,receipt,client)
+    finally:
+        if temp.exists():
+            temp.unlink()
+
+
 def _existing_witness(path: Path, raw: bytes, receipt: dict, client: str) -> dict:
-    if path.is_symlink() or not path.is_file():
-        raise RuntimeError("MCP_EXTERNAL_AUDIT_OUTPUT_PATH_INVALID")
-    if path.read_bytes()!=raw:
+    try:
+        observed=core._stable_file_bytes(path,"MCP_EXTERNAL_AUDIT_EXISTING",max_bytes=4*1024*1024)
+    except RuntimeError as exc:
+        raise RuntimeError("MCP_EXTERNAL_AUDIT_OUTPUT_PATH_INVALID") from exc
+    if observed!=raw:
         raise RuntimeError("MCP_EXTERNAL_AUDIT_OUTPUT_REPLACEMENT_FORBIDDEN")
-    return core.verify_server_audit(path,receipt,client)
+    witness=_verify_snapshot(path,observed,receipt,client)
+    try:
+        rechecked=core._stable_file_bytes(path,"MCP_EXTERNAL_AUDIT_EXISTING",max_bytes=4*1024*1024)
+    except RuntimeError as exc:
+        raise RuntimeError("MCP_EXTERNAL_AUDIT_OUTPUT_REPLACEMENT_FORBIDDEN") from exc
+    if rechecked!=observed:
+        raise RuntimeError("MCP_EXTERNAL_AUDIT_OUTPUT_REPLACEMENT_FORBIDDEN")
+    return witness
 
 def atomic_write(path: Path, raw: bytes, receipt: dict, client: str) -> dict:
     path=core._prepare_output_parent(path,"MCP_EXTERNAL_AUDIT")
