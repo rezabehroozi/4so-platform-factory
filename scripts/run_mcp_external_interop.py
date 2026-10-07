@@ -705,7 +705,7 @@ def parser()->argparse.ArgumentParser:
     admit_p.add_argument("--token-env",default=os.environ.get("C7W_PLATFORM_ADMIN_TOKEN_ENV","C7W_PLATFORM_ADMIN_TOKEN"))
     admit_p.add_argument("--attempts",type=int,default=15)
     admit_p.add_argument("--interval-seconds",type=float,default=2.0)
-    admit_p.add_argument("--allow-campaign-supersede",action="store_true")
+    admit_p.add_argument("--allow-campaign-supersede",action="store_true",default=str(os.environ.get("C7W_ALLOW_CAMPAIGN_SUPERSEDE","false")).strip().lower() in {"1","true","yes"})
 
     sub.add_parser("status")
     sub.add_parser("seal")
