@@ -341,7 +341,9 @@ def assignment_targets_and_value(node):
     if isinstance(node,ast.Delete):
         return list(node.targets),None
     if isinstance(node,(ast.For,ast.AsyncFor)):
-        return [node.target],None
+        return [node.target],node.iter
+    if isinstance(node,ast.comprehension):
+        return [node.target],node.iter
     if isinstance(node,(ast.With,ast.AsyncWith)):
         return [item.optional_vars for item in node.items if item.optional_vars is not None],None
     if isinstance(node,ast.ExceptHandler) and node.name:
