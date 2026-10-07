@@ -220,12 +220,14 @@ def git_handoff(root:Path,evidence_path:Path,progress_path:Path)->dict:
         core.validate_evidence_only_source_lineage(root,certified_sha,current_sha,"MCP_EXTERNAL_LOCAL_HANDOFF")
     except RuntimeError as exc:
         return {
-            "nextActionCode":"RERUN_C7W_ON_CURRENT_SOURCE",
-            "nextCommand":runner_command(Path(f".state/c7w-external-interop-{current_sha[:12]}"),"prepare"),
+            "nextActionCode":"RETIRE_STALE_C7W_EVIDENCE",
+            "nextCommand":["git","rm","--",*rels],
+            "followupCommand":["git","commit","-m","evidence: retire stale external MCP interoperability"],
+            "rerunCommand":[sys.executable,"scripts/c7w_preflight.py","--root",str(root)],
             "requiredInputs":["C7W_MCP_ENDPOINT","C7W_OAUTH_CLIENT_MAP","C7W_PLATFORM_ADMIN_TOKEN"],
             "certifiedSourceCommitSHA":certified_sha,
             "currentSourceCommitSHA":current_sha,
-            "detail":str(exc)+"; source changed beyond evidence-only C7W files, so C9 must not use the stale external certification",
+            "detail":str(exc)+"; source changed beyond evidence-only C7W files, so retire the stale canonical certification in a dedicated evidence-only commit, then rerun C7W preflight on the new exact HEAD; the prior complete certification remains preserved in Git history",
         }
     handoff=c9_handoff(current_sha,root)
     handoff.update({
