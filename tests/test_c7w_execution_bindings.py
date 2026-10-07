@@ -7,6 +7,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/"scripts"))
@@ -76,6 +77,26 @@ class C7WExecutionBindingsTests(unittest.TestCase):
             changed=dict(self.resources()); changed["foreignProjectId"]="project-foreign-002"
             with self.assertRaisesRegex(RuntimeError,"OUTPUT_CONFLICT"):
                 mod.materialize(out,changed,source_sha,root=root)
+
+    def test_existing_bytes_does_not_reopen_replaced_path(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            out=root/"binding.json"
+            replacement=root/"replacement.json"
+            original=b"original-private-binding"
+            replacement_bytes=b"replacement-private-binding"
+            out.write_bytes(original)
+            replacement.write_bytes(replacement_bytes)
+            real_read_bytes=Path.read_bytes
+
+            def replace_before_reopen(path):
+                if path==out:
+                    os.replace(replacement,out)
+                return real_read_bytes(path)
+
+            with mock.patch.object(Path,"read_bytes",autospec=True,side_effect=replace_before_reopen):
+                observed=mod._existing_bytes(out)
+            self.assertEqual(original,observed)
 
     def test_credential_contract_digest_is_canonical_and_complete(self):
         contract=mod.credential_contract()
