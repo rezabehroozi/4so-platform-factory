@@ -81,6 +81,12 @@ class AuthorityContainerAliasEscapeTests(unittest.TestCase):
         self.assertTrue(c7w.direct_authority_alias_present(loop,"args"))
         self.assertTrue(c7w.direct_authority_alias_present(comprehension,"args"))
 
+    def test_c7w_detects_nested_match_alias(self):
+        sequence=ast.parse('''\ndef main():\n    match [args]:\n        case [alias]:\n            alias.__setattr__("progress_out",Path("alternate.json"))\n''').body[0]
+        mapping=ast.parse('''\ndef main():\n    match {"a":args}:\n        case {"a":alias}:\n            alias.__setattr__("progress_out",Path("alternate.json"))\n''').body[0]
+        self.assertTrue(c7w.direct_authority_alias_present(sequence,"args"))
+        self.assertTrue(c7w.direct_authority_alias_present(mapping,"args"))
+
     def test_c7w_working_directory_rejects_result_escape(self):
         source='''\ndef main():\n    root=Path.cwd().resolve()\n    result={}\n    result["workingDirectory"]=str(root)\n    holder.value=result\n    return result\n'''
         self.assertIn("RUNNER_WORKING_DIRECTORY_WIRING_INVALID",c7w.runner_working_directory_contract_errors(source))
@@ -169,6 +175,10 @@ class AuthorityContainerAliasEscapeTests(unittest.TestCase):
 
     def test_c9_rejects_iterator_evidence_escape(self):
         source='''\ndef main():\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,out)\n    for alias in [evidence]:\n        alias.clear()\n    return evidence\n'''
+        self.assertFalse(c9.c9_main_canonical_output_bound(source))
+
+    def test_c9_rejects_nested_match_evidence_escape(self):
+        source='''\ndef main():\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,out)\n    match {"e":evidence}:\n        case {"e":alias}:\n            alias.clear()\n    return evidence\n'''
         self.assertFalse(c9.c9_main_canonical_output_bound(source))
 
     def test_c9_working_directory_rejects_result_escape(self):
