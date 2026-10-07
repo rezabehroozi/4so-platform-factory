@@ -100,6 +100,38 @@ class C7WBulkRecoverySourceAuthorityTests(unittest.TestCase):
         self.assertNotIn("RUN_C7W_SEAL",str(out))
         self.assertNotIn("PREPARE_C7W_CAMPAIGN",str(out))
 
+    def test_dirty_source_routes_to_restore_not_rerun_for_incomplete_campaign(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); state=self.state_with_bulk(root); args=self.args(root,state)
+            with (
+                mock.patch.object(runner,"require_canonical_matrix",side_effect=lambda root,path:path),
+                mock.patch.object(runner,"progress_status",return_value=self.incomplete()),
+                mock.patch.object(runner.core,"load",return_value={"sourceCommitSHA":"a"*40}),
+                mock.patch.object(runner,"require_active_campaign_source",side_effect=RuntimeError("MCP_EXTERNAL_LOCAL_SOURCE_NOT_FROZEN")),
+            ):
+                out=runner.status(args)
+        self.assertEqual("RESTORE_C7W_SOURCE_FREEZE",out["nextActionCode"])
+        self.assertEqual("SOURCE_FREEZE_REQUIRED",out["recoveryReason"])
+        self.assertEqual(["git","status","--short"],out["nextCommand"])
+        self.assertNotIn("RERUN_C7W_ON_CURRENT_SOURCE",str(out))
+        self.assertNotIn("RUN_C7W_SEAL",str(out))
+
+    def test_dirty_source_routes_to_restore_for_complete_progress_too(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); state=self.state_with_bulk(root); args=self.args(root,state)
+            complete={"certified":list(runner.core.CLIENTS),"missing":[],"complete":True,"nextClient":None,"campaignPrepared":True}
+            with (
+                mock.patch.object(runner,"require_canonical_matrix",side_effect=lambda root,path:path),
+                mock.patch.object(runner,"progress_status",return_value=complete),
+                mock.patch.object(runner.core,"load",return_value={"sourceCommitSHA":"a"*40}),
+                mock.patch.object(runner,"require_active_campaign_source",side_effect=RuntimeError("MCP_EXTERNAL_LOCAL_SOURCE_NOT_FROZEN")),
+            ):
+                out=runner.status(args)
+        self.assertEqual("RESTORE_C7W_SOURCE_FREEZE",out["nextActionCode"])
+        self.assertEqual(["git","status","--short"],out["nextCommand"])
+        self.assertNotIn("RETIRE_STALE_C7W_PROGRESS",str(out))
+        self.assertNotIn("RUN_C7W_SEAL",str(out))
+
 
 if __name__=="__main__":
     unittest.main()
