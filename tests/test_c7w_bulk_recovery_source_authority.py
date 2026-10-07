@@ -94,7 +94,7 @@ class C7WBulkRecoverySourceAuthorityTests(unittest.TestCase):
             ):
                 out=runner.status(args)
         self.assertEqual("RESTORE_C7W_CAMPAIGN_STATE",out["nextActionCode"])
-        self.assertEqual("BULK_ARTIFACT_CAMPAIGN_STATE_MISSING",out["recoveryReason"])
+        self.assertEqual("EXECUTION_ARTIFACT_CAMPAIGN_STATE_MISSING",out["recoveryReason"])
         self.assertEqual([],out["nextCommand"])
         self.assertEqual(str(runner.paths(state)["campaign"]),out["requiredStatePath"])
         self.assertNotIn("RUN_C7W_SEAL",str(out))
@@ -131,6 +131,41 @@ class C7WBulkRecoverySourceAuthorityTests(unittest.TestCase):
         self.assertEqual(["git","status","--short"],out["nextCommand"])
         self.assertNotIn("RETIRE_STALE_C7W_PROGRESS",str(out))
         self.assertNotIn("RUN_C7W_SEAL",str(out))
+
+    def test_partial_orphan_execution_artifact_requires_campaign_restore(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); state=runner.secure_state_dir(root/"state"); p=runner.paths(state)
+            (p["receipts"]/"chatgpt.json").write_text("{}",encoding="utf-8")
+            args=self.args(root,state,progress=False)
+            value={"certified":[],"missing":list(runner.core.CLIENTS),"complete":False,"nextClient":"chatgpt","campaignPrepared":False}
+            with (
+                mock.patch.object(runner,"require_canonical_matrix",side_effect=lambda root,path:path),
+                mock.patch.object(runner,"progress_status",return_value=value),
+            ):
+                out=runner.status(args)
+        self.assertEqual("RESTORE_C7W_CAMPAIGN_STATE",out["nextActionCode"])
+        self.assertEqual("EXECUTION_ARTIFACT_CAMPAIGN_STATE_MISSING",out["recoveryReason"])
+        self.assertNotIn("PREPARE_C7W_CAMPAIGN",str(out))
+
+    def test_prepare_rejects_orphan_execution_artifacts_before_new_campaign(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); state=runner.secure_state_dir(root/"state"); p=runner.paths(state)
+            (p["captures"]/"chatgpt.capture.json").write_text("{}",encoding="utf-8")
+            args=SimpleNamespace(
+                state_dir=state,
+                matrix=ROOT/"lab/mcp-external-client-interop-matrix.json",
+                progress_out=root/"progress.json",
+                endpoint="https://mcp.example.test/mcp",
+                oauth_client_map=None,
+                token_env="C7W_PLATFORM_ADMIN_TOKEN",
+                source_commit_sha="",
+            )
+            with (
+                mock.patch.object(runner,"require_c7w_source_freeze"),
+                mock.patch.object(runner,"require_canonical_matrix",side_effect=lambda root,path:path),
+            ):
+                with self.assertRaisesRegex(RuntimeError,"ORPHAN_STATE_REQUIRES_RECOVERY"):
+                    runner.prepare(args)
 
 
 if __name__=="__main__":
