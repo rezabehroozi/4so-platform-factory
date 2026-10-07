@@ -48,6 +48,17 @@ class AuthorityContainerAliasEscapeTests(unittest.TestCase):
                 source=f'''\ndef main():\n    holder.value={expression}\n    return None\n'''
                 self.assertTrue(c7w.direct_authority_alias_present(ast.parse(source).body[0],"args"))
 
+    def test_c7w_detects_dynamic_subscript_args_escape(self):
+        expressions=(
+            '{"x":args}[key]',
+            "[args][:]",
+            "args[key]",
+        )
+        for expression in expressions:
+            with self.subTest(expression=expression):
+                source=f'''\ndef main():\n    holder.value={expression}\n    return None\n'''
+                self.assertTrue(c7w.direct_authority_alias_present(ast.parse(source).body[0],"args"))
+
     def test_c7w_detects_bound_mutator_method_aliases(self):
         args_alias=ast.parse('''\ndef main():\n    mutate=args.__setattr__\n    mutate("progress_out",Path("alternate.json"))\n''').body[0]
         result_alias=ast.parse('''\ndef main():\n    result={}\n    mutate=result.update\n    mutate({"workingDirectory":"."})\n''').body[0]
@@ -62,6 +73,10 @@ class AuthorityContainerAliasEscapeTests(unittest.TestCase):
 
     def test_c7w_working_directory_rejects_result_escape(self):
         source='''\ndef main():\n    root=Path.cwd().resolve()\n    result={}\n    result["workingDirectory"]=str(root)\n    holder.value=result\n    return result\n'''
+        self.assertIn("RUNNER_WORKING_DIRECTORY_WIRING_INVALID",c7w.runner_working_directory_contract_errors(source))
+
+    def test_c7w_rejects_dynamic_subscript_result_escape(self):
+        source='''\ndef main():\n    root=Path.cwd().resolve()\n    result={}\n    result["workingDirectory"]=str(root)\n    holder.value={"r":result}[key]\n    return result\n'''
         self.assertIn("RUNNER_WORKING_DIRECTORY_WIRING_INVALID",c7w.runner_working_directory_contract_errors(source))
 
     def test_c7w_rejects_iterator_result_escape_after_projection(self):
@@ -103,6 +118,17 @@ class AuthorityContainerAliasEscapeTests(unittest.TestCase):
                 source=f'''\ndef main():\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,out)\n    holder.value={expression}\n    return evidence\n'''
                 self.assertFalse(c9.c9_main_canonical_output_bound(source))
 
+    def test_c9_rejects_dynamic_subscript_evidence_escape(self):
+        expressions=(
+            '{"x":evidence}[key]',
+            "[evidence][:]",
+            "evidence[key]",
+        )
+        for expression in expressions:
+            with self.subTest(expression=expression):
+                source=f'''\ndef main():\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,out)\n    holder.value={expression}\n    return evidence\n'''
+                self.assertFalse(c9.c9_main_canonical_output_bound(source))
+
     def test_c9_rejects_bound_mutator_method_aliases(self):
         workdir='''\ndef main():\n    root=args.root.resolve()\n    result={}\n    result["workingDirectory"]=str(root)\n    mutate=result.update\n    mutate({"workingDirectory":"."})\n    return result\n'''
         evidence='''\ndef main():\n    root=args.root.resolve()\n    out=canonical_cli_output_path(root,args.out)\n    evidence=execute(root,out)\n    mutate=evidence.update\n    mutate({"drift":True})\n    return evidence\n'''
@@ -123,6 +149,10 @@ class AuthorityContainerAliasEscapeTests(unittest.TestCase):
 
     def test_c9_working_directory_rejects_result_escape(self):
         source='''\ndef main():\n    root=args.root.resolve()\n    result={}\n    result["workingDirectory"]=str(root)\n    holder.value=result\n    return result\n'''
+        self.assertFalse(c9.c9_main_working_directory_bound(source))
+
+    def test_c9_rejects_dynamic_subscript_result_escape(self):
+        source='''\ndef main():\n    root=args.root.resolve()\n    result={}\n    result["workingDirectory"]=str(root)\n    holder.value={"r":result}[key]\n    return result\n'''
         self.assertFalse(c9.c9_main_working_directory_bound(source))
 
     def test_c9_rejects_args_escape_into_container(self):
