@@ -643,6 +643,51 @@ def status(args:argparse.Namespace)->dict:
     if value["complete"]:
         p=paths(state)
         if not args.evidence_out.exists():
+            campaign=core.load(p["campaign"],"ACTIVE_CAMPAIGN")
+            try:
+                require_active_campaign_source(root,campaign)
+            except RuntimeError as exc:
+                if "SOURCE_DELTA_NOT_EVIDENCE_ONLY" not in str(exc):
+                    raise
+                if not complete_bulk_artifacts_present(state):
+                    value.update({
+                        "recoveryRequired":True,
+                        "recoveryReason":"COMPLETE_PROGRESS_SOURCE_DRIFT",
+                        "nextActionCode":"RESTORE_C7W_BULK_STATE",
+                        "nextCommand":[],
+                        "detail":str(exc)+"; canonical progress is complete but the source-bound receipt/audit set is incomplete, so restore the historical bulk state before retiring progress or rerunning C7W",
+                    })
+                    return value
+                try:
+                    progress_rel=args.progress_out.resolve().relative_to(root).as_posix()
+                except ValueError as path_exc:
+                    raise RuntimeError("MCP_EXTERNAL_LOCAL_PROGRESS_PATH_INVALID") from path_exc
+                tracked=subprocess.run(
+                    ["git","ls-files","--error-unmatch",progress_rel],
+                    cwd=root,env=clean_git_env(),text=True,capture_output=True,check=False,
+                )
+                if tracked.returncode not in (0,1):
+                    value.update({
+                        "recoveryRequired":True,
+                        "recoveryReason":"COMPLETE_PROGRESS_SOURCE_DRIFT",
+                        "nextActionCode":"INSPECT_C7W_PROGRESS_GIT_STATE",
+                        "nextCommand":["git","status","--short","--",progress_rel],
+                        "detail":"unable to establish whether the stale complete canonical progress is tracked; inspect its Git state before retirement",
+                    })
+                    return value
+                value.update({
+                    "recoveryRequired":True,
+                    "recoveryReason":"COMPLETE_PROGRESS_SOURCE_DRIFT",
+                    "nextActionCode":"RETIRE_STALE_C7W_PROGRESS",
+                    "nextCommand":["git","rm","-f","--",progress_rel] if tracked.returncode==0 else ["git","clean","-f","--",progress_rel],
+                    "rerunCommand":[sys.executable,"scripts/c7w_preflight.py","--root",str(root)],
+                    "requiredInputs":["C7W_MCP_ENDPOINT","C7W_OAUTH_CLIENT_MAP","C7W_PLATFORM_ADMIN_TOKEN"],
+                    "historicalStateDir":str(state),
+                    "detail":str(exc)+"; all four historical receipt/audit pairs remain preserved in the source-bound private state, so retire only the stale canonical progress and rerun preflight on the current source",
+                })
+                if tracked.returncode==0:
+                    value["followupCommand"]=["git","commit","-m","evidence: retire stale complete MCP interoperability progress"]
+                return value
             value.update({
                 "nextActionCode":"RUN_C7W_SEAL",
                 "nextCommand":runner_command(state,"seal"),
