@@ -91,6 +91,24 @@ def complete_bulk_artifacts_present(state:Path)->bool:
     return True
 
 
+def execution_artifacts_present(state:Path)->bool:
+    p=paths(state)
+    for key in ("packets","templates","captures","receipts","audits"):
+        parent=p[key]
+        if parent.is_symlink() or (parent.exists() and not parent.is_dir()):
+            return True
+        if not parent.is_dir():
+            continue
+        try:
+            next(parent.iterdir())
+        except StopIteration:
+            continue
+        except OSError:
+            return True
+        return True
+    return False
+
+
 def captured_artifact_recovery_handoff(value:dict,state:Path)->dict:
     out=dict(value)
     out.update({
@@ -156,7 +174,7 @@ def stale_campaign_source_handoff(root:Path,state:Path,progress_path:Path,value:
     return out
 
 
-def orphan_bulk_artifact_handoff(value:dict,state:Path)->dict:
+def orphan_execution_state_handoff(value:dict,state:Path)->dict:
     campaign_path=paths(state)["campaign"]
     out=dict(value)
     out.update({
@@ -164,11 +182,11 @@ def orphan_bulk_artifact_handoff(value:dict,state:Path)->dict:
         "action":"STATUS",
         "stateDir":str(state),
         "recoveryRequired":True,
-        "recoveryReason":"BULK_ARTIFACT_CAMPAIGN_STATE_MISSING",
+        "recoveryReason":"EXECUTION_ARTIFACT_CAMPAIGN_STATE_MISSING",
         "nextActionCode":"RESTORE_C7W_CAMPAIGN_STATE",
         "nextCommand":[],
         "requiredStatePath":str(campaign_path),
-        "detail":"all four receipt/audit artifact pairs exist but their campaign authority is missing; restore the exact historical campaign state before reconciliation, and do not seal or overwrite this state with a new campaign",
+        "detail":"C7W execution artifacts exist without their campaign authority; restore the exact historical campaign state before reconciliation, and do not seal or overwrite this state with a new campaign",
         "physicalCertified":False,
     })
     return out
@@ -489,10 +507,13 @@ def prepare(args:argparse.Namespace)->dict:
     args.matrix=require_canonical_matrix(root,args.matrix)
     state=secure_state_dir(args.state_dir)
     p=paths(state)
+    campaign_present=p["campaign"].exists() or p["campaign"].is_symlink()
+    if not campaign_present and execution_artifacts_present(state):
+        raise RuntimeError("MCP_EXTERNAL_LOCAL_ORPHAN_STATE_REQUIRES_RECOVERY")
     source_sha=campaign_builder.source_commit_sha(args.source_commit_sha)
     matrix=core.load(args.matrix,"MATRIX")
     core.validate_matrix_contract(matrix,"MCP_EXTERNAL_MATRIX")
-    if p["campaign"].exists() or p["campaign"].is_symlink():
+    if campaign_present:
         campaign=campaign_builder.resume_existing(args.matrix,args.endpoint,p["campaign"],source_sha)
         resumed=True
     else:
@@ -845,8 +866,8 @@ def status(args:argparse.Namespace)->dict:
                 return captured_artifact_recovery_handoff(value,state)
             next_client=value.get("nextClient")
             value.update(external_client_action(state,next_client))
-        elif complete_bulk_artifacts_present(state):
-            return orphan_bulk_artifact_handoff(value,state)
+        elif execution_artifacts_present(state):
+            return orphan_execution_state_handoff(value,state)
         else:
             value.update({
                 "nextActionCode":"PREPARE_C7W_CAMPAIGN",
