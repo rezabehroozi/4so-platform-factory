@@ -357,6 +357,19 @@ def replacement_campaign_supersede_handoff(progress_path:Path,campaign:dict,*,re
     }
 
 
+def apply_replacement_campaign_supersede_command(result:dict,supersede_handoff:dict)->None:
+    if supersede_handoff.get("replacementAdmitRequiresCampaignSupersede") is not True:
+        return
+    handoff=result.get("nextClientHandoff")
+    command=handoff.get("admitCommand") if isinstance(handoff,dict) else None
+    post=result.get("postExternalExecutionCommand")
+    if not isinstance(command,list) or not command or post!=command or "--allow-campaign-supersede" in command:
+        raise RuntimeError("MCP_EXTERNAL_LOCAL_REPLACEMENT_ADMIT_COMMAND_INVALID")
+    fenced=[*command,"--allow-campaign-supersede"]
+    handoff["admitCommand"]=fenced
+    result["postExternalExecutionCommand"]=list(fenced)
+
+
 def capture_template(packet:dict)->dict:
     requirements=packet.get("receiptRequirements") or {}
     if requirements.get("structuredResponseObservationRequired") is not True:
@@ -451,6 +464,7 @@ def prepare(args:argparse.Namespace)->dict:
     else:
         result.update(external_client_action(state,next_client))
         result.update(supersede_handoff)
+        apply_replacement_campaign_supersede_command(result,supersede_handoff)
     return result
 
 
