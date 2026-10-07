@@ -56,6 +56,25 @@ class C7WPreflightSourceDriftStatusTests(unittest.TestCase):
         self.assertEqual(current,out["sourceCommitSHA"])
         self.assertEqual("status",out["nextCommand"][-1])
 
+    def test_stale_evidence_without_progress_never_routes_to_status(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td).resolve()
+            certified="5"*40
+            current="6"*40
+            lab=root/"lab"; lab.mkdir()
+            evidence=lab/mod.EVIDENCE_REL.name
+            evidence.write_text(json.dumps({"sourceCommitSHA":certified}),encoding="utf-8")
+            state=root/f".state/c7w-external-interop-{certified[:12]}"
+            state.mkdir(parents=True)
+            with (
+                mock.patch.object(mod,"git_source_commit",return_value=current),
+                mock.patch.object(mod,"canonical_artifact_source_sha",side_effect=RuntimeError("MCP_EXTERNAL_PREFLIGHT_EVIDENCE_SOURCE_DELTA_NOT_EVIDENCE_ONLY")),
+            ):
+                out=mod._existing_state_handoff(root)
+        self.assertEqual("INSPECT_C7W_CANONICAL_EVIDENCE",out["nextActionCode"])
+        self.assertIn("MCP_EXTERNAL_CANONICAL_EVIDENCE_WITHOUT_PROGRESS",out["blockers"])
+        self.assertNotIn("RUN_C7W_STATUS",json.dumps(out))
+
 
 if __name__=="__main__":
     unittest.main()
