@@ -239,11 +239,11 @@ def direct_authority_exposure(value,owner:str)->bool:
     if isinstance(value,ast.DictComp):
         return direct_authority_exposure(value.key,owner) or direct_authority_exposure(value.value,owner)
     if isinstance(value,ast.Subscript):
+        container=value.value
         try:
             index=ast.literal_eval(value.slice)
         except (ValueError,TypeError,SyntaxError):
-            return False
-        container=value.value
+            return direct_authority_exposure(container,owner)
         if isinstance(container,(ast.Tuple,ast.List)) and isinstance(index,int):
             try:
                 return direct_authority_exposure(container.elts[index],owner)
