@@ -331,6 +331,32 @@ def external_client_action(state:Path,client:str)->dict:
     }
 
 
+def replacement_campaign_supersede_handoff(progress_path:Path,campaign:dict,*,resumed:bool)->dict:
+    if resumed or not progress_path.exists():
+        return {}
+    if progress_path.is_symlink() or not progress_path.is_file():
+        raise RuntimeError("MCP_EXTERNAL_LOCAL_REPLACEMENT_PROGRESS_INVALID")
+    existing=core.load(progress_path,"REPLACEMENT_PROGRESS")
+    old_campaign=str(existing.get("campaignId") or "").strip() if isinstance(existing,dict) else ""
+    new_campaign=str((campaign or {}).get("campaignId") or "").strip()
+    if not old_campaign or not new_campaign:
+        raise RuntimeError("MCP_EXTERNAL_LOCAL_REPLACEMENT_PROGRESS_INVALID")
+    if old_campaign==new_campaign:
+        return {}
+    clients=existing.get("clients") if isinstance(existing,dict) else None
+    certified_count=existing.get("certifiedClientCount") if isinstance(existing,dict) else None
+    if type(certified_count) is not int or certified_count<0 or certified_count>len(core.CLIENTS) or not isinstance(clients,list) or len(clients)!=certified_count:
+        raise RuntimeError("MCP_EXTERNAL_LOCAL_REPLACEMENT_PROGRESS_INVALID")
+    if existing.get("complete") is True or certified_count>=len(core.CLIENTS):
+        raise RuntimeError("MCP_EXTERNAL_LOCAL_REPLACEMENT_PROGRESS_COMPLETE_FORBIDDEN")
+    environment={"C7W_ALLOW_CAMPAIGN_SUPERSEDE":"true"}
+    return {
+        "replacementAdmitRequiresCampaignSupersede":True,
+        "followupAdmitEnvironment":environment,
+        "postExternalExecutionEnvironment":environment,
+    }
+
+
 def capture_template(packet:dict)->dict:
     requirements=packet.get("receiptRequirements") or {}
     if requirements.get("structuredResponseObservationRequired") is not True:
@@ -384,6 +410,7 @@ def prepare(args:argparse.Namespace)->dict:
         campaign=campaign_builder.prepare(args.matrix,args.endpoint,preflight,binding_sha,trusted,runtime_identity)
         core.write_json_once_or_identical(p["campaign"],campaign,"MCP_EXTERNAL_CAMPAIGN")
         resumed=False
+    supersede_handoff=replacement_campaign_supersede_handoff(args.progress_out,campaign,resumed=resumed)
     for client in core.CLIENTS:
         packet=packet_builder.packet(args.matrix,p["campaign"],client)
         packet_path=p["packets"]/(client+".json")
@@ -423,6 +450,7 @@ def prepare(args:argparse.Namespace)->dict:
         result.update({"nextActionCode":"RUN_C7W_SEAL","nextCommand":runner_command(state,"seal")})
     else:
         result.update(external_client_action(state,next_client))
+        result.update(supersede_handoff)
     return result
 
 
