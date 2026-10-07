@@ -234,6 +234,8 @@ def direct_authority_exposure(value,owner:str)->bool:
         return direct_authority_exposure(value.body,owner) or direct_authority_exposure(value.orelse,owner)
     if isinstance(value,ast.BoolOp):
         return any(direct_authority_exposure(item,owner) for item in value.values)
+    if isinstance(value,ast.BinOp):
+        return direct_authority_exposure(value.left,owner) or direct_authority_exposure(value.right,owner)
     if isinstance(value,(ast.ListComp,ast.SetComp,ast.GeneratorExp)):
         return direct_authority_exposure(value.elt,owner)
     if isinstance(value,ast.DictComp):
@@ -362,7 +364,12 @@ def call_name(node)->str:
 def unknown_authority_helper_call(node,owner:str,allowed:tuple[str,...]=())->bool:
     if not isinstance(node,ast.Call) or call_name(node) in set(allowed):
         return False
-    return any(direct_authority_exposure(arg,owner) for arg in node.args) or any(direct_authority_exposure(keyword.value,owner) for keyword in node.keywords)
+    receiver=node.func.value if isinstance(node.func,ast.Attribute) else None
+    return (
+        direct_authority_exposure(receiver,owner)
+        or any(direct_authority_exposure(arg,owner) for arg in node.args)
+        or any(direct_authority_exposure(keyword.value,owner) for keyword in node.keywords)
+    )
 
 
 def canonical_guard_value_valid(value,attr:str)->bool:
