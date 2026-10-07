@@ -523,13 +523,18 @@ def c9_direct_authority_exposure(value,owner:str)->bool:
         return True
     if owner=="args" and c9_mutable_args_mapping_alias_value(value):
         return True
-    if (
-        isinstance(value,ast.Attribute)
-        and isinstance(value.value,ast.Name)
-        and value.value.id==owner
-        and value.attr in ("update","clear","pop","popitem","setdefault","__setitem__","__delitem__","__setattr__","__delattr__")
-    ):
-        return True
+    if isinstance(value,ast.Attribute):
+        receiver=value.value
+        if owner!="args" and c9_direct_authority_exposure(receiver,owner):
+            return True
+        if owner=="args" and c9_mutable_args_mapping_alias_value(receiver):
+            return True
+        if (
+            isinstance(receiver,ast.Name)
+            and receiver.id==owner
+            and value.attr in ("update","clear","pop","popitem","setdefault","__setitem__","__delitem__","__setattr__","__delattr__")
+        ):
+            return True
     if isinstance(value,(ast.Tuple,ast.List,ast.Set)):
         return any(c9_direct_authority_exposure(item,owner) for item in value.elts)
     if isinstance(value,ast.Dict):
