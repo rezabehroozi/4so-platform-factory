@@ -200,18 +200,11 @@ def git_handoff(root:Path,evidence_path:Path,progress_path:Path)->dict:
         rels.append(rel)
     tracked=run_git("ls-files","--error-unmatch",*rels)
     diff=run_git("status","--porcelain=v1","--",*rels)
-    if diff.returncode!=0:
+    if diff.returncode!=0 or tracked.returncode not in (0,1):
         return {
             "nextActionCode":"INSPECT_C7W_EVIDENCE_GIT_STATE",
             "nextCommand":["git","status","--short","--",*rels],
             "detail":"unable to establish Git state for canonical C7W evidence",
-        }
-    if tracked.returncode!=0 or diff.stdout.strip():
-        return {
-            "nextActionCode":"COMMIT_C7W_EVIDENCE",
-            "nextCommand":["git","add",*rels],
-            "followupCommand":["git","commit","-m","evidence: seal external MCP interoperability"],
-            "detail":"C7W is complete but evidence is not yet part of the exact Git SHA required by C9",
         }
     current_sha=head.stdout.strip().lower()
     evidence=core.load(evidence_path,"C7W_EVIDENCE")
@@ -219,6 +212,14 @@ def git_handoff(root:Path,evidence_path:Path,progress_path:Path)->dict:
     try:
         core.validate_evidence_only_source_lineage(root,certified_sha,current_sha,"MCP_EXTERNAL_LOCAL_HANDOFF")
     except RuntimeError as exc:
+        if tracked.returncode!=0 or diff.stdout.strip():
+            return {
+                "nextActionCode":"INSPECT_STALE_C7W_EVIDENCE_GIT_STATE",
+                "nextCommand":["git","status","--short","--",*rels],
+                "certifiedSourceCommitSHA":certified_sha,
+                "currentSourceCommitSHA":current_sha,
+                "detail":str(exc)+"; canonical C7W evidence is stale and not cleanly committed; do not commit stale evidence into the current source lineage, inspect/retire only the canonical C7W evidence paths and then rerun preflight",
+            }
         return {
             "nextActionCode":"RETIRE_STALE_C7W_EVIDENCE",
             "nextCommand":["git","rm","--",*rels],
@@ -228,6 +229,13 @@ def git_handoff(root:Path,evidence_path:Path,progress_path:Path)->dict:
             "certifiedSourceCommitSHA":certified_sha,
             "currentSourceCommitSHA":current_sha,
             "detail":str(exc)+"; source changed beyond evidence-only C7W files, so retire the stale canonical certification in a dedicated evidence-only commit, then rerun C7W preflight on the new exact HEAD; the prior complete certification remains preserved in Git history",
+        }
+    if tracked.returncode!=0 or diff.stdout.strip():
+        return {
+            "nextActionCode":"COMMIT_C7W_EVIDENCE",
+            "nextCommand":["git","add",*rels],
+            "followupCommand":["git","commit","-m","evidence: seal external MCP interoperability"],
+            "detail":"C7W is complete, source lineage is still valid, and evidence is not yet part of the exact Git SHA required by C9",
         }
     handoff=c9_handoff(current_sha,root)
     handoff.update({
