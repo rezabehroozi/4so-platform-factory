@@ -36,6 +36,30 @@ class C7WExpiredRecoveryInputTests(unittest.TestCase):
         ],out["requiredInputs"])
         self.assertEqual("prepare",out["nextCommand"][-1])
 
+    def test_supersede_recovery_environment_enables_first_replacement_admit(self):
+        parser=mod.parser()
+        argv=[
+            "--state-dir",".state/replacement",
+            "admit",
+            "--client","chatgpt",
+            "--capture",".state/replacement/captures/chatgpt.capture.json",
+        ]
+        with mock.patch.dict("os.environ",{"C7W_ALLOW_CAMPAIGN_SUPERSEDE":"true"},clear=False):
+            args=parser.parse_args(argv)
+        self.assertTrue(args.allow_campaign_supersede)
+
+    def test_supersede_recovery_environment_is_fail_closed_by_default(self):
+        parser=mod.parser()
+        argv=[
+            "--state-dir",".state/replacement",
+            "admit",
+            "--client","chatgpt",
+            "--capture",".state/replacement/captures/chatgpt.capture.json",
+        ]
+        with mock.patch.dict("os.environ",{"C7W_ALLOW_CAMPAIGN_SUPERSEDE":"false"},clear=False):
+            args=parser.parse_args(argv)
+        self.assertFalse(args.allow_campaign_supersede)
+
 
 if __name__=="__main__":
     unittest.main()
