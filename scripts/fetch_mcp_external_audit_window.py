@@ -154,7 +154,7 @@ def fetch(matrix_path: Path, campaign_path: Path, receipt_path: Path, client: st
                     "clientId":client,
                     "requestIdCount":len(request_ids),
                     "auditEventCount":len(value),
-                    "auditExportSha256":core.sha256(out),
+                    "auditExportSha256":witness["auditExportSha256"],
                     "auditHeadSequence":witness["auditHeadSequence"],
                     "auditHeadDigest":witness["auditHeadDigest"],
                     "interopBindingDigest":witness["interopBindingDigest"],
