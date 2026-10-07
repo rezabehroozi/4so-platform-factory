@@ -26,6 +26,29 @@ class C7WPrepareSupersedeHandoffTests(unittest.TestCase):
         self.assertEqual({"C7W_ALLOW_CAMPAIGN_SUPERSEDE":"true"},out["followupAdmitEnvironment"])
         self.assertEqual({"C7W_ALLOW_CAMPAIGN_SUPERSEDE":"true"},out["postExternalExecutionEnvironment"])
 
+    def test_machine_actionable_first_admit_command_carries_supersede_flag(self):
+        command=["python","scripts/run_mcp_external_interop.py","admit","--client","chatgpt"]
+        result={
+            "nextClientHandoff":{"admitCommand":list(command)},
+            "postExternalExecutionCommand":list(command),
+        }
+        mod.apply_replacement_campaign_supersede_command(result,{
+            "replacementAdmitRequiresCampaignSupersede":True,
+        })
+        expected=command+["--allow-campaign-supersede"]
+        self.assertEqual(expected,result["nextClientHandoff"]["admitCommand"])
+        self.assertEqual(expected,result["postExternalExecutionCommand"])
+
+    def test_non_replacement_action_command_remains_unchanged(self):
+        command=["python","scripts/run_mcp_external_interop.py","admit"]
+        result={
+            "nextClientHandoff":{"admitCommand":list(command)},
+            "postExternalExecutionCommand":list(command),
+        }
+        mod.apply_replacement_campaign_supersede_command(result,{})
+        self.assertEqual(command,result["nextClientHandoff"]["admitCommand"])
+        self.assertEqual(command,result["postExternalExecutionCommand"])
+
     def test_fresh_or_resumed_campaign_never_requests_supersede(self):
         with tempfile.TemporaryDirectory() as td:
             progress=Path(td)/"progress.json"
