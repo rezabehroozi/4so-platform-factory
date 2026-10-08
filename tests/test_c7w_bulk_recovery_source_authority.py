@@ -147,6 +147,21 @@ class C7WBulkRecoverySourceAuthorityTests(unittest.TestCase):
         self.assertEqual("EXECUTION_ARTIFACT_CAMPAIGN_STATE_MISSING",out["recoveryReason"])
         self.assertNotIn("PREPARE_C7W_CAMPAIGN",str(out))
 
+    def test_empty_state_requires_source_freeze_before_prepare_handoff(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); state=runner.secure_state_dir(root/"state"); args=self.args(root,state,progress=False)
+            value={"certified":[],"missing":list(runner.core.CLIENTS),"complete":False,"nextClient":"chatgpt","campaignPrepared":False}
+            with (
+                mock.patch.object(runner,"require_canonical_matrix",side_effect=lambda root,path:path),
+                mock.patch.object(runner,"progress_status",return_value=value),
+                mock.patch.object(runner,"require_c7w_source_freeze",side_effect=RuntimeError("MCP_EXTERNAL_LOCAL_SOURCE_NOT_FROZEN")),
+            ):
+                out=runner.status(args)
+        self.assertEqual("RESTORE_C7W_SOURCE_FREEZE",out["nextActionCode"])
+        self.assertEqual("SOURCE_FREEZE_REQUIRED",out["recoveryReason"])
+        self.assertEqual(["git","status","--short"],out["nextCommand"])
+        self.assertNotIn("PREPARE_C7W_CAMPAIGN",str(out))
+
     def test_prepare_rejects_orphan_execution_artifacts_before_new_campaign(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td); state=runner.secure_state_dir(root/"state"); p=runner.paths(state)
