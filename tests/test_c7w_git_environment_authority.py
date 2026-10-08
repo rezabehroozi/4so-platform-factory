@@ -18,6 +18,7 @@ class C7WGitEnvironmentAuthorityTests(unittest.TestCase):
             responses=[
                 SimpleNamespace(returncode=0,stdout=str(root)+"\n",stderr=""),
                 SimpleNamespace(returncode=0,stdout="main\n",stderr=""),
+                SimpleNamespace(returncode=0,stdout="a"*40+"\n",stderr=""),
                 SimpleNamespace(returncode=0,stdout=b"H tracked.txt\x00",stderr=b""),
                 SimpleNamespace(returncode=0,stdout=b"",stderr=b""),
                 SimpleNamespace(returncode=0,stdout=b"",stderr=b""),
@@ -27,11 +28,23 @@ class C7WGitEnvironmentAuthorityTests(unittest.TestCase):
                 mock.patch.object(runner.subprocess,"run",side_effect=responses) as run,
             ):
                 runner.require_c7w_source_freeze(root)
-            self.assertEqual(5,run.call_count)
+            self.assertEqual(6,run.call_count)
             for call in run.call_args_list:
                 env=call.kwargs.get("env")
                 self.assertIsNotNone(env)
                 self.assertFalse(any(key.startswith("GIT_") for key in env),env)
+
+    def test_source_freeze_rejects_missing_or_invalid_head(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td).resolve()
+            responses=[
+                SimpleNamespace(returncode=0,stdout=str(root)+"\n",stderr=""),
+                SimpleNamespace(returncode=0,stdout="main\n",stderr=""),
+                SimpleNamespace(returncode=128,stdout="",stderr="fatal: ambiguous argument HEAD"),
+            ]
+            with mock.patch.object(runner.subprocess,"run",side_effect=responses):
+                with self.assertRaisesRegex(RuntimeError,"MCP_EXTERNAL_LOCAL_GIT_HEAD_INVALID"):
+                    runner.require_c7w_source_freeze(root)
 
     def test_active_campaign_head_probe_uses_clean_git_environment(self):
         with tempfile.TemporaryDirectory() as td:
