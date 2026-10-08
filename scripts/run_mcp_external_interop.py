@@ -46,11 +46,16 @@ def clean_git_env()->dict[str,str]:
     return env
 
 
-def secure_state_dir(path:Path)->Path:
+def require_safe_state_parent_chain(path:Path)->Path:
     path=Path(os.path.abspath(path))
     for parent in reversed(path.parents):
         if parent.is_symlink() or (parent.exists() and not parent.is_dir()):
             raise RuntimeError("MCP_EXTERNAL_LOCAL_STATE_PARENT_INVALID")
+    return path
+
+
+def secure_state_dir(path:Path)->Path:
+    path=require_safe_state_parent_chain(path)
     if path.is_symlink() or (path.exists() and not path.is_dir()):
         raise RuntimeError("MCP_EXTERNAL_LOCAL_STATE_DIR_INVALID")
     path.mkdir(parents=True,exist_ok=True)
@@ -739,7 +744,7 @@ def seal(args:argparse.Namespace)->dict:
 def status(args:argparse.Namespace)->dict:
     root=Path.cwd().resolve()
     args.matrix=require_canonical_matrix(root,args.matrix)
-    state=Path(os.path.abspath(args.state_dir))
+    state=require_safe_state_parent_chain(args.state_dir)
     if state.exists() or state.is_symlink():
         if state.is_symlink() or not state.is_dir():
             raise RuntimeError("MCP_EXTERNAL_LOCAL_STATE_DIR_INVALID")
