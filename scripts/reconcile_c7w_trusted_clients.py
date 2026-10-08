@@ -76,6 +76,17 @@ def require_source_freeze(root:Path)->Path:
     )
     if branch.returncode!=0 or branch.stdout.strip()!="main":
         raise RuntimeError("MCP_EXTERNAL_TRUSTED_CLIENT_BRANCH_NOT_MAIN")
+    head=subprocess.run(
+        ["git","rev-parse","--verify","HEAD"],
+        cwd=root,
+        env=git_env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    head_sha=head.stdout.strip().lower() if head.returncode==0 else ""
+    if not core.COMMIT.fullmatch(head_sha):
+        raise RuntimeError("MCP_EXTERNAL_TRUSTED_CLIENT_GIT_HEAD_INVALID")
     indexed=subprocess.run(
         ["git","ls-files","-v","-z"],
         cwd=root,
