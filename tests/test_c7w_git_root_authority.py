@@ -27,6 +27,13 @@ class C7WGitRootAuthorityTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,"GIT_ROOT_INVALID"):
                 mod.require_c7w_source_freeze(child)
 
+    def test_source_freeze_rejects_unborn_main_without_head(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)/"repo"; root.mkdir()
+            self.git(root,"init","-b","main")
+            with self.assertRaisesRegex(RuntimeError,"MCP_EXTERNAL_LOCAL_GIT_HEAD_INVALID"):
+                mod.require_c7w_source_freeze(root)
+
     def test_source_freeze_accepts_exact_repository_root(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td)/"repo"; root.mkdir()
