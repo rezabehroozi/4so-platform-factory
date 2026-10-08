@@ -46,6 +46,13 @@ class C7WReconcilerRootAuthorityTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,"MCP_EXTERNAL_TRUSTED_CLIENT_BRANCH_NOT_MAIN"):
                 mod.require_source_freeze(root)
 
+    def test_source_freeze_rejects_unborn_main_without_head(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)/"repo"; root.mkdir()
+            self.git(root,"init","-b","main")
+            with self.assertRaisesRegex(RuntimeError,"MCP_EXTERNAL_TRUSTED_CLIENT_GIT_HEAD_INVALID"):
+                mod.require_source_freeze(root)
+
     def test_source_freeze_rejects_unrelated_dirty_source(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td)/"repo"; root.mkdir(); self.repo(root)
