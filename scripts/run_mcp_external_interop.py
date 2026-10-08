@@ -869,6 +869,10 @@ def status(args:argparse.Namespace)->dict:
         elif execution_artifacts_present(state):
             return orphan_execution_state_handoff(value,state)
         else:
+            try:
+                require_c7w_source_freeze(root)
+            except RuntimeError as exc:
+                return source_freeze_recovery_handoff(value,state,exc)
             value.update({
                 "nextActionCode":"PREPARE_C7W_CAMPAIGN",
                 "nextCommand":runner_command(state,"prepare"),
