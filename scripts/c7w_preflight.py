@@ -50,7 +50,6 @@ def private_path(root:Path,path:Path,*,require_file:bool)->Path:
     for candidate in (absolute,*absolute.parents):
         if candidate==root: break
         if candidate.is_symlink(): raise RuntimeError("MCP_EXTERNAL_PRIVATE_INPUT_PATH_INVALID")
-        if candidate==boundary: break
     if absolute.is_symlink() or (require_file and not absolute.is_file()): raise RuntimeError("MCP_EXTERNAL_PRIVATE_INPUT_PATH_INVALID")
     return absolute
 
