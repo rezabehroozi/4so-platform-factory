@@ -616,7 +616,7 @@ def validate_resource_scope_registry(root: Path, errors: list[tuple[str,str]]) -
     classified=0
     for row in rows:
         if not isinstance(row,dict): errors.append(('RESOURCE_SCOPE_ROW_INVALID',str(row))); continue
-        family=str(row.get('family') or '').strip()
+        family=str(row.get('family') or '')
         cfg=configured.get(family)
         if cfg is None:
             if row.get('status')!='OWNER_REVIEW_REQUIRED' or row.get('scope')!='UNCLASSIFIED' or row.get('evidence')!='':
@@ -2042,7 +2042,7 @@ def validate_source_runtime_surfaces(root: Path, version: str, current_program_a
         errors.append(('REDFISH_BOOT_MEDIA_PROVIDER_MISSING', 'internal/bootmedia'))
     else:
         redfish_text = redfish_path.read_text()
-        for marker_text in ('REDFISH_BOOT_MEDIA_PROVIDER_V1','CredentialResolver','VirtualMedia.InsertMedia','ComputerSystem.Reset','SetBasicAuth'):
+        for marker_text in ('REDFISH_BOOT_MEDIA_PROVIDER_AUTHORITY_V1','CredentialResolver','VirtualMedia.InsertMedia','ComputerSystem.Reset','SetBasicAuth'):
             if marker_text not in redfish_text:
                 errors.append(('REDFISH_BOOT_MEDIA_PROVIDER_CONTRACT_INVALID', marker_text))
         if 'InsecureSkipVerify: true' in redfish_text or 'InsecureSkipVerify:true' in redfish_text:
