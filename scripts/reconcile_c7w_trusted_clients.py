@@ -46,6 +46,8 @@ def _clean_git_env()->dict[str,str]:
 
 def require_repository_root(root:Path)->Path:
     candidate=Path(os.path.abspath(root))
+    if candidate.is_symlink() or not candidate.is_dir():
+        raise RuntimeError("MCP_EXTERNAL_TRUSTED_CLIENT_REPOSITORY_ROOT_INVALID")
     try:
         proc=subprocess.run(
             ["git","rev-parse","--show-toplevel"],
