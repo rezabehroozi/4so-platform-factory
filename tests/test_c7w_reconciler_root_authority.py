@@ -30,6 +30,13 @@ class C7WReconcilerRootAuthorityTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,"MCP_EXTERNAL_TRUSTED_CLIENT_REPOSITORY_ROOT_INVALID"):
                 mod.require_repository_root(nested)
 
+    def test_repository_root_rejects_symlink_root(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)/"repo"; root.mkdir(); self.repo(root)
+            with mock.patch.object(Path,"is_symlink",return_value=True):
+                with self.assertRaisesRegex(RuntimeError,"MCP_EXTERNAL_TRUSTED_CLIENT_REPOSITORY_ROOT_INVALID"):
+                    mod.require_repository_root(root)
+
     def test_repository_root_ignores_inherited_git_environment(self):
         with tempfile.TemporaryDirectory() as td:
             base=Path(td)
