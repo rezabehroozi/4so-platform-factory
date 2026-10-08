@@ -616,7 +616,7 @@ def validate_resource_scope_registry(root: Path, errors: list[tuple[str,str]]) -
     classified=0
     for row in rows:
         if not isinstance(row,dict): errors.append(('RESOURCE_SCOPE_ROW_INVALID',str(row))); continue
-        family=str(row.get('family') or '')
+        family=str(row.get('family') or '').strip()
         cfg=configured.get(family)
         if cfg is None:
             if row.get('status')!='OWNER_REVIEW_REQUIRED' or row.get('scope')!='UNCLASSIFIED' or row.get('evidence')!='':
@@ -864,7 +864,7 @@ def validate_management_workload_image_plan(root: Path, version: str, errors: li
         try:
             product_receipt = product_receipt_evidence(root, image_plan)
             expected_product_roles = {row.get('role') for row in core if isinstance(row, dict) and row.get('ownership') == 'product'} if isinstance(core, list) else set()
-            expected_base_roles = {row.get('role') for row in bases if isinstance(row, list)} if isinstance(bases, list) else set()
+            expected_base_roles = {row.get('role') for row in bases if isinstance(row, dict)} if isinstance(bases, list) else set()
             if set(product_receipt["byRole"]) != expected_product_roles or set(product_receipt["byBaseRole"]) != expected_base_roles:
                 errors.append(('MANAGEMENT_WORKLOAD_PRODUCT_RECEIPT_COVERAGE_INVALID', str(sorted(product_receipt["byRole"]))))
         except (OSError, RuntimeError, ValueError, json.JSONDecodeError) as exc:
