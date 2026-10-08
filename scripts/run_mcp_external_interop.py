@@ -762,6 +762,10 @@ def status(args:argparse.Namespace)->dict:
                     return stale_campaign_source_handoff(root,state,args.progress_out,historical,source_exc)
                 return captured_artifact_recovery_handoff(historical,state)
             else:
+                try:
+                    require_c7w_source_freeze(root)
+                except RuntimeError as source_exc:
+                    return source_freeze_recovery_handoff(historical,state,source_exc)
                 p=paths(state)
                 campaign=core.load(p["campaign"],"EXPIRED_CAMPAIGN")
                 campaign_id=str(campaign.get("campaignId") or "").strip()
