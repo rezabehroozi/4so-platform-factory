@@ -73,6 +73,18 @@ class C7WPrivateStateParentSymlinkTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError,"MCP_EXTERNAL_LOCAL_STATE_PARENT_INVALID"):
                     runner.status(args)
 
+    def test_preflight_existing_state_rejects_symlinked_state_parent_handoff(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td).resolve()
+            source_sha="a"*40
+            state=root/f".state/c7w-external-interop-{source_sha[:12]}"
+            state.mkdir(parents=True)
+            with self.symlinked_state(root),mock.patch.object(preflight,"git_source_commit",return_value=source_sha):
+                out=preflight._existing_state_handoff(root)
+            self.assertIsNotNone(out)
+            self.assertEqual(["MCP_EXTERNAL_LOCAL_STATE_DIR_INVALID"],out["blockers"])
+            self.assertEqual("INSPECT_C7W_LOCAL_STATE",out["nextActionCode"])
+
 
 if __name__=="__main__":
     unittest.main()
