@@ -2,6 +2,7 @@ import importlib.util
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -17,6 +18,7 @@ def load(name,relative):
 
 preflight=load("c7w_preflight_parent_symlink",Path("scripts/c7w_preflight.py"))
 reconcile=load("c7w_reconcile_parent_symlink",Path("scripts/reconcile_c7w_trusted_clients.py"))
+runner=load("c7w_runner_parent_symlink",Path("scripts/run_mcp_external_interop.py"))
 
 
 class C7WPrivateStateParentSymlinkTests(unittest.TestCase):
@@ -48,6 +50,28 @@ class C7WPrivateStateParentSymlinkTests(unittest.TestCase):
         with td,self.symlinked_state(root):
             with self.assertRaisesRegex(RuntimeError,"MCP_EXTERNAL_PRIVATE_INPUT_PATH_INVALID"):
                 reconcile._private_oauth_map(root,oauth)
+
+    def test_runner_status_rejects_symlinked_state_parent(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td).resolve()
+            state=root/".state/c7w"
+            state.mkdir(parents=True)
+            args=SimpleNamespace(
+                matrix=runner.CANONICAL_MATRIX_REL,
+                state_dir=state,
+                progress_out=root/"progress.json",
+                evidence_out=root/"evidence.json",
+            )
+            value={
+                "certified":[],
+                "missing":list(runner.core.CLIENTS),
+                "complete":False,
+                "nextClient":runner.core.CLIENTS[0],
+                "campaignPrepared":True,
+            }
+            with self.symlinked_state(root),mock.patch.object(runner,"progress_status",return_value=value):
+                with self.assertRaisesRegex(RuntimeError,"MCP_EXTERNAL_LOCAL_STATE_PARENT_INVALID"):
+                    runner.status(args)
 
 
 if __name__=="__main__":
