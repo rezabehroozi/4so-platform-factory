@@ -130,6 +130,13 @@ class ReleaseDocumentationTruthTest(unittest.TestCase):
             VALIDATE.validate_windows_local_execution_contract(root,errors)
             self.assertIn("WINDOWS_LOCAL_EXECUTION_CONTRACT_DRIFT",[code for code,_ in errors])
 
+    def test_windows_local_c7w_contract_tracks_root_aware_c9_handoff(self):
+        required=VALIDATE.WINDOWS_LOCAL_EXECUTION_CONTRACTS["scripts/run_mcp_external_interop.py"]
+        self.assertIn('def c9_handoff(source_sha:str,root:Path|None=None)->dict:',required)
+        self.assertIn('def c9_preflight_command(root:Path|None=None)->list[str]:',required)
+        self.assertNotIn('def c9_handoff(source_sha:str)->dict:',required)
+        self.assertNotIn('def c9_preflight_command()->list[str]:',required)
+
     def test_program_status_version_mismatch_is_rejected(self):
         temp, root = self.fixture()
         with temp:
