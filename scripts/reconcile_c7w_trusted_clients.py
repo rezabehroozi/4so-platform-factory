@@ -138,8 +138,6 @@ def _private_oauth_map(root:Path,path:Path)->Path:
             break
         if candidate.is_symlink():
             raise RuntimeError("MCP_EXTERNAL_PRIVATE_INPUT_PATH_INVALID")
-        if candidate==boundary:
-            break
     if absolute.is_symlink() or not absolute.is_file():
         raise RuntimeError("MCP_EXTERNAL_PRIVATE_INPUT_PATH_INVALID")
     return absolute
