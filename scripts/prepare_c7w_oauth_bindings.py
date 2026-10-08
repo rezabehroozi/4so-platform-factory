@@ -67,6 +67,8 @@ def _root_for_output(output:Path,root:Path|None)->Path:
         except ValueError as exc:
             raise RuntimeError("MCP_EXTERNAL_OAUTH_BINDINGS_OUTPUT_PATH_INVALID") from exc
         repo=Path(*parts[:index]) if index else Path(absolute.anchor)
+    if repo.is_symlink() or not repo.is_dir():
+        raise RuntimeError("MCP_EXTERNAL_OAUTH_BINDINGS_OUTPUT_PATH_INVALID")
     boundary=Path(os.path.abspath(repo/".state"/"private"))
     try:
         absolute.relative_to(boundary)
