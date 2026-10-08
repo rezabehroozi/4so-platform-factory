@@ -31,6 +31,7 @@ CANONICAL_EVIDENCE_REL=Path("lab/mcp-external-client-interoperability-evidence.j
 SOURCE_FREEZE_FAILURES={
     "MCP_EXTERNAL_LOCAL_GIT_ROOT_INVALID",
     "MCP_EXTERNAL_LOCAL_BRANCH_NOT_MAIN",
+    "MCP_EXTERNAL_LOCAL_GIT_HEAD_INVALID",
     "MCP_EXTERNAL_LOCAL_GIT_INDEX_FLAGS_FORBIDDEN",
     "MCP_EXTERNAL_LOCAL_GIT_STATUS_UNAVAILABLE",
     "MCP_EXTERNAL_LOCAL_SOURCE_NOT_FROZEN",
@@ -231,6 +232,10 @@ def require_c7w_source_freeze(root:Path)->None:
     branch=subprocess.run(["git","symbolic-ref","--quiet","--short","HEAD"],cwd=root,env=git_env,text=True,capture_output=True,check=False)
     if branch.returncode!=0 or branch.stdout.strip()!="main":
         raise RuntimeError("MCP_EXTERNAL_LOCAL_BRANCH_NOT_MAIN")
+    head=subprocess.run(["git","rev-parse","--verify","HEAD"],cwd=root,env=git_env,text=True,capture_output=True,check=False)
+    head_sha=head.stdout.strip().lower() if head.returncode==0 else ""
+    if not core.COMMIT.fullmatch(head_sha):
+        raise RuntimeError("MCP_EXTERNAL_LOCAL_GIT_HEAD_INVALID")
     indexed=subprocess.run(["git","ls-files","-v","-z"],cwd=root,env=git_env,capture_output=True,check=False)
     if indexed.returncode!=0 or any(raw and not raw.startswith(b"H ") for raw in indexed.stdout.split(b"\x00")):
         raise RuntimeError("MCP_EXTERNAL_LOCAL_GIT_INDEX_FLAGS_FORBIDDEN")
