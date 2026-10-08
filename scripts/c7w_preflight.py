@@ -104,6 +104,10 @@ def _source_drift_status_handoff(root:Path,path:Path,current_sha:str,code:str)->
     state=Path(f".state/c7w-external-interop-{certified_sha[:12]}")
     absolute=Path(os.path.abspath(root/state))
     identity={"sourceCommitSHA":current_sha,"certifiedSourceCommitSHA":certified_sha,"stateDir":str(state),"workingDirectory":str(root)}
+    try:
+        runner.require_safe_state_parent_chain(absolute)
+    except RuntimeError as exc:
+        out=_base(ready=False,blockers=["MCP_EXTERNAL_LOCAL_STATE_DIR_INVALID"]); out.update({**identity,"nextActionCode":"INSPECT_C7W_LOCAL_STATE","nextCommand":[],"detail":str(exc)+"; the certified-source C7W state parent chain is unsafe; repair it before source-drift recovery"}); return out
     if not absolute.exists() and not absolute.is_symlink():
         out=_base(ready=False,blockers=[code]); out.update({**identity,"nextActionCode":"RESTORE_C7W_LOCAL_STATE","nextCommand":["git","status","--short","--",str(PROGRESS_REL),str(EVIDENCE_REL)],"detail":"canonical C7W evidence/progress belongs to an older source and its certified private state is missing; restore that state before owner recovery decides whether to resume, supersede incomplete progress, or retire complete evidence"}); return out
     if absolute.is_symlink() or not absolute.is_dir():
@@ -146,6 +150,10 @@ def _existing_state_handoff(root:Path)->dict|None:
     identity={"sourceCommitSHA":current_sha}
     if certified_sha!=current_sha:
         identity["certifiedSourceCommitSHA"]=certified_sha
+    try:
+        runner.require_safe_state_parent_chain(absolute)
+    except RuntimeError as exc:
+        out=_base(ready=False,blockers=["MCP_EXTERNAL_LOCAL_STATE_DIR_INVALID"]); out.update({**identity,"stateDir":str(state),"workingDirectory":str(root),"nextActionCode":"INSPECT_C7W_LOCAL_STATE","nextCommand":[],"detail":str(exc)+"; the certified-source C7W state parent chain is unsafe; repair it before campaign recovery"}); return out
 
     if evidence_present:
         if not progress_present or progress.is_symlink() or not progress.is_file():
