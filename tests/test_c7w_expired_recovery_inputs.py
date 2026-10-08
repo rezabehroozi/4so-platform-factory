@@ -36,6 +36,27 @@ class C7WExpiredRecoveryInputTests(unittest.TestCase):
         ],out["requiredInputs"])
         self.assertEqual("prepare",out["nextCommand"][-1])
 
+    def test_expired_campaign_requires_source_freeze_before_replacement_handoff(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            state=mod.secure_state_dir(root/"state")
+            (state/"campaign.json").write_text('{"campaignId":"mcp-interop-expired-source-freeze"}',encoding="utf-8")
+            args=SimpleNamespace(
+                state_dir=state,
+                matrix=ROOT/"lab/mcp-external-client-interop-matrix.json",
+                progress_out=root/"progress.json",
+                evidence_out=root/"evidence.json",
+            )
+            with (
+                mock.patch.object(mod,"progress_status",side_effect=RuntimeError("MCP_EXTERNAL_CAMPAIGN_EXPIRED")),
+                mock.patch.object(mod,"require_c7w_source_freeze",side_effect=RuntimeError("MCP_EXTERNAL_LOCAL_SOURCE_NOT_FROZEN")),
+            ):
+                out=mod.status(args)
+        self.assertEqual("RESTORE_C7W_SOURCE_FREEZE",out["nextActionCode"])
+        self.assertEqual("SOURCE_FREEZE_REQUIRED",out["recoveryReason"])
+        self.assertEqual(["git","status","--short"],out["nextCommand"])
+        self.assertNotIn("PREPARE_REPLACEMENT_C7W_CAMPAIGN",str(out))
+
     def test_supersede_recovery_environment_enables_first_replacement_admit(self):
         argv=[
             "--state-dir",".state/replacement",
