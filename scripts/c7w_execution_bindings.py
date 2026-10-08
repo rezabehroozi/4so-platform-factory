@@ -58,6 +58,8 @@ def _clean_git_env()->dict[str,str]:
 
 def git_head(root:Path)->str:
     root=Path(os.path.abspath(root))
+    if root.is_symlink() or not root.is_dir():
+        raise RuntimeError("MCP_EXTERNAL_EXECUTION_BINDINGS_GIT_ROOT_INVALID")
     git_env=_clean_git_env()
     try:
         top=subprocess.run(["git","rev-parse","--show-toplevel"],cwd=root,env=git_env,text=True,capture_output=True,check=False)
