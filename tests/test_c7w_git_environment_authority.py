@@ -18,6 +18,7 @@ class C7WGitEnvironmentAuthorityTests(unittest.TestCase):
             responses=[
                 SimpleNamespace(returncode=0,stdout=str(root)+"\n",stderr=""),
                 SimpleNamespace(returncode=0,stdout="main\n",stderr=""),
+                SimpleNamespace(returncode=0,stdout="a"*40+"\n",stderr=""),
                 SimpleNamespace(returncode=0,stdout=b"H tracked.txt\x00",stderr=b""),
                 SimpleNamespace(returncode=0,stdout=b"",stderr=b""),
                 SimpleNamespace(returncode=0,stdout=b"",stderr=b""),
@@ -27,7 +28,7 @@ class C7WGitEnvironmentAuthorityTests(unittest.TestCase):
                 mock.patch.object(runner.subprocess,"run",side_effect=responses) as run,
             ):
                 runner.require_c7w_source_freeze(root)
-            self.assertEqual(5,run.call_count)
+            self.assertEqual(6,run.call_count)
             for call in run.call_args_list:
                 env=call.kwargs.get("env")
                 self.assertIsNotNone(env)
