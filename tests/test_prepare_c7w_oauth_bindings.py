@@ -74,6 +74,19 @@ class PrepareC7WOAuthBindingsTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,"OUTPUT_PATH_INVALID"):
                 mod.materialize(root/"oauth.json",clients,root=root)
 
+    def test_explicit_symlinked_repository_root_is_rejected(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td).resolve()
+            out=root/".state"/"private"/"oauth.json"
+            clients={name:f"oauth-{name}" for name in mod.CLIENTS}
+            original=Path.is_symlink
+            def fake(path):
+                candidate=Path(path)
+                return candidate==root or original(candidate)
+            with mock.patch.object(Path,"is_symlink",fake):
+                with self.assertRaisesRegex(RuntimeError,"OUTPUT_PATH_INVALID"):
+                    mod.materialize(out,clients,root=root)
+
     def test_symlinked_state_parent_is_rejected_before_private_directory_creation(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td)
