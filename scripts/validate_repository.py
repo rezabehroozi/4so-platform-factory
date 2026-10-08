@@ -864,7 +864,7 @@ def validate_management_workload_image_plan(root: Path, version: str, errors: li
         try:
             product_receipt = product_receipt_evidence(root, image_plan)
             expected_product_roles = {row.get('role') for row in core if isinstance(row, dict) and row.get('ownership') == 'product'} if isinstance(core, list) else set()
-            expected_base_roles = {row.get('role') for row in bases if isinstance(row, dict)} if isinstance(bases, list) else set()
+            expected_base_roles = {row.get('role') for row in bases if isinstance(row, list)} if isinstance(bases, list) else set()
             if set(product_receipt["byRole"]) != expected_product_roles or set(product_receipt["byBaseRole"]) != expected_base_roles:
                 errors.append(('MANAGEMENT_WORKLOAD_PRODUCT_RECEIPT_COVERAGE_INVALID', str(sorted(product_receipt["byRole"]))))
         except (OSError, RuntimeError, ValueError, json.JSONDecodeError) as exc:
@@ -2310,8 +2310,8 @@ WINDOWS_LOCAL_EXECUTION_CONTRACTS = {
         '"captures":state/"captures"',
         'capture=str(p["captures"]/(client+".capture.json"))',
         'runner_command(state,"admit"',
-        'def c9_handoff(source_sha:str)->dict:',
-        'def c9_preflight_command()->list[str]:',
+        'def c9_handoff(source_sha:str,root:Path|None=None)->dict:',
+        'def c9_preflight_command(root:Path|None=None)->list[str]:',
         'RUN_C9_ON_EXACT_LINUX_HOST',
     ),
     'scripts/run_go_package_shard.py': (
