@@ -13,7 +13,11 @@ SPEC.loader.exec_module(mod)
 
 class C7WToC9PreflightHandoffTests(unittest.TestCase):
     def test_linux_handoff_uses_machine_actionable_c9_preflight_owner(self):
-        with tempfile.TemporaryDirectory() as td, mock.patch.object(mod.sys,"platform","linux"):
+        with (
+            tempfile.TemporaryDirectory() as td,
+            mock.patch.object(mod.sys,"platform","linux"),
+            mock.patch.object(mod.platform,"machine",return_value="x86_64"),
+        ):
             root=Path(td).resolve()
             out=mod.c9_handoff("a"*40,root)
         self.assertEqual("RUN_C9_SEAL",out["nextActionCode"])
