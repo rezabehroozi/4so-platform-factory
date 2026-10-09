@@ -313,6 +313,81 @@ def _source_drift_error(target:Path)->str:
     return "FINAL_EXACT_RELEASE_PUBLICATION_SOURCE_DRIFT"
 
 
+def _secure_publication_supported()->bool:
+    return (
+        os.name=="posix"
+        and hasattr(os,"O_DIRECTORY")
+        and hasattr(os,"O_NOFOLLOW")
+        and hasattr(os,"fchmod")
+        and all(fn in os.supports_dir_fd for fn in (os.open,os.stat,os.link,os.unlink))
+    )
+
+
+def _open_publication_parent(path:Path)->tuple[Path,int,os.stat_result]:
+    absolute=Path(os.path.abspath(path))
+    flags=os.O_RDONLY|getattr(os,"O_CLOEXEC",0)|os.O_DIRECTORY|os.O_NOFOLLOW
+    fd=None
+    try:
+        fd=_open_no_symlink_chain(absolute,flags)
+        before=os.fstat(fd)
+        named=os.stat(absolute,follow_symlinks=False)
+    except (OSError,TypeError,NotImplementedError) as exc:
+        if fd is not None:
+            os.close(fd)
+        raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_PARENT_INVALID") from exc
+    if not stat.S_ISDIR(before.st_mode) or not stat.S_ISDIR(named.st_mode) or not os.path.samestat(before,named):
+        os.close(fd)
+        raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_PARENT_INVALID")
+    return absolute,fd,before
+
+
+def _require_same_publication_parent(absolute:Path,fd:int,before:os.stat_result)->None:
+    try:
+        after=os.fstat(fd)
+        named=os.stat(absolute,follow_symlinks=False)
+    except OSError as exc:
+        raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_PARENT_CHANGED") from exc
+    if (
+        not stat.S_ISDIR(after.st_mode)
+        or not stat.S_ISDIR(named.st_mode)
+        or not os.path.samestat(before,after)
+        or not os.path.samestat(after,named)
+    ):
+        raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_PARENT_CHANGED")
+
+
+def _stable_entry_fingerprint(directory_fd:int,name:str,label:str)->tuple[str,int,os.stat_result]:
+    flags=os.O_RDONLY|getattr(os,"O_CLOEXEC",0)|getattr(os,"O_BINARY",0)|os.O_NOFOLLOW
+    try:
+        fd=os.open(name,flags,dir_fd=directory_fd)
+    except OSError as exc:
+        raise RuntimeError(f"{label}_FILE_INVALID") from exc
+    try:
+        before=os.fstat(fd)
+        named=os.stat(name,dir_fd=directory_fd,follow_symlinks=False)
+        if not stat.S_ISREG(before.st_mode) or not stat.S_ISREG(named.st_mode) or before.st_size<=0 or not os.path.samestat(before,named):
+            raise RuntimeError(f"{label}_FILE_INVALID")
+        digest,total=_fingerprint_fd(fd)
+        after=os.fstat(fd)
+        named_after=os.stat(name,dir_fd=directory_fd,follow_symlinks=False)
+        before_meta=(before.st_size,before.st_mtime_ns,before.st_ctime_ns)
+        after_meta=(after.st_size,after.st_mtime_ns,after.st_ctime_ns)
+        named_meta=(named_after.st_size,named_after.st_mtime_ns,named_after.st_ctime_ns)
+        if (
+            not stat.S_ISREG(after.st_mode)
+            or not stat.S_ISREG(named_after.st_mode)
+            or not os.path.samestat(before,after)
+            or not os.path.samestat(after,named_after)
+            or before_meta!=after_meta
+            or after_meta!=named_meta
+            or total!=before.st_size
+        ):
+            raise RuntimeError(f"{label}_FILE_CHANGED_DURING_READ")
+        return digest,total,named_after
+    finally:
+        os.close(fd)
+
+
 def publish_verified_file(
     source:Path,
     target:Path,
@@ -339,23 +414,98 @@ def publish_verified_file(
     if target_parent.is_symlink() or not target_parent.is_dir():
         raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_PARENT_INVALID")
 
-    if target.exists() or target.is_symlink():
-        if target.is_symlink() or not target.is_file():
-            raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_TARGET_INVALID")
-        if target.stat().st_mode&0o222:
-            raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_ARTIFACT_WRITABLE")
-        target_digest,target_size=stable_file_fingerprint(target,"FINAL_EXACT_RELEASE_PUBLICATION_TARGET")
-        if target_digest!=wanted_digest or target_size!=wanted_size:
-            raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_ARTIFACT_CONFLICT")
-        return target
+    if not _secure_publication_supported():
+        if target.exists() or target.is_symlink():
+            if target.is_symlink() or not target.is_file():
+                raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_TARGET_INVALID")
+            if target.stat().st_mode&0o222:
+                raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_ARTIFACT_WRITABLE")
+            target_digest,target_size=stable_file_fingerprint(target,"FINAL_EXACT_RELEASE_PUBLICATION_TARGET")
+            if target_digest!=wanted_digest or target_size!=wanted_size:
+                raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_ARTIFACT_CONFLICT")
+            return target
 
-    absolute,source_fd,before=_open_stable_regular(source,"FINAL_EXACT_RELEASE_PUBLICATION_SOURCE")
-    try:
-        fd,temp_name=tempfile.mkstemp(prefix="."+target.name+".tmp.",dir=target_parent)
-        temp=Path(temp_name)
+        absolute,source_fd,before=_open_stable_regular(source,"FINAL_EXACT_RELEASE_PUBLICATION_SOURCE")
         try:
+            fd,temp_name=tempfile.mkstemp(prefix="."+target.name+".tmp.",dir=target_parent)
+            temp=Path(temp_name)
+            try:
+                h=hashlib.sha256(); copied=0
+                with os.fdopen(fd,"wb") as out:
+                    while True:
+                        block=os.read(source_fd,1024*1024)
+                        if not block:
+                            break
+                        copied+=len(block); h.update(block); out.write(block)
+                    out.flush(); os.fsync(out.fileno())
+                _require_same_file(absolute,source_fd,before,"FINAL_EXACT_RELEASE_PUBLICATION_SOURCE")
+                copied_digest="sha256:"+h.hexdigest()
+                if copied!=wanted_size or copied_digest!=wanted_digest:
+                    raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_COPY_DRIFT")
+                temp_digest,temp_size=stable_file_fingerprint(temp,"FINAL_EXACT_RELEASE_PUBLICATION_TEMP")
+                if temp_digest!=wanted_digest or temp_size!=wanted_size:
+                    raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_COPY_DRIFT")
+                temp.chmod(0o444)
+                try:
+                    os.link(temp,target,follow_symlinks=False)
+                except FileExistsError:
+                    if target.is_symlink() or not target.is_file() or target.stat().st_mode&0o222:
+                        raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_ARTIFACT_CONFLICT")
+                    target_digest,target_size=stable_file_fingerprint(target,"FINAL_EXACT_RELEASE_PUBLICATION_TARGET")
+                    if target_digest!=wanted_digest or target_size!=wanted_size:
+                        raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_ARTIFACT_CONFLICT")
+                directory_fd=os.open(target_parent,os.O_RDONLY)
+                try:
+                    os.fsync(directory_fd)
+                finally:
+                    os.close(directory_fd)
+                return target
+            finally:
+                if temp.exists():
+                    temp.unlink()
+        finally:
+            os.close(source_fd)
+
+    parent_absolute,parent_fd,parent_before=_open_publication_parent(target_parent)
+    try:
+        _require_same_publication_parent(parent_absolute,parent_fd,parent_before)
+        try:
+            existing=os.stat(target.name,dir_fd=parent_fd,follow_symlinks=False)
+        except FileNotFoundError:
+            existing=None
+        except OSError as exc:
+            raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_TARGET_INVALID") from exc
+        if existing is not None:
+            if not stat.S_ISREG(existing.st_mode):
+                raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_TARGET_INVALID")
+            if existing.st_mode&0o222:
+                raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_ARTIFACT_WRITABLE")
+            target_digest,target_size,target_info=_stable_entry_fingerprint(parent_fd,target.name,"FINAL_EXACT_RELEASE_PUBLICATION_TARGET")
+            if target_info.st_mode&0o222 or target_digest!=wanted_digest or target_size!=wanted_size:
+                raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_ARTIFACT_CONFLICT")
+            _require_same_publication_parent(parent_absolute,parent_fd,parent_before)
+            return target
+
+        absolute,source_fd,before=_open_stable_regular(source,"FINAL_EXACT_RELEASE_PUBLICATION_SOURCE")
+        temp_fd=None
+        temp_entry=""
+        temp_in_parent=False
+        created_target=False
+        try:
+            temp_fd,temp_name=tempfile.mkstemp(prefix="."+target.name+".tmp.",dir=target_parent)
+            temp_entry=Path(temp_name).name
+            _require_same_publication_parent(parent_absolute,parent_fd,parent_before)
+            try:
+                temp_named=os.stat(temp_entry,dir_fd=parent_fd,follow_symlinks=False)
+                temp_open=os.fstat(temp_fd)
+            except OSError as exc:
+                raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_PARENT_CHANGED") from exc
+            if not stat.S_ISREG(temp_named.st_mode) or not stat.S_ISREG(temp_open.st_mode) or not os.path.samestat(temp_named,temp_open):
+                raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_PARENT_CHANGED")
+            temp_in_parent=True
+
             h=hashlib.sha256(); copied=0
-            with os.fdopen(fd,"wb") as out:
+            with os.fdopen(temp_fd,"wb",closefd=False) as out:
                 while True:
                     block=os.read(source_fd,1024*1024)
                     if not block:
@@ -366,26 +516,63 @@ def publish_verified_file(
             copied_digest="sha256:"+h.hexdigest()
             if copied!=wanted_size or copied_digest!=wanted_digest:
                 raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_COPY_DRIFT")
-            temp_digest,temp_size=stable_file_fingerprint(temp,"FINAL_EXACT_RELEASE_PUBLICATION_TEMP")
-            if temp_digest!=wanted_digest or temp_size!=wanted_size:
+            os.fchmod(temp_fd,0o444)
+            temp_digest,temp_size=_fingerprint_fd(temp_fd)
+            try:
+                temp_after=os.fstat(temp_fd)
+                temp_named_after=os.stat(temp_entry,dir_fd=parent_fd,follow_symlinks=False)
+            except OSError as exc:
+                raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_COPY_DRIFT") from exc
+            if (
+                not stat.S_ISREG(temp_after.st_mode)
+                or not stat.S_ISREG(temp_named_after.st_mode)
+                or not os.path.samestat(temp_after,temp_named_after)
+                or temp_after.st_mode&0o222
+                or temp_digest!=wanted_digest
+                or temp_size!=wanted_size
+            ):
                 raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_COPY_DRIFT")
-            temp.chmod(0o444)
+
+            _require_same_publication_parent(parent_absolute,parent_fd,parent_before)
             try:
-                os.link(temp,target,follow_symlinks=False)
+                os.link(
+                    temp_entry,
+                    target.name,
+                    src_dir_fd=parent_fd,
+                    dst_dir_fd=parent_fd,
+                    follow_symlinks=False,
+                )
+                created_target=True
             except FileExistsError:
-                if target.is_symlink() or not target.is_file() or target.stat().st_mode&0o222:
+                try:
+                    conflict=os.stat(target.name,dir_fd=parent_fd,follow_symlinks=False)
+                except OSError as exc:
+                    raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_ARTIFACT_CONFLICT") from exc
+                if not stat.S_ISREG(conflict.st_mode) or conflict.st_mode&0o222:
                     raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_ARTIFACT_CONFLICT")
-                target_digest,target_size=stable_file_fingerprint(target,"FINAL_EXACT_RELEASE_PUBLICATION_TARGET")
-                if target_digest!=wanted_digest or target_size!=wanted_size:
+                target_digest,target_size,target_info=_stable_entry_fingerprint(parent_fd,target.name,"FINAL_EXACT_RELEASE_PUBLICATION_TARGET")
+                if target_info.st_mode&0o222 or target_digest!=wanted_digest or target_size!=wanted_size:
                     raise RuntimeError("FINAL_EXACT_RELEASE_PUBLICATION_ARTIFACT_CONFLICT")
-            directory_fd=os.open(target_parent,os.O_RDONLY)
+            os.fsync(parent_fd)
             try:
-                os.fsync(directory_fd)
-            finally:
-                os.close(directory_fd)
+                _require_same_publication_parent(parent_absolute,parent_fd,parent_before)
+            except RuntimeError:
+                if created_target:
+                    try:
+                        os.unlink(target.name,dir_fd=parent_fd)
+                        os.fsync(parent_fd)
+                    except OSError:
+                        pass
+                raise
             return target
         finally:
-            if temp.exists():
-                temp.unlink()
+            if temp_fd is not None:
+                os.close(temp_fd)
+            if temp_in_parent and temp_entry:
+                try:
+                    os.unlink(temp_entry,dir_fd=parent_fd)
+                except FileNotFoundError:
+                    pass
+            os.close(source_fd)
     finally:
-        os.close(source_fd)
+        os.close(parent_fd)
