@@ -25,12 +25,36 @@ C9_EXACT_PUBLICATION_LABELS=frozenset({
 })
 
 
+def _open_no_symlink_chain(absolute:Path,flags:int)->int:
+    secure=(
+        os.name=="posix"
+        and hasattr(os,"O_DIRECTORY")
+        and hasattr(os,"O_NOFOLLOW")
+        and os.open in os.supports_dir_fd
+    )
+    if not secure:
+        return os.open(absolute,flags)
+    parts=absolute.parts
+    if len(parts)<2 or not absolute.is_absolute():
+        return os.open(absolute,flags)
+    directory_flags=os.O_RDONLY|getattr(os,"O_CLOEXEC",0)|os.O_DIRECTORY|os.O_NOFOLLOW
+    directory_fd=os.open(parts[0],directory_flags)
+    try:
+        for part in parts[1:-1]:
+            next_fd=os.open(part,directory_flags,dir_fd=directory_fd)
+            os.close(directory_fd)
+            directory_fd=next_fd
+        return os.open(parts[-1],flags,dir_fd=directory_fd)
+    finally:
+        os.close(directory_fd)
+
+
 def _open_stable_regular(path:Path,label:str)->tuple[Path,int,os.stat_result]:
     absolute=Path(os.path.abspath(path))
     flags=os.O_RDONLY|getattr(os,"O_CLOEXEC",0)|getattr(os,"O_BINARY",0)|getattr(os,"O_NOFOLLOW",0)
     try:
-        fd=os.open(absolute,flags)
-    except OSError as exc:
+        fd=_open_no_symlink_chain(absolute,flags)
+    except (OSError,TypeError,NotImplementedError) as exc:
         raise RuntimeError(f"{label}_FILE_INVALID") from exc
     try:
         before=os.fstat(fd)
