@@ -62,6 +62,23 @@ class C9StablePublicationSnapshotTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,"FINAL_EXACT_RELEASE_PUBLICATION_PARENT_INVALID"):
                 mod.publish_verified_file(source,target)
 
+    @unittest.skipUnless(
+        hasattr(os,"O_DIRECTORY") and hasattr(os,"O_NOFOLLOW") and os.open in os.supports_dir_fd,
+        "descriptor-relative no-follow unavailable",
+    )
+    def test_stable_fingerprint_rejects_symlinked_parent_chain(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)/"repo"; root.mkdir()
+            outside=Path(td)/"outside"; outside.mkdir()
+            target=outside/"release.zip"; target.write_bytes(b"outside-release")
+            link=root/"release"
+            try:
+                link.symlink_to(outside,target_is_directory=True)
+            except OSError as exc:
+                self.skipTest(f"symlink creation unavailable: {exc}")
+            with self.assertRaisesRegex(RuntimeError,"TEST_RELEASE_FILE_INVALID"):
+                mod.stable_file_fingerprint(link/target.name,"TEST_RELEASE")
+
     def test_stable_fingerprint_binds_digest_and_size_together(self):
         with tempfile.TemporaryDirectory() as td:
             path=Path(td)/"release.zip"
