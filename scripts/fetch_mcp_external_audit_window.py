@@ -50,8 +50,8 @@ def error_code(raw: bytes) -> str:
     return str(value.get("code") or "")
 
 
-def _verify_snapshot(path:Path,raw:bytes,receipt:dict,client:str)->dict:
-    fd,temp_name=tempfile.mkstemp(prefix="."+path.name+".verify.",dir=path.parent)
+def _verify_snapshot(raw:bytes,receipt:dict,client:str)->dict:
+    fd,temp_name=tempfile.mkstemp(prefix=".4so-c7w-audit-verify.")
     temp=Path(temp_name)
     try:
         with os.fdopen(fd,"wb") as handle:
@@ -69,7 +69,7 @@ def _existing_witness(path: Path, raw: bytes, receipt: dict, client: str) -> dic
         raise RuntimeError("MCP_EXTERNAL_AUDIT_OUTPUT_PATH_INVALID") from exc
     if observed!=raw:
         raise RuntimeError("MCP_EXTERNAL_AUDIT_OUTPUT_REPLACEMENT_FORBIDDEN")
-    witness=_verify_snapshot(path,observed,receipt,client)
+    witness=_verify_snapshot(observed,receipt,client)
     try:
         rechecked=core._stable_file_bytes(path,"MCP_EXTERNAL_AUDIT_EXISTING",max_bytes=4*1024*1024)
     except RuntimeError as exc:
@@ -79,26 +79,15 @@ def _existing_witness(path: Path, raw: bytes, receipt: dict, client: str) -> dic
     return witness
 
 def atomic_write(path: Path, raw: bytes, receipt: dict, client: str) -> dict:
-    path=core._prepare_output_parent(path,"MCP_EXTERNAL_AUDIT")
-    if path.exists() or path.is_symlink():
-        return _existing_witness(path,raw,receipt,client)
-    fd,temp_name=tempfile.mkstemp(prefix="."+path.name+".tmp.",dir=path.parent)
-    temp=Path(temp_name)
     try:
-        with os.fdopen(fd,"wb") as fh:
-            fh.write(raw)
-            fh.flush()
-            os.fsync(fh.fileno())
-        witness=core.verify_server_audit(temp,receipt,client)
-        try:
-            os.link(temp,path,follow_symlinks=False)
-        except FileExistsError:
-            return _existing_witness(path,raw,receipt,client)
-        core._fsync_directory(path.parent)
-        return witness
-    finally:
-        if temp.exists():
-            temp.unlink()
+        value=json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError,json.JSONDecodeError) as exc:
+        raise RuntimeError("MCP_EXTERNAL_AUDIT_OUTPUT_JSON_INVALID") from exc
+    if core.canonical_json_bytes(value)!=raw:
+        raise RuntimeError("MCP_EXTERNAL_AUDIT_OUTPUT_CANONICAL_INVALID")
+    _verify_snapshot(raw,receipt,client)
+    core.write_json_once_or_identical(path,value,"MCP_EXTERNAL_AUDIT")
+    return _existing_witness(path,raw,receipt,client)
 
 
 def fetch(matrix_path: Path, campaign_path: Path, receipt_path: Path, client: str, token_env: str, out: Path, attempts: int, interval: float) -> dict:
