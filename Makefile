@@ -160,6 +160,7 @@ upstream-acquisition-preflight:
 
 c7w-prepare:
 	@test -n "$(C7W_MCP_ENDPOINT)" || (echo "C7W_MCP_ENDPOINT is required" >&2; exit 2)
+	$(PYTHON) scripts/c7w_preflight.py --root . --endpoint "$(C7W_MCP_ENDPOINT)" --token-env "$(C7W_PLATFORM_ADMIN_TOKEN_ENV)" $(if $(strip $(C7W_OAUTH_CLIENT_MAP)),--oauth-client-map "$(C7W_OAUTH_CLIENT_MAP)",)
 	$(PYTHON) scripts/run_mcp_external_interop.py --state-dir "$(C7W_STATE_DIR)" prepare --endpoint "$(C7W_MCP_ENDPOINT)" --token-env "$(C7W_PLATFORM_ADMIN_TOKEN_ENV)" $(if $(strip $(C7W_OAUTH_CLIENT_MAP)),--oauth-client-map "$(C7W_OAUTH_CLIENT_MAP)",)
 
 c7w-admit:
