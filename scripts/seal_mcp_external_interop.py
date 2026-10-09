@@ -262,8 +262,126 @@ def _existing_output_matches(path:Path,raw:bytes,label:str)->None:
     if path.read_bytes()!=raw:
         raise RuntimeError(f"{label}_OUTPUT_REPLACEMENT_FORBIDDEN")
 
-def write_json_once_or_identical(path:Path,value:object,label:str)->None:
-    path=_prepare_output_parent(path,label); raw=canonical_json_bytes(value)
+def _secure_output_supported()->bool:
+    return (
+        os.name=="posix"
+        and hasattr(os,"O_DIRECTORY")
+        and hasattr(os,"O_NOFOLLOW")
+        and all(fn in os.supports_dir_fd for fn in (os.open,os.stat,os.link,os.unlink,os.rename))
+    )
+
+def _open_output_parent(path:Path,label:str)->tuple[Path,int,os.stat_result]:
+    absolute=Path(os.path.abspath(path))
+    flags=os.O_RDONLY|getattr(os,"O_CLOEXEC",0)|os.O_DIRECTORY|os.O_NOFOLLOW
+    fd=None
+    try:
+        fd=_open_no_symlink_chain(absolute,flags)
+        before=os.fstat(fd)
+        named=os.stat(absolute,follow_symlinks=False)
+    except (OSError,TypeError,NotImplementedError) as exc:
+        if fd is not None:
+            os.close(fd)
+        raise RuntimeError(f"{label}_OUTPUT_PARENT_INVALID") from exc
+    if not stat.S_ISDIR(before.st_mode) or not stat.S_ISDIR(named.st_mode) or not os.path.samestat(before,named):
+        os.close(fd)
+        raise RuntimeError(f"{label}_OUTPUT_PARENT_INVALID")
+    return absolute,fd,before
+
+def _require_same_output_parent(absolute:Path,fd:int,before:os.stat_result,label:str)->None:
+    try:
+        after=os.fstat(fd)
+        named=os.stat(absolute,follow_symlinks=False)
+    except OSError as exc:
+        raise RuntimeError(f"{label}_OUTPUT_PARENT_CHANGED") from exc
+    if (
+        not stat.S_ISDIR(after.st_mode)
+        or not stat.S_ISDIR(named.st_mode)
+        or not os.path.samestat(before,after)
+        or not os.path.samestat(after,named)
+    ):
+        raise RuntimeError(f"{label}_OUTPUT_PARENT_CHANGED")
+
+def _output_entry_bytes(parent_fd:int,name:str,label:str)->bytes:
+    flags=os.O_RDONLY|getattr(os,"O_CLOEXEC",0)|getattr(os,"O_BINARY",0)|os.O_NOFOLLOW
+    try:
+        fd=os.open(name,flags,dir_fd=parent_fd)
+    except OSError as exc:
+        raise RuntimeError(f"{label}_OUTPUT_PATH_INVALID") from exc
+    try:
+        before=os.fstat(fd)
+        named=os.stat(name,dir_fd=parent_fd,follow_symlinks=False)
+        if not stat.S_ISREG(before.st_mode) or not stat.S_ISREG(named.st_mode) or not os.path.samestat(before,named):
+            raise RuntimeError(f"{label}_OUTPUT_PATH_INVALID")
+        def read_once()->bytes:
+            os.lseek(fd,0,os.SEEK_SET)
+            chunks=[]
+            while True:
+                block=os.read(fd,1024*1024)
+                if not block:
+                    break
+                chunks.append(block)
+            return b"".join(chunks)
+        first=read_once(); middle=os.fstat(fd); second=read_once(); after=os.fstat(fd)
+        named_after=os.stat(name,dir_fd=parent_fd,follow_symlinks=False)
+        before_meta=(before.st_size,before.st_mtime_ns,before.st_ctime_ns)
+        middle_meta=(middle.st_size,middle.st_mtime_ns,middle.st_ctime_ns)
+        after_meta=(after.st_size,after.st_mtime_ns,after.st_ctime_ns)
+        named_meta=(named_after.st_size,named_after.st_mtime_ns,named_after.st_ctime_ns)
+        if (
+            not stat.S_ISREG(after.st_mode)
+            or not stat.S_ISREG(named_after.st_mode)
+            or not os.path.samestat(before,middle)
+            or not os.path.samestat(middle,after)
+            or not os.path.samestat(after,named_after)
+            or before_meta!=middle_meta
+            or middle_meta!=after_meta
+            or after_meta!=named_meta
+            or first!=second
+        ):
+            raise RuntimeError(f"{label}_OUTPUT_PATH_CHANGED_DURING_READ")
+        return first
+    finally:
+        os.close(fd)
+
+def _existing_output_matches_at(parent_fd:int,name:str,raw:bytes,label:str)->None:
+    if _output_entry_bytes(parent_fd,name,label)!=raw:
+        raise RuntimeError(f"{label}_OUTPUT_REPLACEMENT_FORBIDDEN")
+
+def _create_output_temp(parent_fd:int,name:str,label:str)->tuple[int,str]:
+    flags=os.O_RDWR|os.O_CREAT|os.O_EXCL|getattr(os,"O_CLOEXEC",0)|os.O_NOFOLLOW
+    for _ in range(128):
+        entry=f".{name}.tmp.{os.urandom(12).hex()}"
+        try:
+            return os.open(entry,flags,0o600,dir_fd=parent_fd),entry
+        except FileExistsError:
+            continue
+        except OSError as exc:
+            raise RuntimeError(f"{label}_OUTPUT_TEMP_CREATE_FAILED") from exc
+    raise RuntimeError(f"{label}_OUTPUT_TEMP_CREATE_FAILED")
+
+def _write_output_temp(fd:int,raw:bytes,label:str)->None:
+    os.lseek(fd,0,os.SEEK_SET); os.ftruncate(fd,0)
+    view=memoryview(raw)
+    while view:
+        written=os.write(fd,view)
+        if written<=0:
+            raise RuntimeError(f"{label}_OUTPUT_TEMP_WRITE_FAILED")
+        view=view[written:]
+    os.fsync(fd)
+    info=os.fstat(fd)
+    if not stat.S_ISREG(info.st_mode) or info.st_size!=len(raw):
+        raise RuntimeError(f"{label}_OUTPUT_TEMP_WRITE_FAILED")
+    os.lseek(fd,0,os.SEEK_SET)
+    chunks=[]
+    while True:
+        block=os.read(fd,1024*1024)
+        if not block:
+            break
+        chunks.append(block)
+    if b"".join(chunks)!=raw:
+        raise RuntimeError(f"{label}_OUTPUT_TEMP_WRITE_FAILED")
+
+def _write_json_once_or_identical_fallback(path:Path,raw:bytes,label:str)->None:
     if path.exists() or path.is_symlink():
         _existing_output_matches(path,raw,label); return
     fd,temp_name=tempfile.mkstemp(prefix="."+path.name+".tmp.",dir=path.parent)
@@ -279,8 +397,7 @@ def write_json_once_or_identical(path:Path,value:object,label:str)->None:
     finally:
         if temp.exists(): temp.unlink()
 
-def write_json_atomic_replace(path:Path,value:object,label:str)->None:
-    path=_prepare_output_parent(path,label); raw=canonical_json_bytes(value)
+def _write_json_atomic_replace_fallback(path:Path,raw:bytes,label:str)->None:
     if path.exists() or path.is_symlink():
         if path.is_symlink() or not path.is_file():
             raise RuntimeError(f"{label}_OUTPUT_PATH_INVALID")
@@ -293,6 +410,95 @@ def write_json_atomic_replace(path:Path,value:object,label:str)->None:
         _fsync_directory(path.parent)
     finally:
         if temp.exists(): temp.unlink()
+
+def write_json_once_or_identical(path:Path,value:object,label:str)->None:
+    path=_prepare_output_parent(path,label); raw=canonical_json_bytes(value)
+    if not _secure_output_supported():
+        _write_json_once_or_identical_fallback(path,raw,label); return
+    parent_absolute,parent_fd,parent_before=_open_output_parent(path.parent,label)
+    temp_fd=None; temp_entry=""; created_target=False
+    try:
+        _require_same_output_parent(parent_absolute,parent_fd,parent_before,label)
+        try:
+            existing=os.stat(path.name,dir_fd=parent_fd,follow_symlinks=False)
+        except FileNotFoundError:
+            existing=None
+        except OSError as exc:
+            raise RuntimeError(f"{label}_OUTPUT_PATH_INVALID") from exc
+        if existing is not None:
+            if not stat.S_ISREG(existing.st_mode):
+                raise RuntimeError(f"{label}_OUTPUT_PATH_INVALID")
+            _existing_output_matches_at(parent_fd,path.name,raw,label)
+            _require_same_output_parent(parent_absolute,parent_fd,parent_before,label)
+            return
+        temp_fd,temp_entry=_create_output_temp(parent_fd,path.name,label)
+        _write_output_temp(temp_fd,raw,label)
+        _require_same_output_parent(parent_absolute,parent_fd,parent_before,label)
+        try:
+            os.link(temp_entry,path.name,src_dir_fd=parent_fd,dst_dir_fd=parent_fd,follow_symlinks=False)
+            created_target=True
+        except FileExistsError:
+            _existing_output_matches_at(parent_fd,path.name,raw,label)
+        os.fsync(parent_fd)
+        try:
+            _require_same_output_parent(parent_absolute,parent_fd,parent_before,label)
+        except RuntimeError:
+            if created_target:
+                try:
+                    os.unlink(path.name,dir_fd=parent_fd); os.fsync(parent_fd)
+                except OSError:
+                    pass
+            raise
+    finally:
+        if temp_fd is not None:
+            os.close(temp_fd)
+        if temp_entry:
+            try:
+                os.unlink(temp_entry,dir_fd=parent_fd)
+            except FileNotFoundError:
+                pass
+        os.close(parent_fd)
+
+def write_json_atomic_replace(path:Path,value:object,label:str)->None:
+    path=_prepare_output_parent(path,label); raw=canonical_json_bytes(value)
+    if not _secure_output_supported():
+        _write_json_atomic_replace_fallback(path,raw,label); return
+    parent_absolute,parent_fd,parent_before=_open_output_parent(path.parent,label)
+    temp_fd=None; temp_entry=""
+    try:
+        _require_same_output_parent(parent_absolute,parent_fd,parent_before,label)
+        try:
+            existing=os.stat(path.name,dir_fd=parent_fd,follow_symlinks=False)
+        except FileNotFoundError:
+            existing=None
+        except OSError as exc:
+            raise RuntimeError(f"{label}_OUTPUT_PATH_INVALID") from exc
+        if existing is not None and not stat.S_ISREG(existing.st_mode):
+            raise RuntimeError(f"{label}_OUTPUT_PATH_INVALID")
+        temp_fd,temp_entry=_create_output_temp(parent_fd,path.name,label)
+        _write_output_temp(temp_fd,raw,label)
+        _require_same_output_parent(parent_absolute,parent_fd,parent_before,label)
+        try:
+            existing=os.stat(path.name,dir_fd=parent_fd,follow_symlinks=False)
+        except FileNotFoundError:
+            existing=None
+        except OSError as exc:
+            raise RuntimeError(f"{label}_OUTPUT_PATH_INVALID") from exc
+        if existing is not None and not stat.S_ISREG(existing.st_mode):
+            raise RuntimeError(f"{label}_OUTPUT_PATH_INVALID")
+        os.rename(temp_entry,path.name,src_dir_fd=parent_fd,dst_dir_fd=parent_fd)
+        temp_entry=""
+        os.fsync(parent_fd)
+        _require_same_output_parent(parent_absolute,parent_fd,parent_before,label)
+    finally:
+        if temp_fd is not None:
+            os.close(temp_fd)
+        if temp_entry:
+            try:
+                os.unlink(temp_entry,dir_fd=parent_fd)
+            except FileNotFoundError:
+                pass
+        os.close(parent_fd)
 
 def endpoint(value:str)->str:
     p=urlsplit(str(value or "").strip())
