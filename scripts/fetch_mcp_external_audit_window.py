@@ -22,6 +22,12 @@ try:
     import seal_mcp_external_interop as core
 except ModuleNotFoundError:
     from scripts import seal_mcp_external_interop as core
+try:
+    import c7w_execution_bindings as execution_bindings
+except ModuleNotFoundError:
+    from scripts import c7w_execution_bindings as execution_bindings
+
+ROOT=Path(__file__).resolve().parents[1]
 
 
 class RejectRedirects(HTTPRedirectHandler):
@@ -107,6 +113,8 @@ def fetch(matrix_path: Path, campaign_path: Path, receipt_path: Path, client: st
     if required!=list(core.REQUIRED_CHECKS):
         raise RuntimeError("MCP_EXTERNAL_AUDIT_MATRIX_CHECKS_INVALID")
     campaign=core.verify_campaign(campaign_path,matrix_path,spec)
+    source_sha=str(campaign.get("sourceCommitSHA") or "").strip().lower()
+    execution_bindings.source_commit_sha(ROOT,source_sha)
     receipt=core.verify_receipt(receipt_path,client,required,str(spec.get("protocol") or ""),campaign)
     endpoint=receipt["endpoint"]
     request_ids=receipt["requestIds"]
@@ -148,8 +156,10 @@ def fetch(matrix_path: Path, campaign_path: Path, receipt_path: Path, client: st
                     raise RuntimeError("MCP_EXTERNAL_AUDIT_RESPONSE_JSON_INVALID") from exc
                 if not isinstance(value,list) or not value:
                     raise RuntimeError("MCP_EXTERNAL_AUDIT_RESPONSE_INVALID")
+                execution_bindings.source_commit_sha(ROOT,source_sha)
                 canonical=(json.dumps(value,indent=2,sort_keys=True)+"\n").encode("utf-8")
                 witness=atomic_write(out,canonical,receipt,client)
+                execution_bindings.source_commit_sha(ROOT,source_sha)
                 return {
                     "clientId":client,
                     "requestIdCount":len(request_ids),
