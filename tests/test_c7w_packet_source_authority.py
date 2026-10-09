@@ -28,7 +28,7 @@ class C7WPacketSourceAuthorityTests(unittest.TestCase):
         ):
             with self.assertRaisesRegex(RuntimeError,"MCP_EXTERNAL_EXECUTION_BINDINGS_SOURCE_MISMATCH"):
                 mod.packet(Path("matrix.json"),Path("campaign.json"),"chatgpt")
-        source_check.assert_called_once_with(mod.ROOT,campaign["sourceCommitSHA"])
+        source_check.assert_called_once_with(mod.ROOT,campaign["sourceCommitSHA"],require_freeze=True)
 
 
 if __name__=="__main__":
