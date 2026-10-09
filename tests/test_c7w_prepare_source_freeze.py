@@ -3,6 +3,7 @@ import importlib.util
 import sys
 import tempfile
 import unittest
+from contextlib import ExitStack
 from pathlib import Path
 from unittest import mock
 
@@ -50,28 +51,40 @@ class C7WPrepareSourceFreezeTests(unittest.TestCase):
             mock.patch.object(mod,"external_client_action",return_value={"nextActionCode":"RUN_EXTERNAL_CLIENT","nextCommand":[]}),
         )
 
+    def run_prepare(self,args,source_sha,freeze_side_effect):
+        with ExitStack() as stack:
+            for patcher in self.patches(source_sha,freeze_side_effect):
+                stack.enter_context(patcher)
+            write=stack.enter_context(mock.patch.object(mod.core,"write_json_once_or_identical"))
+            result=None
+            error=None
+            try:
+                result=mod.prepare(args)
+            except RuntimeError as exc:
+                error=exc
+            return result,error,write.call_count
+
     def test_source_unfreezes_during_live_readback_before_campaign_write(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td); source_sha="a"*40; args=self.args(root,source_sha)
-            write=mock.patch.object(mod.core,"write_json_once_or_identical").start()
-            self.addCleanup(mock.patch.stopall)
-            with self.patches(source_sha,[None,RuntimeError("MCP_EXTERNAL_LOCAL_SOURCE_NOT_FROZEN")])[0] as freeze:
-                remaining=self.patches(source_sha,[None])
-            mock.patch.stopall()
-            patches=self.patches(source_sha,[None,RuntimeError("MCP_EXTERNAL_LOCAL_SOURCE_NOT_FROZEN")])
-            with patches[0],patches[1],patches[2],patches[3],patches[4],patches[5],patches[6],patches[7],patches[8],patches[9],patches[10],patches[11],patches[12],patches[13],patches[14],mock.patch.object(mod.core,"write_json_once_or_identical") as write:
-                with self.assertRaisesRegex(RuntimeError,"MCP_EXTERNAL_LOCAL_SOURCE_NOT_FROZEN"):
-                    mod.prepare(args)
-            write.assert_not_called()
+            result,error,write_count=self.run_prepare(
+                args,source_sha,[None,RuntimeError("MCP_EXTERNAL_LOCAL_SOURCE_NOT_FROZEN")]
+            )
+        self.assertIsNone(result)
+        self.assertIsNotNone(error)
+        self.assertRegex(str(error),"MCP_EXTERNAL_LOCAL_SOURCE_NOT_FROZEN")
+        self.assertEqual(0,write_count)
 
     def test_source_unfreezes_after_packet_materialization_before_external_handoff(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td); source_sha="a"*40; args=self.args(root,source_sha)
-            patches=self.patches(source_sha,[None,None,RuntimeError("MCP_EXTERNAL_LOCAL_SOURCE_NOT_FROZEN")])
-            with patches[0],patches[1],patches[2],patches[3],patches[4],patches[5],patches[6],patches[7],patches[8],patches[9],patches[10],patches[11],patches[12],patches[13],patches[14],mock.patch.object(mod.core,"write_json_once_or_identical") as write:
-                with self.assertRaisesRegex(RuntimeError,"MCP_EXTERNAL_LOCAL_SOURCE_NOT_FROZEN"):
-                    mod.prepare(args)
-            self.assertGreater(write.call_count,0)
+            result,error,write_count=self.run_prepare(
+                args,source_sha,[None,None,RuntimeError("MCP_EXTERNAL_LOCAL_SOURCE_NOT_FROZEN")]
+            )
+        self.assertIsNone(result)
+        self.assertIsNotNone(error)
+        self.assertRegex(str(error),"MCP_EXTERNAL_LOCAL_SOURCE_NOT_FROZEN")
+        self.assertGreater(write_count,0)
 
 
 if __name__=="__main__":
