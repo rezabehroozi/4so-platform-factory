@@ -17,6 +17,13 @@ class C7WMakePreparePreflightTests(unittest.TestCase):
         self.assertIn('--token-env "$(C7W_PLATFORM_ADMIN_TOKEN_ENV)"',block)
         self.assertIn('$(if $(strip $(C7W_OAUTH_CLIENT_MAP)),--oauth-client-map "$(C7W_OAUTH_CLIENT_MAP)",)',block)
 
+    def test_c7w_make_default_state_tracks_current_source_prefix(self):
+        makefile=(ROOT/"Makefile").read_text(encoding="utf-8")
+        self.assertIn("C7W_SOURCE_PREFIX :=",makefile)
+        self.assertIn("GIT_SOURCE_COMMIT",makefile)
+        self.assertIn("C7W_STATE_DIR ?= .state/c7w-external-interop-$(C7W_SOURCE_PREFIX)",makefile)
+        self.assertNotIn("C7W_STATE_DIR ?= .state/c7w-external-interop\n",makefile)
+
 
 if __name__=="__main__":
     unittest.main()
