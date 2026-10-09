@@ -75,57 +75,84 @@ def load_existing_evidence_snapshot(path:Path)->dict:
     absolute=Path(os.path.abspath(path))
     if absolute.is_symlink():
         raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_INVALID")
-    flags=os.O_RDONLY|getattr(os,"O_CLOEXEC",0)|getattr(os,"O_BINARY",0)|getattr(os,"O_NOFOLLOW",0)
+    directory=absolute.parent
+    directory_flags=os.O_RDONLY|getattr(os,"O_CLOEXEC",0)|getattr(os,"O_DIRECTORY",0)|getattr(os,"O_NOFOLLOW",0)
     try:
-        fd=os.open(absolute,flags)
-    except OSError as exc:
+        directory_fd=os.open(directory,directory_flags)
+    except (OSError,TypeError,NotImplementedError) as exc:
         raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_INVALID") from exc
     try:
-        before=os.fstat(fd)
+        opened_directory=os.fstat(directory_fd)
         try:
-            named=os.stat(absolute,follow_symlinks=False)
+            named_directory=os.stat(directory,follow_symlinks=False)
         except OSError as exc:
             raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_INVALID") from exc
         if (
-            not stat.S_ISREG(before.st_mode)
-            or not stat.S_ISREG(named.st_mode)
-            or not os.path.samestat(before,named)
-            or before.st_size<=0
-            or before.st_size>1024*1024
+            not stat.S_ISDIR(opened_directory.st_mode)
+            or not stat.S_ISDIR(named_directory.st_mode)
+            or not os.path.samestat(opened_directory,named_directory)
         ):
             raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_INVALID")
-
-        def read_once()->bytes:
-            chunks=[]; total=0
-            while True:
-                chunk=os.read(fd,min(1024*1024,1024*1024+1-total))
-                if not chunk:
-                    break
-                chunks.append(chunk); total+=len(chunk)
-                if total>1024*1024:
-                    raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_INVALID")
-            return b"".join(chunks)
-
-        first=read_once()
-        middle=os.fstat(fd)
-        os.lseek(fd,0,os.SEEK_SET)
-        second=read_once()
-        after=os.fstat(fd)
+        flags=os.O_RDONLY|getattr(os,"O_CLOEXEC",0)|getattr(os,"O_BINARY",0)|getattr(os,"O_NOFOLLOW",0)
         try:
-            named_after=os.stat(absolute,follow_symlinks=False)
-        except OSError as exc:
-            raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_CHANGED_DURING_READ") from exc
-        stable_identity=os.path.samestat(before,middle) and os.path.samestat(before,after) and os.path.samestat(before,named_after)
-        stable_meta=(before.st_size,before.st_mtime_ns,before.st_ctime_ns)==(middle.st_size,middle.st_mtime_ns,middle.st_ctime_ns)==(after.st_size,after.st_mtime_ns,after.st_ctime_ns)
-        if not stat.S_ISREG(named_after.st_mode) or not stable_identity or not stable_meta or first!=second or len(first)!=before.st_size:
-            raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_CHANGED_DURING_READ")
-        try:
-            value=json.loads(first.decode("utf-8"))
-        except (UnicodeDecodeError,json.JSONDecodeError) as exc:
+            fd=os.open(absolute.name,flags,dir_fd=directory_fd)
+        except (OSError,TypeError,NotImplementedError) as exc:
             raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_INVALID") from exc
-        return value
+        try:
+            before=os.fstat(fd)
+            try:
+                named=os.stat(absolute.name,dir_fd=directory_fd,follow_symlinks=False)
+            except (OSError,TypeError,NotImplementedError) as exc:
+                raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_INVALID") from exc
+            if (
+                not stat.S_ISREG(before.st_mode)
+                or not stat.S_ISREG(named.st_mode)
+                or not os.path.samestat(before,named)
+                or before.st_size<=0
+                or before.st_size>1024*1024
+            ):
+                raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_INVALID")
+
+            def read_once()->bytes:
+                chunks=[]; total=0
+                while True:
+                    chunk=os.read(fd,min(1024*1024,1024*1024+1-total))
+                    if not chunk:
+                        break
+                    chunks.append(chunk); total+=len(chunk)
+                    if total>1024*1024:
+                        raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_INVALID")
+                return b"".join(chunks)
+
+            first=read_once()
+            middle=os.fstat(fd)
+            os.lseek(fd,0,os.SEEK_SET)
+            second=read_once()
+            after=os.fstat(fd)
+            try:
+                named_after=os.stat(absolute.name,dir_fd=directory_fd,follow_symlinks=False)
+                directory_after=os.fstat(directory_fd)
+                named_directory_after=os.stat(directory,follow_symlinks=False)
+            except (OSError,TypeError,NotImplementedError) as exc:
+                raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_CHANGED_DURING_READ") from exc
+            stable_identity=os.path.samestat(before,middle) and os.path.samestat(before,after) and os.path.samestat(before,named_after)
+            stable_meta=(before.st_size,before.st_mtime_ns,before.st_ctime_ns)==(middle.st_size,middle.st_mtime_ns,middle.st_ctime_ns)==(after.st_size,after.st_mtime_ns,after.st_ctime_ns)
+            stable_directory=(
+                os.path.samestat(opened_directory,directory_after)
+                and os.path.samestat(opened_directory,named_directory_after)
+                and stat.S_ISDIR(named_directory_after.st_mode)
+            )
+            if not stat.S_ISREG(named_after.st_mode) or not stable_identity or not stable_meta or not stable_directory or first!=second or len(first)!=before.st_size:
+                raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_CHANGED_DURING_READ")
+            try:
+                value=json.loads(first.decode("utf-8"))
+            except (UnicodeDecodeError,json.JSONDecodeError) as exc:
+                raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_INVALID") from exc
+            return value
+        finally:
+            os.close(fd)
     finally:
-        os.close(fd)
+        os.close(directory_fd)
 
 
 def enrich(result: dict) -> dict:
