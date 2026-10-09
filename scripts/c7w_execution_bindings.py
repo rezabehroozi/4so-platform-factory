@@ -78,13 +78,36 @@ def git_head(root:Path)->str:
     return value
 
 
-def source_commit_sha(root:Path,explicit:str="")->str:
+def _require_source_freeze(root:Path)->None:
+    root=Path(os.path.abspath(root))
+    git_env=_clean_git_env()
+    branch=subprocess.run(["git","symbolic-ref","--quiet","--short","HEAD"],cwd=root,env=git_env,text=True,capture_output=True,check=False)
+    if branch.returncode!=0 or branch.stdout.strip()!="main":
+        raise RuntimeError("MCP_EXTERNAL_LOCAL_BRANCH_NOT_MAIN")
+    indexed=subprocess.run(["git","ls-files","-v","-z"],cwd=root,env=git_env,capture_output=True,check=False)
+    if indexed.returncode!=0 or any(raw and not raw.startswith(b"H ") for raw in indexed.stdout.split(b"\x00")):
+        raise RuntimeError("MCP_EXTERNAL_LOCAL_GIT_INDEX_FLAGS_FORBIDDEN")
+    allowed=sorted(core.C7W_EVIDENCE_ONLY_PATHS)
+    command=["git","status","--porcelain=v1","-z","--untracked-files=all"]
+    all_status=subprocess.run(command,cwd=root,env=git_env,capture_output=True,check=False)
+    allowed_status=subprocess.run(command+["--",*allowed],cwd=root,env=git_env,capture_output=True,check=False)
+    if all_status.returncode!=0 or allowed_status.returncode!=0:
+        raise RuntimeError("MCP_EXTERNAL_LOCAL_GIT_STATUS_UNAVAILABLE")
+    all_records={row for row in all_status.stdout.split(b"\x00") if row}
+    allowed_records={row for row in allowed_status.stdout.split(b"\x00") if row}
+    if all_records-allowed_records:
+        raise RuntimeError("MCP_EXTERNAL_LOCAL_SOURCE_NOT_FROZEN")
+
+
+def source_commit_sha(root:Path,explicit:str="",*,require_freeze:bool=False)->str:
     value=str(explicit or "").strip().lower()
     if value and not core.COMMIT.fullmatch(value):
         raise RuntimeError("MCP_EXTERNAL_EXECUTION_BINDINGS_SOURCE_UNAVAILABLE")
     observed=git_head(root)
     if value and value!=observed:
         raise RuntimeError("MCP_EXTERNAL_EXECUTION_BINDINGS_SOURCE_MISMATCH")
+    if require_freeze:
+        _require_source_freeze(root)
     return observed
 
 
