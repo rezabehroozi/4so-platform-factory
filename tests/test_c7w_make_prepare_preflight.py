@@ -30,6 +30,8 @@ class C7WMakePreparePreflightTests(unittest.TestCase):
         self.assertIn("len(s)==40",state_source)
         self.assertIn("all(c in '0123456789abcdef' for c in s)",state_source)
         self.assertIn("else 'current'",state_source)
+        self.assertIn("not p.is_symlink()",state_source)
+        self.assertIn("not p.parent.is_symlink()",state_source)
         self.assertIn("C7W_SOURCE_PREFIX =",makefile)
         self.assertNotIn("C7W_SOURCE_PREFIX :=",makefile)
         prefix=makefile.split("C7W_SOURCE_PREFIX =",1)[1].split("\n",1)[0]
