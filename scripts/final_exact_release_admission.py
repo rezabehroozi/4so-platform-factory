@@ -8,7 +8,7 @@ This gate consumes only already-sealed external authorities:
 It never infers or records Physical PASS.
 """
 from __future__ import annotations
-import argparse, json, os, re, subprocess
+import argparse, json, os, re, stat, subprocess, sys
 from pathlib import Path
 from urllib.parse import urlsplit
 try:
@@ -23,6 +23,55 @@ try:
     import c7w_execution_provenance as execution_provenance
 except ModuleNotFoundError:
     from scripts import c7w_execution_provenance as execution_provenance
+
+
+class _ParentBoundMCPContract:
+    def __init__(self, contract):
+        self._contract=contract
+
+    def __getattr__(self,name):
+        return getattr(self._contract,name)
+
+    def load_with_sha256(self,path:Path,label:str,max_bytes:int=4*1024*1024):
+        absolute=Path(os.path.abspath(path))
+        proc_fd=Path("/proc/self/fd")
+        secure_available=(
+            sys.platform.startswith("linux")
+            and hasattr(os,"O_DIRECTORY")
+            and hasattr(os,"O_NOFOLLOW")
+            and proc_fd.is_dir()
+        )
+        if not secure_available:
+            if label=="FINAL_EXACT_RELEASE_EXISTING_EVIDENCE":
+                raise RuntimeError(f"{label}_FILE_INVALID")
+            return self._contract.load_with_sha256(absolute,label,max_bytes=max_bytes)
+        flags=os.O_RDONLY|getattr(os,"O_CLOEXEC",0)|os.O_DIRECTORY|os.O_NOFOLLOW
+        try:
+            parent_fd=os.open(absolute.parent,flags)
+        except OSError as exc:
+            raise RuntimeError(f"{label}_FILE_INVALID") from exc
+        try:
+            before=os.fstat(parent_fd)
+            try:
+                named=os.stat(absolute.parent,follow_symlinks=False)
+            except OSError as exc:
+                raise RuntimeError(f"{label}_FILE_INVALID") from exc
+            if not stat.S_ISDIR(before.st_mode) or not stat.S_ISDIR(named.st_mode) or not os.path.samestat(before,named):
+                raise RuntimeError(f"{label}_FILE_INVALID")
+            value,digest=self._contract.load_with_sha256(proc_fd/str(parent_fd)/absolute.name,label,max_bytes=max_bytes)
+            after=os.fstat(parent_fd)
+            try:
+                named_after=os.stat(absolute.parent,follow_symlinks=False)
+            except OSError as exc:
+                raise RuntimeError(f"{label}_FILE_CHANGED_DURING_READ") from exc
+            if not stat.S_ISDIR(named_after.st_mode) or not os.path.samestat(before,after) or not os.path.samestat(before,named_after):
+                raise RuntimeError(f"{label}_FILE_CHANGED_DURING_READ")
+            return value,digest
+        finally:
+            os.close(parent_fd)
+
+
+mcp_contract=_ParentBoundMCPContract(mcp_contract)
 
 AUTHORITY="FINAL_EXACT_RELEASE_ADMISSION_V1"
 S1_AUTHORITY="LAB_APPLIANCE_BUNDLE_ACQUISITION_LOCK_V8"
