@@ -182,6 +182,40 @@ class C7WBulkRecoverySourceAuthorityTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError,"ORPHAN_STATE_REQUIRES_RECOVERY"):
                     runner.prepare(args)
 
+    def test_prepare_rechecks_source_before_external_handoff(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); state=root/"state"
+            args=SimpleNamespace(
+                state_dir=state,
+                matrix=ROOT/"lab/mcp-external-client-interop-matrix.json",
+                progress_out=root/"progress.json",
+                endpoint="https://mcp.example.test/mcp",
+                oauth_client_map=root/"oauth.json",
+                token_env="C7W_PLATFORM_ADMIN_TOKEN",
+                source_commit_sha="a"*40,
+            )
+            campaign={"campaignId":"mcp-interop-source-recheck","sourceCommitSHA":"a"*40,"runtimeVersion":"0.0.0"}
+            with (
+                mock.patch.object(runner,"require_c7w_source_freeze"),
+                mock.patch.object(runner,"require_canonical_matrix",side_effect=lambda root,path:path),
+                mock.patch.object(runner.campaign_builder,"source_commit_sha",return_value="a"*40),
+                mock.patch.object(runner.core,"load",return_value={}),
+                mock.patch.object(runner.core,"validate_matrix_contract"),
+                mock.patch.object(runner.campaign_builder,"load_oauth_bindings",return_value=({},"sha256:"+"0"*64)),
+                mock.patch.object(runner.campaign_builder,"runtime_identity_readback",return_value={}),
+                mock.patch.object(runner.campaign_builder,"trusted_client_readback",return_value={}),
+                mock.patch.object(runner.campaign_builder,"live_preflight",return_value={}),
+                mock.patch.object(runner.campaign_builder,"prepare",return_value=campaign),
+                mock.patch.object(runner.core,"write_json_once_or_identical"),
+                mock.patch.object(runner.packet_builder,"packet",return_value={}),
+                mock.patch.object(runner,"capture_template",return_value={}),
+                mock.patch.object(runner,"client_execution_handoff",return_value={}),
+                mock.patch.object(runner,"external_client_action",return_value={"nextActionCode":"RUN_EXTERNAL_CLIENT"}),
+                mock.patch.object(runner,"require_active_campaign_source",side_effect=RuntimeError("MCP_EXTERNAL_LOCAL_ACTIVE_CAMPAIGN_SOURCE_DELTA_NOT_EVIDENCE_ONLY")),
+            ):
+                with self.assertRaisesRegex(RuntimeError,"ACTIVE_CAMPAIGN_SOURCE_DELTA_NOT_EVIDENCE_ONLY"):
+                    runner.prepare(args)
+
 
 if __name__=="__main__":
     unittest.main()
