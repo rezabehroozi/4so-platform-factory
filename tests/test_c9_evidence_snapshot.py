@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -45,6 +46,26 @@ class C9EvidenceSnapshotTests(unittest.TestCase):
             ):
                 with self.assertRaisesRegex(RuntimeError,"EVIDENCE_HANDOFF_DRIFT"):
                     mod.final_git_handoff(root,out,evidence)
+
+    def test_git_handoff_rejects_symlinked_evidence_parent_before_read(self):
+        evidence={"sourceCommitSHA":"a"*40,"authority":mod.AUTHORITY}
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)/"repo"; root.mkdir()
+            outside=Path(td)/"outside"; outside.mkdir()
+            target=outside/"final-exact-release-evidence.json"
+            target.write_text(json.dumps(evidence)+"\n",encoding="utf-8")
+            lab=root/"lab"
+            try:
+                lab.symlink_to(outside,target_is_directory=True)
+            except OSError as exc:
+                self.skipTest(f"symlink creation unavailable: {exc}")
+            with mock.patch.object(
+                mod,
+                "verify_evidence_publication_binding",
+                side_effect=AssertionError("publication verification must not run after an unsafe evidence-parent read"),
+            ):
+                with self.assertRaisesRegex(RuntimeError,"EVIDENCE_HANDOFF_INVALID"):
+                    mod.final_git_handoff(root,lab/target.name,evidence)
 
 
 if __name__=="__main__":
