@@ -1,5 +1,6 @@
 import hashlib,importlib.util,json,tempfile,unittest,sys
 from pathlib import Path
+from unittest import mock
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/"scripts"))
 S=importlib.util.spec_from_file_location("seal_mcp_external_interop",ROOT/"scripts"/"seal_mcp_external_interop.py"); core=importlib.util.module_from_spec(S); S.loader.exec_module(core); sys.modules["seal_mcp_external_interop"]=core
@@ -18,7 +19,7 @@ class PacketTests(unittest.TestCase):
         document={"authority":bindings.AUTHORITY,"sourceCommitSHA":"1"*40,"resources":resources,"credentialProfileContractAuthority":bindings.credential_contract()["authority"],"credentialProfileContractSha256":bindings.credential_contract_digest()}
         raw=(json.dumps(document,sort_keys=True,separators=(",",":"),ensure_ascii=False)+"\n").encode()
         campaign={"authority":core.CAMPAIGN_AUTHORITY,"campaignId":"mcp-interop-packettest","createdAt":core.utc_timestamp(created),"expiresAt":core.utc_timestamp(expires),"matrixAuthority":core.MATRIX_AUTHORITY,"matrixSha256":core.sha256(matrix),"oauthClientBindingAuthority":core.OAUTH_BINDING_AUTHORITY,"oauthClientBindingsSha256":"sha256:"+hashlib.sha256(b"packet-oauth-bindings").hexdigest(),"executionBindingAuthority":bindings.AUTHORITY,"executionBindingsSha256":"sha256:"+hashlib.sha256(raw).hexdigest(),"executionBindings":resources,"credentialProfileContractAuthority":document["credentialProfileContractAuthority"],"credentialProfileContractSha256":document["credentialProfileContractSha256"],"sourceCommitSHA":"1"*40,"runtimeVersion":"0.0.test","protocol":"2026-07-28","transport":"streamable-http","endpoint":ep,"livePreflight":preflight,"clients":rows,"externalExecutionRequired":True}
-        with tempfile.TemporaryDirectory() as td:
+        with tempfile.TemporaryDirectory() as td, mock.patch.object(bindings,"source_commit_sha",return_value=campaign["sourceCommitSHA"]):
             cp=Path(td)/"campaign.json"; cp.write_text(json.dumps(campaign)); out=mod.packet(matrix,cp,"chatgpt")
         self.assertEqual(core.CLIENTS[0],out["clientId"]); self.assertEqual(core.CLIENT_SURFACES["chatgpt"],out["clientSurface"]); self.assertEqual(set(spec["sharedRequiredChecks"]),{x["id"] for x in out["checks"]})
         self.assertFalse(out["secretsIncluded"]); self.assertFalse(out["runtimeCertified"]); self.assertFalse(out["physicalCertified"])
