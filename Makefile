@@ -68,7 +68,7 @@ build-release:
 	$(PYTHON) scripts/build_release_binaries.py --root . --go "$(GO)" --source-commit "$(SOURCE_COMMIT)" --version "$(VERSION)"
 
 run: build
-	mkdir -p bin
+	mkdir -p .state
 	PLATFORM_FACTORY_STATE_FILE=.state/control-plane.json ./bin/platform-api
 
 smoke: build
