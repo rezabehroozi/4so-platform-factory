@@ -39,6 +39,20 @@ class C9StableEvidenceSnapshotTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,"EXISTING_EVIDENCE_INVALID"):
                 preflight.load_existing_evidence_snapshot(link)
 
+    def test_snapshot_rejects_symlinked_parent_directory(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)/"repo"; root.mkdir()
+            outside=Path(td)/"outside"; outside.mkdir()
+            evidence=outside/"final-exact-release-evidence.json"
+            evidence.write_text('{"authority":"outside"}\n',encoding="utf-8")
+            lab=root/"lab"
+            try:
+                lab.symlink_to(outside,target_is_directory=True)
+            except OSError as exc:
+                self.skipTest(f"symlink creation unavailable: {exc}")
+            with self.assertRaisesRegex(RuntimeError,"EXISTING_EVIDENCE_INVALID"):
+                preflight.load_existing_evidence_snapshot(lab/evidence.name)
+
 
 if __name__=="__main__":
     unittest.main()
