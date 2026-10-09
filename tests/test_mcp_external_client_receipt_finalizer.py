@@ -1,5 +1,6 @@
 import copy,hashlib,importlib.util,json,sys,tempfile,unittest
 from pathlib import Path
+from unittest import mock
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/"scripts"))
 S=importlib.util.spec_from_file_location("seal_mcp_external_interop",ROOT/"scripts"/"seal_mcp_external_interop.py"); core=importlib.util.module_from_spec(S); S.loader.exec_module(core); sys.modules["seal_mcp_external_interop"]=core
@@ -17,7 +18,10 @@ class ReceiptFinalizerTests(unittest.TestCase):
         resources={"foreignProjectId":"project-foreign-001","sameProjectOperationId":"operation-cancellable-001","selfApprovalRequestId":"approval-request-001"}
         document={"authority":bindings.AUTHORITY,"sourceCommitSHA":"1"*40,"resources":resources,"credentialProfileContractAuthority":bindings.credential_contract()["authority"],"credentialProfileContractSha256":bindings.credential_contract_digest()}; raw=(json.dumps(document,sort_keys=True,separators=(",",":"),ensure_ascii=False)+"\n").encode()
         campaign={"authority":core.CAMPAIGN_AUTHORITY,"campaignId":"mcp-interop-capturetest","createdAt":core.utc_timestamp(created),"expiresAt":core.utc_timestamp(expires),"matrixAuthority":core.MATRIX_AUTHORITY,"matrixSha256":core.sha256(matrix),"oauthClientBindingAuthority":core.OAUTH_BINDING_AUTHORITY,"oauthClientBindingsSha256":"sha256:"+hashlib.sha256(b"capture-oauth-bindings").hexdigest(),"executionBindingAuthority":bindings.AUTHORITY,"executionBindingsSha256":"sha256:"+hashlib.sha256(raw).hexdigest(),"executionBindings":resources,"credentialProfileContractAuthority":document["credentialProfileContractAuthority"],"credentialProfileContractSha256":document["credentialProfileContractSha256"],"sourceCommitSHA":"1"*40,"runtimeVersion":"0.0.test","protocol":"2026-07-28","transport":"streamable-http","endpoint":ep,"livePreflight":preflight,"clients":rows,"externalExecutionRequired":True}
-        cp=td/"campaign.json"; cp.write_text(json.dumps(campaign)); packet=packetmod.packet(matrix,cp,"chatgpt"); pp=td/"packet.json"; pp.write_text(json.dumps(packet))
+        cp=td/"campaign.json"; cp.write_text(json.dumps(campaign))
+        with mock.patch.object(bindings,"source_commit_sha",return_value=campaign["sourceCommitSHA"]):
+            packet=packetmod.packet(matrix,cp,"chatgpt")
+        pp=td/"packet.json"; pp.write_text(json.dumps(packet))
         checks={}; n=0
         for row in packet["checks"]:
             cid=row["id"]; observed={"scopes":list(value) if key=="scopesContain" else value for key,value in row["expect"].items() for _ in [0]}
