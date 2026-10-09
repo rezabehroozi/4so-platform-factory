@@ -373,6 +373,18 @@ def preflight(root: Path) -> dict:
     out["admissionReady"] = True
     if admission_source_sha!=source_sha:
         out["sealedSourceCommitSHA"]=admission_source_sha
+    try:
+        final_source_sha=sealer.git_source_for_resume(root,evidence) if resume else sealer.git_source(root)
+    except RuntimeError as exc:
+        failure=_source_failure(root,exc)
+        failure["sourceCommitSHA"]=source_sha
+        failure["resumeExistingEvidence"]=resume
+        return bind_execution_context(root,failure)
+    if final_source_sha!=source_sha:
+        failure=_source_failure(root,RuntimeError("FINAL_EXACT_RELEASE_SOURCE_CHANGED_DURING_PREFLIGHT"))
+        failure["sourceCommitSHA"]=source_sha
+        failure["resumeExistingEvidence"]=resume
+        return bind_execution_context(root,failure)
     if resume and out.get("ready") is True:
         out["detail"] = "existing final evidence is present at the canonical path; final admission remains valid and the exact sealer must perform full resume revalidation before post-seal Git handoff"
     return bind_execution_context(root,out)
