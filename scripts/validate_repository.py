@@ -2310,8 +2310,8 @@ WINDOWS_LOCAL_EXECUTION_CONTRACTS = {
         '"captures":state/"captures"',
         'capture=str(p["captures"]/(client+".capture.json"))',
         'runner_command(state,"admit"',
-        'def c9_handoff(source_sha:str)->dict:',
-        'def c9_preflight_command()->list[str]:',
+        'def c9_handoff(source_sha:str,root:Path|None=None)->dict:',
+        'def c9_preflight_command(root:Path|None=None)->list[str]:',
         'RUN_C9_ON_EXACT_LINUX_HOST',
     ),
     'scripts/run_go_package_shard.py': (
