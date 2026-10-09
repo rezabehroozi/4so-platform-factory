@@ -157,7 +157,7 @@ def enrich(result: dict) -> dict:
                 "detail": "run the exact committed source on a linux/amd64 host with the admitted offline toolchain and browser authority",
             }
         )
-    elif blocker_set & TOOLCHAIN_SOURCE_BLOCKERS:
+    elif blocker_set & TOOLCHAIN_SOURCE_BLOCKERS or any(code.startswith("FINAL_EXACT_RELEASE_TOOLCHAIN_LOCK_SOURCE_") for code in blockers):
         out.update(
             {
                 "nextActionCode": "INSPECT_C9_SOURCE_AUTHORITY",
@@ -346,7 +346,27 @@ def preflight(root: Path) -> dict:
             admission_failure["sealedSourceCommitSHA"]=admission_source_sha
         return bind_execution_context(root,admission_failure)
 
-    out = enrich(sealer.exact_release_environment_preflight(root))
+    try:
+        toolchain_lock,_=sealer.exact_source_toolchain_lock(root,admission_source_sha)
+    except RuntimeError as exc:
+        code=str(exc).split()[0] if str(exc).strip() else "FINAL_EXACT_RELEASE_TOOLCHAIN_LOCK_SOURCE_OBJECT_INVALID"
+        out=enrich({
+            "authority":sealer.ENVIRONMENT_PREFLIGHT_AUTHORITY,
+            "ready":False,
+            "requiredHost":"linux-amd64-exact-toolchain",
+            "missingHostTools":[],
+            "blockers":[code],
+            "physicalCertified":False,
+        })
+        out["sourceCommitSHA"]=source_sha
+        out["resumeExistingEvidence"]=resume
+        out["admissionAuthority"]=admitted["authority"]
+        out["admissionReady"]=True
+        if admission_source_sha!=source_sha:
+            out["sealedSourceCommitSHA"]=admission_source_sha
+        return bind_execution_context(root,out)
+
+    out = enrich(sealer.exact_release_environment_preflight(root,toolchain_lock=toolchain_lock))
     out["sourceCommitSHA"] = source_sha
     out["resumeExistingEvidence"] = resume
     out["admissionAuthority"] = admitted["authority"]
