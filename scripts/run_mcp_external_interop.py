@@ -360,7 +360,7 @@ def c9_preflight_command(root:Path|None=None)->list[str]:
     root_text=str(Path(root).resolve()) if root is not None else "."
     return [sys.executable,"scripts/c9_preflight.py","--root",root_text,"--preflight"]
 def c9_handoff(source_sha:str,root:Path|None=None)->dict:
-    if sys.platform.startswith("linux"):
+    if sys.platform.startswith("linux") and getattr(os.uname(),"machine","").strip().lower() in {"x86_64","amd64"}:
         checkout_root=Path(root or Path.cwd()).resolve()
         return {
             "nextActionCode":"RUN_C9_SEAL",
