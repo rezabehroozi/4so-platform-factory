@@ -64,6 +64,22 @@ class C9PreflightExactToolchainSourceTests(unittest.TestCase):
         self.assertEqual([],result["requiredInputs"])
         self.assertEqual(["git","status","--short","--","lab/release-build-toolchain-lock.json"],result["nextCommand"])
 
+    def test_toolchain_source_blocker_precedes_host_transition(self):
+        result=mod.enrich({
+            "authority":sealer.ENVIRONMENT_PREFLIGHT_AUTHORITY,
+            "ready":False,
+            "requiredHost":"linux-amd64-exact-toolchain",
+            "missingHostTools":[],
+            "blockers":[
+                "FINAL_EXACT_RELEASE_LINUX_AMD64_HOST_REQUIRED",
+                "FINAL_EXACT_RELEASE_TOOLCHAIN_AUTHORITY_INVALID",
+            ],
+            "physicalCertified":False,
+        })
+        self.assertEqual("INSPECT_C9_SOURCE_AUTHORITY",result["nextActionCode"])
+        self.assertEqual([],result["requiredInputs"])
+        self.assertEqual(["git","status","--short","--","lab/release-build-toolchain-lock.json"],result["nextCommand"])
+
 
 if __name__=="__main__":
     unittest.main()
