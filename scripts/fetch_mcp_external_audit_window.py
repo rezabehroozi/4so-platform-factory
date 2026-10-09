@@ -114,7 +114,7 @@ def fetch(matrix_path: Path, campaign_path: Path, receipt_path: Path, client: st
         raise RuntimeError("MCP_EXTERNAL_AUDIT_MATRIX_CHECKS_INVALID")
     campaign=core.verify_campaign(campaign_path,matrix_path,spec)
     source_sha=str(campaign.get("sourceCommitSHA") or "").strip().lower()
-    execution_bindings.source_commit_sha(ROOT,source_sha)
+    execution_bindings.source_commit_sha(ROOT,source_sha,require_freeze=True)
     receipt=core.verify_receipt(receipt_path,client,required,str(spec.get("protocol") or ""),campaign)
     endpoint=receipt["endpoint"]
     request_ids=receipt["requestIds"]
@@ -156,10 +156,10 @@ def fetch(matrix_path: Path, campaign_path: Path, receipt_path: Path, client: st
                     raise RuntimeError("MCP_EXTERNAL_AUDIT_RESPONSE_JSON_INVALID") from exc
                 if not isinstance(value,list) or not value:
                     raise RuntimeError("MCP_EXTERNAL_AUDIT_RESPONSE_INVALID")
-                execution_bindings.source_commit_sha(ROOT,source_sha)
+                execution_bindings.source_commit_sha(ROOT,source_sha,require_freeze=True)
                 canonical=(json.dumps(value,indent=2,sort_keys=True)+"\n").encode("utf-8")
                 witness=atomic_write(out,canonical,receipt,client)
-                execution_bindings.source_commit_sha(ROOT,source_sha)
+                execution_bindings.source_commit_sha(ROOT,source_sha,require_freeze=True)
                 return {
                     "clientId":client,
                     "requestIdCount":len(request_ids),
