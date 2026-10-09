@@ -281,6 +281,7 @@ def final_evidence(progress:dict,progress_path:Path)->dict:
         raise RuntimeError("MCP_EXTERNAL_PROGRESS_FILE_BINDING_INVALID")
     by_id=validate_existing(progress,progress)
     if list(by_id)!=list(core.CLIENTS) or progress.get("complete") is not True: raise RuntimeError("MCP_EXTERNAL_PROGRESS_NOT_COMPLETE")
+    require_campaign_source(progress)
     return core.build_interop_evidence(
         progress["matrixSha256"],progress["campaignId"],progress["campaignSha256"],progress["oauthClientBindingsSha256"],
         progress["sourceCommitSHA"],progress["runtimeVersion"],progress["protocol"],progress["transport"],progress["endpoint"],progress["clients"],
