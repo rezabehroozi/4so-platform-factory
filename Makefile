@@ -10,7 +10,8 @@ SOURCE_COMMIT ?= unknown
 endif
 PLATFORM_FACTORY_DEVELOPMENT_MODE ?= true
 export PLATFORM_FACTORY_DEVELOPMENT_MODE
-C7W_STATE_DIR ?= .state/c7w-external-interop
+C7W_SOURCE_PREFIX := $(shell $(PYTHON) -c "s='$(GIT_SOURCE_COMMIT)'.strip(); print(s[:12] if len(s)==40 and all(c in '0123456789abcdef' for c in s.lower()) else 'current')")
+C7W_STATE_DIR ?= .state/c7w-external-interop-$(C7W_SOURCE_PREFIX)
 C7W_PLATFORM_ADMIN_TOKEN_ENV ?= C7W_PLATFORM_ADMIN_TOKEN
 C7W_ALLOW_CAMPAIGN_SUPERSEDE ?= false
 C9_ADMISSION_OUT ?= .state/final-exact-release-admission.json
