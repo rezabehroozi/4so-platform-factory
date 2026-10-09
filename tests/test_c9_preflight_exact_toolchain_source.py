@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -79,6 +80,54 @@ class C9PreflightExactToolchainSourceTests(unittest.TestCase):
         self.assertEqual("INSPECT_C9_SOURCE_AUTHORITY",result["nextActionCode"])
         self.assertEqual([],result["requiredInputs"])
         self.assertEqual(["git","status","--short","--","lab/release-build-toolchain-lock.json"],result["nextCommand"])
+
+    def test_ready_fresh_preflight_rechecks_source_before_seal_handoff(self):
+        source_sha="d"*40
+        changed_sha="e"*40
+        lock={"authority":sealer.TOOLCHAIN_AUTHORITY,"spec":{"admissionStatus":"admitted"}}
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td).resolve()
+            with (
+                mock.patch.object(sealer,"git_source",side_effect=[source_sha,changed_sha]) as source_owner,
+                mock.patch.object(sealer,"exact_source_admission",return_value=self.admitted()),
+                mock.patch.object(sealer,"exact_source_toolchain_lock",return_value=(lock,"sha256:"+"f"*64)),
+                mock.patch.object(sealer,"exact_release_environment_preflight",return_value=self.ready_environment()),
+            ):
+                result=mod.preflight(root)
+        self.assertEqual(2,source_owner.call_count)
+        self.assertFalse(result["ready"])
+        self.assertEqual(["FINAL_EXACT_RELEASE_SOURCE_CHANGED_DURING_PREFLIGHT"],result["blockers"])
+        self.assertEqual("RESTORE_C9_SOURCE_AUTHORITY",result["nextActionCode"])
+        self.assertNotEqual("RUN_C9_SEAL",result["nextActionCode"])
+
+    def test_ready_resume_preflight_rechecks_source_before_seal_handoff(self):
+        source_sha="1"*40
+        changed_sha="2"*40
+        lock={"authority":sealer.TOOLCHAIN_AUTHORITY,"spec":{"admissionStatus":"admitted"}}
+        evidence={key:None for key in sealer.FINAL_EVIDENCE_KEYS}
+        evidence.update({
+            "apiVersion":"platform.4so.io/v1alpha1",
+            "kind":"FinalExactReleaseEvidence",
+            "authority":sealer.AUTHORITY,
+            "sourceCommitSHA":source_sha,
+            "physicalCertified":False,
+        })
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td).resolve()
+            out=root/mod.FINAL_EVIDENCE_REL; out.parent.mkdir(); out.write_text(json.dumps(evidence)+"\n")
+            with (
+                mock.patch.object(sealer,"git_source_for_resume",side_effect=[source_sha,changed_sha]) as source_owner,
+                mock.patch.object(sealer,"validate_final_evidence_lineage",return_value=None),
+                mock.patch.object(sealer,"exact_source_admission",return_value=self.admitted()),
+                mock.patch.object(sealer,"exact_source_toolchain_lock",return_value=(lock,"sha256:"+"3"*64)),
+                mock.patch.object(sealer,"exact_release_environment_preflight",return_value=self.ready_environment()),
+            ):
+                result=mod.preflight(root)
+        self.assertEqual(2,source_owner.call_count)
+        self.assertFalse(result["ready"])
+        self.assertEqual(["FINAL_EXACT_RELEASE_SOURCE_CHANGED_DURING_PREFLIGHT"],result["blockers"])
+        self.assertEqual("RESTORE_C9_SOURCE_AUTHORITY",result["nextActionCode"])
+        self.assertNotEqual("RUN_C9_SEAL",result["nextActionCode"])
 
 
 if __name__=="__main__":
