@@ -52,6 +52,10 @@ class C9AdmissionPreflightTests(unittest.TestCase):
             "admitted": True,
             "physicalCertified": False,
         }
+        lock = {
+            "authority": sealer.TOOLCHAIN_AUTHORITY,
+            "spec": {"admissionStatus": "admitted"},
+        }
         env = {
             "authority": sealer.ENVIRONMENT_PREFLIGHT_AUTHORITY,
             "ready": True,
@@ -63,11 +67,13 @@ class C9AdmissionPreflightTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td, \
              mock.patch.object(sealer, "git_source", return_value=source_sha), \
              mock.patch.object(sealer, "exact_source_admission", return_value=admitted) as admission_call, \
+             mock.patch.object(sealer, "exact_source_toolchain_lock", return_value=(lock,"sha256:"+"c"*64)) as lock_call, \
              mock.patch.object(sealer, "exact_release_environment_preflight", return_value=env) as environment_call:
             root=Path(td).resolve()
             result = mod.preflight(root)
         admission_call.assert_called_once_with(root, source_sha)
-        environment_call.assert_called_once_with(root)
+        lock_call.assert_called_once_with(root, source_sha)
+        environment_call.assert_called_once_with(root,toolchain_lock=lock)
         self.assertTrue(result["ready"])
         self.assertEqual("RUN_C9_SEAL", result["nextActionCode"])
         self.assertEqual([mod.sys.executable,"scripts/seal_final_exact_release.py","--root",".","--out","lab/final-exact-release-evidence.json"],result["nextCommand"])
