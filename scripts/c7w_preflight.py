@@ -227,6 +227,13 @@ def preflight(root:Path,matrix:Path,endpoint:str,oauth_client_map:Path|None,toke
         code=str(exc).split()[0] if str(exc).strip() else "MCP_EXTERNAL_PREFLIGHT_UNKNOWN"; out=_failure(code,source_sha,root=root)
         if code.startswith("MCP_EXTERNAL_TRUSTED_CLIENT_") and endpoint_value and oauth_path is not None: out.update({"workingDirectory":str(root),"nextCommand":trusted_client_reconcile_command(root,endpoint_value,oauth_path,token_env)})
         return out
+    try:
+        runner.require_c7w_source_freeze(root)
+        if git_source_commit(root)!=source_sha:
+            raise RuntimeError("MCP_EXTERNAL_LOCAL_SOURCE_CHANGED_DURING_PREFLIGHT")
+    except RuntimeError as exc:
+        code=str(exc).split()[0] if str(exc).strip() else "MCP_EXTERNAL_LOCAL_SOURCE_CHANGED_DURING_PREFLIGHT"
+        return _failure(code,source_sha,root=root)
     state=Path(f".state/c7w-external-interop-{source_sha[:12]}")
     command=[sys.executable,"scripts/run_mcp_external_interop.py","--matrix",str(matrix_path),"--state-dir",str(state),"prepare","--endpoint",endpoint_value,"--oauth-client-map",str(oauth_path),"--token-env",str(token_env),"--source-commit-sha",source_sha]
     out=_base(ready=True,blockers=[]); out.update({"sourceCommitSHA":source_sha,"runtimeVersion":runtime["version"],"endpoint":endpoint_value,"matrixPath":str(matrix_path),"oauthClientMapPath":str(oauth_path),"oauthClientBindingsSha256":binding_sha,"executionBindingsPath":str(execution_path),"executionBindingsSha256":execution_sha,"credentialProfileContractAuthority":execution_doc["credentialProfileContractAuthority"],"credentialProfileContractSha256":execution_doc["credentialProfileContractSha256"],"trustedClientCount":len(trusted),"livePreflightAuthority":live.get("authority"),"stateDir":str(state),"workingDirectory":str(root),"nextActionCode":"RUN_C7W_PREPARE","nextCommand":command,"detail":"C7W exact source, canonical matrix, private OAuth bindings, canonical source-bound execution resources, credential-profile contract, live endpoint, runtime identity and four trusted-client registrations are ready; create the source-bound campaign from workingDirectory"}); return out
