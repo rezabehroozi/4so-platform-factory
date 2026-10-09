@@ -59,7 +59,7 @@ class LocalC7WRunnerTests(unittest.TestCase):
             self.assertEqual(state/"captures",p["captures"])
             self.assertTrue(p["captures"].is_dir())
             (p["packets"]/"chatgpt.json").write_text("{}",encoding="utf-8")
-            (p["templates"]/"chatgpt.json").write_text("{}",encoding="utf-8")
+            (p["templates"]/("chatgpt.json")).write_text("{}",encoding="utf-8")
             handoff=mod.client_execution_handoff(state,"chatgpt")
             self.assertEqual(str(p["captures"]/"chatgpt.capture.json"),handoff["expectedCapturePath"])
             self.assertNotIn("/secure/",json.dumps(handoff))
@@ -340,7 +340,11 @@ class LocalC7WRunnerTests(unittest.TestCase):
 
             subprocess.run(["git","add","lab"],cwd=root,check=True)
             subprocess.run(["git","commit","-m","evidence"],cwd=root,check=True,capture_output=True)
-            ready=mod.git_handoff(root,evidence,progress)
+            with (
+                mock.patch.object(mod.sys,"platform","linux"),
+                mock.patch.object(mod.platform,"machine",return_value="x86_64"),
+            ):
+                ready=mod.git_handoff(root,evidence,progress)
             self.assertEqual("RUN_C9_SEAL",ready["nextActionCode"])
             self.assertEqual([sys.executable,"scripts/seal_final_exact_release.py","--root",".","--out","lab/final-exact-release-evidence.json"],ready["nextCommand"])
             self.assertRegex(ready["sourceCommitSHA"],r"^[0-9a-f]{40}$")
@@ -360,7 +364,10 @@ class LocalC7WRunnerTests(unittest.TestCase):
         self.assertNotIn("make",json.dumps(out).lower())
 
     def test_c9_handoff_is_directly_executable_on_linux(self):
-        with mock.patch.object(mod.sys,"platform","linux"):
+        with (
+            mock.patch.object(mod.sys,"platform","linux"),
+            mock.patch.object(mod.platform,"machine",return_value="x86_64"),
+        ):
             out=mod.c9_handoff("b"*40)
         self.assertEqual("RUN_C9_SEAL",out["nextActionCode"])
         self.assertEqual(mod.c9_seal_command(),out["nextCommand"])
@@ -404,8 +411,8 @@ class LocalC7WRunnerTests(unittest.TestCase):
             self.assertEqual([],out["nextCommand"])
             handoff=out["nextClientHandoff"]
             self.assertEqual("chatgpt",handoff["clientId"])
-            self.assertEqual(str(state/"packets"/"chatgpt.json"),handoff["packetPath"])
-            self.assertEqual(str(state/"capture-templates"/"chatgpt.json"),handoff["captureTemplatePath"])
+            self.assertEqual(str(state/"packets"/f"chatgpt.json"),handoff["packetPath"])
+            self.assertEqual(str(state/"capture-templates"/f"chatgpt.json"),handoff["captureTemplatePath"])
             self.assertEqual(expected_capture,handoff["expectedCapturePath"])
             self.assertEqual("MCP_EXTERNAL_CLIENT_CAPTURE_V1",handoff["requiredCaptureAuthority"])
             self.assertEqual(handoff["admitCommand"],out["postExternalExecutionCommand"])
