@@ -11,10 +11,22 @@ else:
 import seal_mcp_external_interop as core
 try:
     import c7w_execution_provenance as execution_provenance
+    import c7w_execution_bindings as source_authority
 except ModuleNotFoundError:
     from scripts import c7w_execution_provenance as execution_provenance
+    from scripts import c7w_execution_bindings as source_authority
 
 AUTHORITY="MCP_EXTERNAL_CLIENT_INTEROP_PROGRESS_V1"
+ROOT=Path(__file__).resolve().parents[1]
+
+
+def require_campaign_source(campaign:dict)->str:
+    certified_sha=str((campaign or {}).get("sourceCommitSHA") or "").strip().lower()
+    if not core.COMMIT.fullmatch(certified_sha):
+        raise RuntimeError("MCP_EXTERNAL_PROGRESS_SOURCE_INVALID")
+    current_sha=source_authority.source_commit_sha(ROOT,require_freeze=True)
+    core.validate_evidence_only_source_lineage(ROOT,certified_sha,current_sha,"MCP_EXTERNAL_PROGRESS_SOURCE")
+    return current_sha
 
 @contextmanager
 def progress_lock(progress_path:Path):
@@ -76,7 +88,9 @@ def matrix_contract(matrix_path:Path,campaign_path:Path):
     surfaces={r.get("id"):r.get("displayName") for r in spec.get("clients") or [] if isinstance(r,dict)}
     if protocol!="2026-07-28" or required!=list(core.REQUIRED_CHECKS) or declared!=list(core.CLIENTS) or surfaces!=core.CLIENT_SURFACES:
         raise RuntimeError("MCP_EXTERNAL_MATRIX_CONTRACT_INVALID")
-    return spec,required,core.verify_campaign(campaign_path,matrix_path,spec)
+    campaign=core.verify_campaign(campaign_path,matrix_path,spec)
+    require_campaign_source(campaign)
+    return spec,required,campaign
 
 def base_progress(matrix_path:Path,campaign_path:Path,campaign:dict,spec:dict)->dict:
     matrix_sha256=str(campaign.get("_matrixSha256") or "")
@@ -214,6 +228,7 @@ def validate_existing_campaign_rows(by_id:dict[str,dict],expected:dict,campaign:
             raise RuntimeError(f"MCP_EXTERNAL_PROGRESS_ENDPOINT_DRIFT {client}")
         if row.get("campaignCreatedAt")!=expected_created or row.get("campaignExpiresAt")!=expected_expires or row.get("executionAuditWindowSeconds")!=audit_window:
             raise RuntimeError(f"MCP_EXTERNAL_PROGRESS_CAMPAIGN_WINDOW_DRIFT {client}")
+    require_campaign_source(campaign)
 
 
 def merge(matrix_path:Path,campaign_path:Path,receipt_path:Path,audit_path:Path,client:str,progress_path:Path|None,allow_campaign_supersede:bool=False)->dict:
@@ -257,6 +272,7 @@ def merge(matrix_path:Path,campaign_path:Path,receipt_path:Path,audit_path:Path,
     rows=[by_id[name] for name in core.CLIENTS if name in by_id]
     expected["clients"]=rows; expected["certifiedClientCount"]=len(rows); expected["complete"]=len(rows)==len(core.CLIENTS)
     expected["externalCertificationPass"]=expected["complete"]; expected["serverAuditWitnessPass"]=expected["complete"]
+    require_campaign_source(campaign)
     return expected
 
 def final_evidence(progress:dict,progress_path:Path)->dict:
