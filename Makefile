@@ -10,7 +10,7 @@ SOURCE_COMMIT ?= unknown
 endif
 PLATFORM_FACTORY_DEVELOPMENT_MODE ?= true
 export PLATFORM_FACTORY_DEVELOPMENT_MODE
-C7W_STATE_SOURCE_COMMIT = $(shell $(PYTHON) -c "import json,pathlib; candidates=[p for p in (pathlib.Path('lab/mcp-external-client-interoperability-evidence.json'),pathlib.Path('lab/mcp-external-client-interop-progress.json')) if p.is_file()]; p=candidates[0] if candidates else None; print(str(json.loads(p.read_text(encoding='utf-8')).get('sourceCommitSHA') or '').strip().lower() if p else '$(GIT_SOURCE_COMMIT)')")
+C7W_STATE_SOURCE_COMMIT = $(shell $(PYTHON) -c "import json,pathlib; candidates=[p for p in (pathlib.Path('lab/mcp-external-client-interoperability-evidence.json'),pathlib.Path('lab/mcp-external-client-interop-progress.json')) if p.is_file()]; p=candidates[0] if candidates else None; s=(str(json.loads(p.read_text(encoding='utf-8')).get('sourceCommitSHA') or '') if p else '$(GIT_SOURCE_COMMIT)').strip().lower(); print(s if len(s)==40 and all(c in '0123456789abcdef' for c in s) else 'current')")
 C7W_SOURCE_PREFIX = $(shell $(PYTHON) -c "s='$(C7W_STATE_SOURCE_COMMIT)'.strip(); print(s[:12] if len(s)==40 and all(c in '0123456789abcdef' for c in s.lower()) else 'current')")
 C7W_STATE_DIR ?= .state/c7w-external-interop-$(C7W_SOURCE_PREFIX)
 C7W_PLATFORM_ADMIN_TOKEN_ENV ?= C7W_PLATFORM_ADMIN_TOKEN
