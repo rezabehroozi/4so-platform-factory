@@ -48,8 +48,9 @@ class C7WAuditFetchDigestBindingTests(unittest.TestCase):
         body=json.dumps([{"placeholder":True}]).encode()
         with (
             mock.patch.object(core,"load",return_value=matrix),
-            mock.patch.object(core,"verify_campaign",return_value={}),
+            mock.patch.object(core,"verify_campaign",return_value={"sourceCommitSHA":"a"*40}),
             mock.patch.object(core,"verify_receipt",return_value=receipt),
+            mock.patch.object(fetcher.execution_bindings,"source_commit_sha",return_value="a"*40),
             mock.patch.object(fetcher,"exact_https_opener",return_value=_Opener(body)),
             mock.patch.object(fetcher.ssl,"create_default_context",return_value=object()),
             mock.patch.object(fetcher,"atomic_write",return_value=witness),
