@@ -1,4 +1,5 @@
 import importlib.util
+import os
 import sys
 import tempfile
 import unittest
@@ -40,6 +41,24 @@ class C7WMatrixPathAuthorityTests(unittest.TestCase):
                 self.skipTest(f"symlink creation unavailable: {exc}")
             with self.assertRaisesRegex(RuntimeError,"MATRIX_PATH_INVALID"):
                 mod.require_canonical_matrix(root,link)
+
+    @unittest.skipUnless(
+        hasattr(os,"O_DIRECTORY") and hasattr(os,"O_NOFOLLOW") and os.open in os.supports_dir_fd,
+        "descriptor-relative no-follow unavailable",
+    )
+    def test_canonical_matrix_read_rejects_symlinked_parent_chain(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)/"repo"; root.mkdir()
+            outside=Path(td)/"outside"; outside.mkdir()
+            matrix=outside/"mcp-external-client-interop-matrix.json"
+            matrix.write_text("{}\n",encoding="utf-8")
+            try:
+                (root/"lab").symlink_to(outside,target_is_directory=True)
+            except OSError as exc:
+                self.skipTest(f"symlink creation unavailable: {exc}")
+            canonical=mod.require_canonical_matrix(root,Path("lab/mcp-external-client-interop-matrix.json"))
+            with self.assertRaisesRegex(RuntimeError,"MATRIX_FILE_INVALID"):
+                mod.core.load(canonical,"MATRIX")
 
 
 if __name__=="__main__":
