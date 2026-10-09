@@ -179,6 +179,7 @@ class C9PreflightHandoffTests(unittest.TestCase):
 
     def test_preflight_binds_ready_environment_to_exact_source_sha(self):
         source_sha = "a" * 40
+        lock = {"authority":sealer.TOOLCHAIN_AUTHORITY,"spec":{"admissionStatus":"admitted"}}
         env = {
             "authority": sealer.ENVIRONMENT_PREFLIGHT_AUTHORITY,
             "ready": True,
@@ -189,6 +190,7 @@ class C9PreflightHandoffTests(unittest.TestCase):
         }
         with tempfile.TemporaryDirectory() as td, \
              mock.patch.object(sealer, "git_source", return_value=source_sha), \
+             mock.patch.object(sealer, "exact_source_toolchain_lock", return_value=(lock,"sha256:"+"e"*64)), \
              mock.patch.object(sealer, "exact_release_environment_preflight", return_value=env):
             result = mod.preflight(Path(td))
         self.assertTrue(result["ready"])
@@ -200,6 +202,7 @@ class C9PreflightHandoffTests(unittest.TestCase):
 
     def test_preflight_uses_resume_source_boundary_when_final_evidence_exists(self):
         source_sha = "b" * 40
+        lock = {"authority":sealer.TOOLCHAIN_AUTHORITY,"spec":{"admissionStatus":"admitted"}}
         env = {
             "authority": sealer.ENVIRONMENT_PREFLIGHT_AUTHORITY,
             "ready": True,
@@ -213,6 +216,7 @@ class C9PreflightHandoffTests(unittest.TestCase):
             with mock.patch.object(sealer,"git_source",side_effect=AssertionError("fresh-source path must not run for existing evidence")), \
                  mock.patch.object(sealer,"git_source_for_resume",return_value=source_sha), \
                  mock.patch.object(sealer,"validate_final_evidence_lineage",return_value=None), \
+                 mock.patch.object(sealer,"exact_source_toolchain_lock",return_value=(lock,"sha256:"+"f"*64)), \
                  mock.patch.object(sealer,"exact_release_environment_preflight",return_value=env):
                 result=mod.preflight(root)
         self.assertTrue(result["ready"])
