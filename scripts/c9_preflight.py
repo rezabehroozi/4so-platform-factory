@@ -149,21 +149,21 @@ def enrich(result: dict) -> dict:
             "nextCommandTemplate": [],
         }
     )
-    if "FINAL_EXACT_RELEASE_LINUX_AMD64_HOST_REQUIRED" in blocker_set:
-        out.update(
-            {
-                "nextActionCode": "RUN_C9_ON_EXACT_LINUX_HOST",
-                "nextCommandTemplate": list(C9_COMMAND_TEMPLATE),
-                "detail": "run the exact committed source on a linux/amd64 host with the admitted offline toolchain and browser authority",
-            }
-        )
-    elif blocker_set & TOOLCHAIN_SOURCE_BLOCKERS or any(code.startswith("FINAL_EXACT_RELEASE_TOOLCHAIN_LOCK_SOURCE_") for code in blockers):
+    if blocker_set & TOOLCHAIN_SOURCE_BLOCKERS or any(code.startswith("FINAL_EXACT_RELEASE_TOOLCHAIN_LOCK_SOURCE_") for code in blockers):
         out.update(
             {
                 "nextActionCode": "INSPECT_C9_SOURCE_AUTHORITY",
                 "nextCommand": ["git", "status", "--short", "--", "lab/release-build-toolchain-lock.json"],
                 "requiredInputs": [],
                 "detail": "the tracked C9 toolchain authority/lock is invalid; inspect source authority rather than replacing environment inputs",
+            }
+        )
+    elif "FINAL_EXACT_RELEASE_LINUX_AMD64_HOST_REQUIRED" in blocker_set:
+        out.update(
+            {
+                "nextActionCode": "RUN_C9_ON_EXACT_LINUX_HOST",
+                "nextCommandTemplate": list(C9_COMMAND_TEMPLATE),
+                "detail": "run the exact committed source on a linux/amd64 host with the admitted offline toolchain and browser authority",
             }
         )
     elif blockers:
