@@ -39,7 +39,7 @@ def _binding_snapshot(campaign:dict)->tuple[dict,str]:
 def packet(matrix_path:Path,campaign_path:Path,client:str)->dict:
     matrix=core.load(matrix_path,"MATRIX"); spec=matrix.get("spec") or {}
     campaign=core.verify_campaign(campaign_path,matrix_path,spec)
-    execution_bindings.source_commit_sha(ROOT,campaign.get("sourceCommitSHA"))
+    execution_bindings.source_commit_sha(ROOT,campaign.get("sourceCommitSHA"),require_freeze=True)
     client=str(client or "").strip().lower()
     if client not in core.CLIENTS: raise RuntimeError("MCP_EXTERNAL_EXECUTION_PACKET_CLIENT_INVALID")
     client_spec=next((x for x in spec.get("clients") or [] if isinstance(x,dict) and x.get("id")==client),None)
