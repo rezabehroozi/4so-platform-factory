@@ -58,6 +58,17 @@ class C7WExecutionBindingSourceAuthorityTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,"MCP_EXTERNAL_LOCAL_BRANCH_NOT_MAIN"):
                 mod.source_commit_sha(root,head,require_freeze=True)
 
+    def test_required_freeze_rechecks_head_after_worktree_validation(self):
+        head="a"*40
+        changed="b"*40
+        with (
+            mock.patch.object(mod,"git_head",side_effect=[head,changed]) as git_head,
+            mock.patch.object(mod,"_require_source_freeze"),
+        ):
+            with self.assertRaisesRegex(RuntimeError,"MCP_EXTERNAL_EXECUTION_BINDINGS_SOURCE_MISMATCH"):
+                mod.source_commit_sha(Path("/repo"),head,require_freeze=True)
+        self.assertEqual(2,git_head.call_count)
+
 
 if __name__=="__main__":
     unittest.main()
