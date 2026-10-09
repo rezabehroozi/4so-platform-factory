@@ -56,6 +56,7 @@ TOOLCHAIN_SOURCE_BLOCKERS = {
     "FINAL_EXACT_RELEASE_TOOLCHAIN_PATH_INVALID",
     "FINAL_EXACT_RELEASE_TOOLCHAIN_LOCK_INVALID",
 }
+EXISTING_EVIDENCE_EXACT_HOST_BLOCKER = "FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_SECURE_READ_REQUIRES_EXACT_HOST"
 
 
 def bind_execution_context(root:Path,result:dict)->dict:
@@ -72,6 +73,8 @@ def bind_execution_context(root:Path,result:dict)->dict:
 
 
 def load_existing_evidence_snapshot(path:Path)->dict:
+    if os.open not in os.supports_dir_fd or os.stat not in os.supports_dir_fd:
+        raise RuntimeError(EXISTING_EVIDENCE_EXACT_HOST_BLOCKER)
     absolute=Path(os.path.abspath(path))
     if absolute.is_symlink():
         raise RuntimeError("FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_INVALID")
@@ -185,7 +188,7 @@ def enrich(result: dict) -> dict:
                 "detail": "the tracked C9 toolchain authority/lock is invalid; inspect source authority rather than replacing environment inputs",
             }
         )
-    elif "FINAL_EXACT_RELEASE_LINUX_AMD64_HOST_REQUIRED" in blocker_set:
+    elif "FINAL_EXACT_RELEASE_LINUX_AMD64_HOST_REQUIRED" in blocker_set or EXISTING_EVIDENCE_EXACT_HOST_BLOCKER in blocker_set:
         out.update(
             {
                 "nextActionCode": "RUN_C9_ON_EXACT_LINUX_HOST",
@@ -258,6 +261,29 @@ def _existing_evidence_failure(code: str, source_sha: str) -> dict:
             "resumeExistingEvidence": True,
             "admissionReady": False,
             "detail": f"{code}; the canonical final evidence exists but is not safe to resume; inspect or restore that exact evidence rather than starting a new C9 run",
+        }
+    )
+    return out
+
+
+def _existing_evidence_host_handoff(code: str, source_sha: str) -> dict:
+    out = enrich(
+        {
+            "authority": sealer.ENVIRONMENT_PREFLIGHT_AUTHORITY,
+            "ready": False,
+            "requiredHost": "linux-amd64-exact-toolchain",
+            "missingHostTools": [],
+            "blockers": [code],
+            "physicalCertified": False,
+        }
+    )
+    out.update(
+        {
+            "sourceCommitSHA": source_sha,
+            "resumeExistingEvidence": True,
+            "admissionReady": False,
+            "requiredInputs": [],
+            "detail": f"{code}; this host cannot bind the existing evidence read to its canonical parent, so re-run C9 preflight on the exact linux/amd64 host before trusting or resuming that evidence",
         }
     )
     return out
@@ -363,6 +389,8 @@ def preflight(root: Path) -> dict:
             admission_source_sha=str(sealed_evidence.get("sourceCommitSHA") or "").strip().lower()
         except RuntimeError as exc:
             code = str(exc).split()[0] if str(exc).strip() else "FINAL_EXACT_RELEASE_EXISTING_EVIDENCE_INVALID"
+            if code == EXISTING_EVIDENCE_EXACT_HOST_BLOCKER:
+                return bind_execution_context(root,_existing_evidence_host_handoff(code, source_sha))
             return bind_execution_context(root,_existing_evidence_failure(code, source_sha))
 
     admission_failure,admitted=_admission_preflight(root,admission_source_sha)
