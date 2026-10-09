@@ -72,6 +72,33 @@ class C7WAdmitSourceFreezeTests(unittest.TestCase):
                 admission.validate_existing_campaign_rows({}, {"endpoint":"https://mcp.example.test/mcp"}, campaign, {})
         lineage.assert_called_once()
 
+    def test_final_evidence_rechecks_source_before_projection(self):
+        progress={
+            "matrixSha256":"sha256:"+"1"*64,
+            "campaignId":"mcp-interop-unit",
+            "campaignSha256":"sha256:"+"2"*64,
+            "oauthClientBindingsSha256":"sha256:"+"3"*64,
+            "sourceCommitSHA":"a"*40,
+            "runtimeVersion":"0.0.unit",
+            "protocol":"2026-07-28",
+            "transport":"streamable-http",
+            "endpoint":"https://mcp.example.test/mcp",
+            "clients":[],
+            "complete":True,
+        }
+        ordered={client:{} for client in admission.core.CLIENTS}
+        with (
+            mock.patch.object(admission.core,"load",return_value=progress),
+            mock.patch.object(admission,"validate_existing",return_value=ordered),
+            mock.patch.object(source_authority,"source_commit_sha",return_value="b"*40),
+            mock.patch.object(admission.core,"validate_evidence_only_source_lineage",side_effect=RuntimeError("MCP_EXTERNAL_PROGRESS_SOURCE_DRIFT")) as lineage,
+            mock.patch.object(admission.core,"build_interop_evidence",return_value={}) as build,
+        ):
+            with self.assertRaisesRegex(RuntimeError,"MCP_EXTERNAL_PROGRESS_SOURCE_DRIFT"):
+                admission.final_evidence(progress,Path("progress.json"))
+        lineage.assert_called_once()
+        build.assert_not_called()
+
 
 if __name__=="__main__":
     unittest.main()
