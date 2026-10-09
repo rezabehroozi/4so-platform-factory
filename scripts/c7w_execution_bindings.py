@@ -108,6 +108,9 @@ def source_commit_sha(root:Path,explicit:str="",*,require_freeze:bool=False)->st
         raise RuntimeError("MCP_EXTERNAL_EXECUTION_BINDINGS_SOURCE_MISMATCH")
     if require_freeze:
         _require_source_freeze(root)
+        current=git_head(root)
+        if current!=observed:
+            raise RuntimeError("MCP_EXTERNAL_EXECUTION_BINDINGS_SOURCE_CHANGED_DURING_FREEZE")
     return observed
 
 
