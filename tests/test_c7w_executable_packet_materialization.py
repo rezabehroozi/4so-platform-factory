@@ -5,6 +5,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/"scripts"))
@@ -85,7 +86,7 @@ class C7WExecutablePacketMaterializationTests(unittest.TestCase):
     def test_packet_has_no_resource_placeholders_and_binds_credential_contract(self):
         matrix=ROOT/"lab/mcp-external-client-interop-matrix.json"
         campaign=self.campaign(matrix)
-        with tempfile.TemporaryDirectory() as td:
+        with tempfile.TemporaryDirectory() as td, mock.patch.object(bindings,"source_commit_sha",return_value=campaign["sourceCommitSHA"]):
             cp=Path(td)/"campaign.json"; cp.write_text(json.dumps(campaign))
             packet=packet_mod.packet(matrix,cp,"chatgpt")
         text=json.dumps(packet,sort_keys=True)
