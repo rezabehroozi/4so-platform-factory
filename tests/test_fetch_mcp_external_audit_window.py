@@ -76,9 +76,9 @@ class C7WAuditFetchEvidenceTests(unittest.TestCase):
         raced_raw=self.raw(altered)
         with tempfile.TemporaryDirectory() as td:
             path=Path(td)/"chatgpt.json"
-            def race_link(_src,dst,follow_symlinks=False):
-                Path(dst).write_bytes(raced_raw)
-                raise FileExistsError(dst)
+            def race_link(*_args,**_kwargs):
+                path.write_bytes(raced_raw)
+                raise FileExistsError(path)
             with mock.patch.object(fetcher.os,"link",side_effect=race_link):
                 with self.assertRaisesRegex(RuntimeError,"OUTPUT_REPLACEMENT_FORBIDDEN"):
                     fetcher.atomic_write(path,raw,receipt,"chatgpt")
