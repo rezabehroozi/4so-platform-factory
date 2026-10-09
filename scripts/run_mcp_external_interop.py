@@ -258,6 +258,13 @@ def require_c7w_source_freeze(root:Path)->None:
         raise RuntimeError("MCP_EXTERNAL_LOCAL_SOURCE_NOT_FROZEN")
 
 
+def require_prepare_source_snapshot(root:Path,expected_sha:str)->None:
+    require_c7w_source_freeze(root)
+    current_sha=campaign_builder.source_commit_sha()
+    if current_sha!=expected_sha:
+        raise RuntimeError("MCP_EXTERNAL_LOCAL_SOURCE_CHANGED_DURING_PREPARE")
+
+
 def require_active_campaign_source(root:Path,campaign:dict)->str:
     root=root.resolve()
     require_c7w_source_freeze(root)
@@ -534,6 +541,7 @@ def prepare(args:argparse.Namespace)->dict:
         runtime_identity=campaign_builder.runtime_identity_readback(args.endpoint,args.token_env,source_sha)
         trusted=campaign_builder.trusted_client_readback(args.endpoint,bindings,args.token_env)
         preflight=campaign_builder.live_preflight(args.endpoint)
+        require_prepare_source_snapshot(root,source_sha)
         campaign=campaign_builder.prepare(args.matrix,args.endpoint,preflight,binding_sha,trusted,runtime_identity)
         core.write_json_once_or_identical(p["campaign"],campaign,"MCP_EXTERNAL_CAMPAIGN")
         resumed=False
@@ -544,6 +552,7 @@ def prepare(args:argparse.Namespace)->dict:
         core.write_json_once_or_identical(packet_path,packet,"MCP_EXTERNAL_EXECUTION_PACKET")
         template_path=p["templates"]/(client+".json")
         core.write_json_once_or_identical(template_path,capture_template(packet),"MCP_EXTERNAL_CAPTURE_TEMPLATE")
+    require_prepare_source_snapshot(root,source_sha)
     if resumed:
         current=progress_status(args.matrix,state,args.progress_out)
         certified=current["certified"]
