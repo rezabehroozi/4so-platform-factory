@@ -305,8 +305,13 @@ func NewPartitionOperation(plan PlacementPlan, operationID, idempotencyKey strin
 	return PartitionOperation{Authority: PartitionLifecycleAuthority, OperationID: operationID, IdempotencyKey: idempotencyKey, FenceToken: fenceToken, Action: action, DeviceID: deviceID, PartitionID: partitionID, ExpectedGeneration: expectedGeneration, PlanDigest: plan.PlanDigest, OrganizationID: plan.OrganizationID, ProjectID: plan.ProjectID, ClusterID: plan.ClusterID}, nil
 }
 
+func validPartitionOperation(op PartitionOperation) bool {
+	if op.Authority != PartitionLifecycleAuthority || strings.TrimSpace(op.OperationID) == "" || strings.TrimSpace(op.IdempotencyKey) == "" || op.FenceToken <= 0 || op.ExpectedGeneration < 0 || strings.TrimSpace(op.DeviceID) == "" || strings.TrimSpace(op.PartitionID) == "" || !isDigest(op.PlanDigest) || strings.TrimSpace(op.OrganizationID) == "" || strings.TrimSpace(op.ProjectID) == "" || strings.TrimSpace(op.ClusterID) == "" { return false }
+	switch op.Action { case PartitionCreate, PartitionAssign, PartitionDrain, PartitionReplace: return true; default: return false }
+}
+
 func ResolvePartitionOutcome(op PartitionOperation, outcome Outcome, readback PartitionReadback) PartitionResult {
-	if op.Authority != PartitionLifecycleAuthority || op.FenceToken <= 0 || !isDigest(op.PlanDigest) { return PartitionResult{State: PartitionStateFailed, Message: "partition operation authority is invalid"} }
+	if !validPartitionOperation(op) { return PartitionResult{State: PartitionStateFailed, Message: "partition operation authority or identity is invalid"} }
 	converged := validReadback(op, readback)
 	switch outcome {
 	case OutcomeUnknown:
