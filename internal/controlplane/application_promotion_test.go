@@ -12,7 +12,7 @@ func TestPromotionPlanRequiresAdjacentPolicyStageAndExactDesiredState(t *testing
 	target := promotionBinding("dst", "prod", "old-release", promotionDigest('b'), 7)
 	plan, err := BuildApplicationPromotionPlan(policy, release, source, target, PromotionDesiredState{ForgejoCommitSHA: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", DesiredStateDigest: promotionDigest('c'), ReconciliationEngine: "argo-cd"})
 	if err != nil { t.Fatal(err) }
-	if plan.Authority != ApplicationPromotionPlanAuthority || plan.PlanDigest == "" || plan.SourceStage != "stage" || plan.TargetStage != "prod" || !plan.RequiresApproval || plan.MinHealthyMinutes != 30 { t.Fatalf("promotion plan drift: %#v", plan) }
+	if plan.Authority != ApplicationPromotionPlanAuthority || plan.PlanDigest == "" || plan.SourceStage != "stage" || plan.TargetStage != "prod" || plan.SourceClusterID != source.ClusterID || plan.SourceNamespace != source.Namespace || !plan.RequiresApproval || plan.MinHealthyMinutes != 30 { t.Fatalf("promotion plan drift: %#v", plan) }
 	skipped := source; skipped.Environment = "dev"
 	if _, err := BuildApplicationPromotionPlan(policy, release, skipped, target, PromotionDesiredState{ForgejoCommitSHA: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", DesiredStateDigest: promotionDigest('c'), ReconciliationEngine: "argo-cd"}); err == nil { t.Fatal("promotion must not skip policy stages") }
 	if _, err := BuildApplicationPromotionPlan(policy, release, source, target, PromotionDesiredState{ForgejoCommitSHA: "not-a-commit", DesiredStateDigest: promotionDigest('c'), ReconciliationEngine: "argo-cd"}); err == nil { t.Fatal("promotion desired state must bind exact Forgejo commit") }
@@ -32,7 +32,9 @@ func TestPromotionVerificationReusesExactDeploymentEvidenceAndHealthWindow(t *te
 	approval := PromotionApprovalEvidence{Granted: true, RequesterID: "user-requester", ApproverID: "user-approver", EvidenceDigest: promotionDigest('e')}
 	verification, err := VerifyApplicationPromotion(plan, evidence, health, approval)
 	if err != nil { t.Fatal(err) }
-	if verification.Authority != PromotionVerificationAuthority || !verification.Verified || verification.VerificationDigest == "" { t.Fatalf("promotion verification drift: %#v", verification) }
+	if verification.Authority != PromotionVerificationAuthority || !verification.Verified || verification.RequesterID != approval.RequesterID || verification.ApproverID != approval.ApproverID || verification.VerificationDigest == "" { t.Fatalf("promotion verification drift: %#v", verification) }
+	wrongScope := evidence; wrongScope.ClusterID = "cluster-other"
+	if _, err := VerifyApplicationPromotion(plan, wrongScope, health, approval); err == nil { t.Fatal("deployment evidence from another cluster must not verify promotion") }
 	staleHealth := health; staleHealth.WindowStartedAt = now.Add(-5*time.Minute)
 	if _, err := VerifyApplicationPromotion(plan, evidence, staleHealth, approval); err == nil { t.Fatal("insufficient health window must block promotion") }
 	preDeployHealth := health; preDeployHealth.WindowStartedAt = deployedAt.Add(-time.Minute)
@@ -45,7 +47,12 @@ func TestPromotionVerificationReusesExactDeploymentEvidenceAndHealthWindow(t *te
 
 func TestPromotionUnknownOutcomeRequiresExactTargetReadbackWithoutReplay(t *testing.T) {
 	plan := ApplicationPromotionPlan{Authority: ApplicationPromotionPlanAuthority, ProjectID: "project-a", TargetBindingID: "dst", TargetBindingRevision: 7, DesiredReleaseID: "rel-new", DesiredReleaseDigest: promotionDigest('a'), PlanDigest: promotionDigest('b')}
-	verification := PromotionVerification{Authority: PromotionVerificationAuthority, PlanDigest: plan.PlanDigest, Verified: true, VerificationDigest: promotionDigest('c')}
+	verification := PromotionVerification{Authority: PromotionVerificationAuthority, PlanDigest: plan.PlanDigest, Verified: true, RequesterID: "user-requester", ApproverID: "user-approver", VerificationDigest: promotionDigest('c')}
+	if _, err := NewApplicationPromotionOperation(plan, verification, "op-1", "idem-1", 11, "different-requester"); err == nil { t.Fatal("verified promotion packet must not be reusable by another requester") }
+	// The minimal packet above has synthetic digests. Build exact self-consistent plan/verification for operation tests.
+	plan.PlanDigest = digestPromotionPlan(plan)
+	verification.PlanDigest = plan.PlanDigest
+	verification.VerificationDigest = digestPromotionVerification(verification)
 	op, err := NewApplicationPromotionOperation(plan, verification, "op-1", "idem-1", 11, "user-requester")
 	if err != nil { t.Fatal(err) }
 	unknown := ResolveApplicationPromotionOutcome(op, PromotionOutcomeUnknown, PromotionReadback{})
