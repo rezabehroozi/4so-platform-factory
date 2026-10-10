@@ -1,12 +1,14 @@
 package targetmodel
 
+import "encoding/json"
+
 const (
-	CompetitiveProofAuthority              = "COMPETITIVE_PROOF_PHASE_MODEL_V1"
-	CompetitiveTierExpansion               = "competitive-expansion"
-	CompetitiveTierCertification           = "competitive-certification"
-	CompetitiveStatusSourceOpen            = "source-open"
-	CompetitiveStatusSourceImplemented     = "source-implemented"
-	CompetitiveStatusCertificationPending  = "certification-pending"
+	CompetitiveProofAuthority             = "COMPETITIVE_PROOF_PHASE_MODEL_V1"
+	CompetitiveTierExpansion              = "competitive-expansion"
+	CompetitiveTierCertification          = "competitive-certification"
+	CompetitiveStatusSourceOpen           = "source-open"
+	CompetitiveStatusSourceImplemented    = "source-implemented"
+	CompetitiveStatusCertificationPending = "certification-pending"
 )
 
 type CompetitiveProofPhase struct {
@@ -275,4 +277,25 @@ func CompetitiveProofProgramModel() CompetitiveProofProgram {
 		}
 	}
 	return program
+}
+
+// CompetitiveProofProgram returns the expansion authority associated with the
+// target architecture model without changing the existing Core roadmap counts
+// or release-blocker semantics.
+func (m Model) CompetitiveProofProgram() CompetitiveProofProgram {
+	return CompetitiveProofProgramModel()
+}
+
+// MarshalJSON adds competitiveProof to the public target architecture model as
+// a derived program authority. An alias avoids recursive MarshalJSON calls and
+// preserves the existing JSON field set unchanged apart from this additive key.
+func (m Model) MarshalJSON() ([]byte, error) {
+	type modelAlias Model
+	return json.Marshal(struct {
+		modelAlias
+		CompetitiveProof CompetitiveProofProgram `json:"competitiveProof"`
+	}{
+		modelAlias:       modelAlias(m),
+		CompetitiveProof: m.CompetitiveProofProgram(),
+	})
 }
