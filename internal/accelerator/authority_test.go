@@ -71,11 +71,11 @@ func TestPartitionLifecycleUsesFenceAndAuthoritativeReadbackForUnknownOutcome(t 
 	if unknown.State != PartitionStateRecoveryRequired || !unknown.RecoveryRequired || unknown.RetryAllowed {
 		t.Fatalf("unknown outcome must require readback without replay: %#v", unknown)
 	}
-	resolved := ResolvePartitionOutcome(op, OutcomeUnknown, PartitionReadback{Observed: true, DeviceID: "gpu-a", PartitionID: "partition-1", Generation: 4, State: PartitionStateReady, EvidenceDigest: digest64('b')})
+	resolved := ResolvePartitionOutcome(op, OutcomeUnknown, PartitionReadback{Observed: true, OperationID: op.OperationID, FenceToken: op.FenceToken, PlanDigest: op.PlanDigest, DeviceID: "gpu-a", PartitionID: "partition-1", Generation: 4, State: PartitionStateReady, EvidenceDigest: digest64('b')})
 	if resolved.State != PartitionStateReady || resolved.RecoveryRequired || resolved.RetryAllowed || resolved.EvidenceDigest == "" {
 		t.Fatalf("authoritative readback must resolve matching ambiguous mutation: %#v", resolved)
 	}
-	stale := ResolvePartitionOutcome(op, OutcomeUnknown, PartitionReadback{Observed: true, DeviceID: "gpu-a", PartitionID: "partition-1", Generation: 3, State: PartitionStateReady, EvidenceDigest: digest64('c')})
+	stale := ResolvePartitionOutcome(op, OutcomeUnknown, PartitionReadback{Observed: true, OperationID: op.OperationID, FenceToken: op.FenceToken, PlanDigest: op.PlanDigest, DeviceID: "gpu-a", PartitionID: "partition-1", Generation: 3, State: PartitionStateReady, EvidenceDigest: digest64('c')})
 	if stale.State != PartitionStateRecoveryRequired {
 		t.Fatalf("stale generation must not resolve ambiguous mutation: %#v", stale)
 	}
