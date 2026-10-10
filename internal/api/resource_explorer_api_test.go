@@ -58,7 +58,7 @@ func TestClusterWorkloadExplorerAddsBoundedUnknownSafeResourcePageWithoutBreakin
 		return w
 	}
 
-	first := request("kind=Deployment&namespace=apps&limit=1")
+	first := request("apiVersion=apps%2Fv1&kind=Deployment&namespace=apps&limit=1")
 	if first.Code != http.StatusOK {
 		t.Fatalf("first page status=%d body=%s", first.Code, first.Body.String())
 	}
@@ -97,11 +97,11 @@ func TestClusterWorkloadExplorerAddsBoundedUnknownSafeResourcePageWithoutBreakin
 		}
 	}
 	item := payload.ResourcePage.Items[0]
-	if item.Key.Kind != "Deployment" || item.Key.Namespace != "apps" || item.State != resourceexplorer.TruthUnknown || item.Key.APIVersion != "" || item.Key.UID != "" || item.SourceDigest != stored.Digest {
+	if item.Key.Kind != "Deployment" || item.Key.Namespace != "apps" || item.State != resourceexplorer.TruthUnknown || item.Key.APIVersion != "apps/v1" || item.Key.UID != "" || item.SourceDigest != stored.Digest {
 		t.Fatalf("unknown-safe inventory adaptation drift: %#v", item)
 	}
 
-	secondQuery := url.Values{"kind": {"Deployment"}, "namespace": {"apps"}, "limit": {"1"}, "cursor": {payload.ResourcePage.NextCursor}}
+	secondQuery := url.Values{"apiVersion": {"apps/v1"}, "kind": {"Deployment"}, "namespace": {"apps"}, "limit": {"1"}, "cursor": {payload.ResourcePage.NextCursor}}
 	second := request(secondQuery.Encode())
 	if second.Code != http.StatusOK {
 		t.Fatalf("second page status=%d body=%s", second.Code, second.Body.String())
@@ -112,11 +112,11 @@ func TestClusterWorkloadExplorerAddsBoundedUnknownSafeResourcePageWithoutBreakin
 	if err = json.Unmarshal(second.Body.Bytes(), &next); err != nil {
 		t.Fatal(err)
 	}
-	if len(next.ResourcePage.Items) != 1 || next.ResourcePage.HasMore || next.ResourcePage.Items[0].Key.Name == item.Key.Name {
+	if len(next.ResourcePage.Items) != 1 || next.ResourcePage.HasMore || next.ResourcePage.Items[0].Key.Name == item.Key.Name || next.ResourcePage.Items[0].Key.APIVersion != "apps/v1" {
 		t.Fatalf("cursor continuation drift: %#v", next.ResourcePage)
 	}
 
-	tamperedQuery := url.Values{"kind": {"Service"}, "namespace": {"apps"}, "limit": {"1"}, "cursor": {payload.ResourcePage.NextCursor}}
+	tamperedQuery := url.Values{"apiVersion": {"v1"}, "kind": {"Service"}, "namespace": {"apps"}, "limit": {"1"}, "cursor": {payload.ResourcePage.NextCursor}}
 	tampered := request(tamperedQuery.Encode())
 	if tampered.Code != http.StatusBadRequest {
 		t.Fatalf("cursor reused across filters must fail closed: status=%d body=%s", tampered.Code, tampered.Body.String())
