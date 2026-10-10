@@ -32,7 +32,7 @@ func TestPromotionVerificationReusesExactDeploymentEvidenceAndHealthWindow(t *te
 	approval := PromotionApprovalEvidence{Granted: true, RequesterID: "user-requester", ApproverID: "user-approver", EvidenceDigest: promotionDigest('e')}
 	verification, err := VerifyApplicationPromotion(plan, evidence, health, approval)
 	if err != nil { t.Fatal(err) }
-	if verification.Authority != PromotionVerificationAuthority || !verification.Verified || verification.RequesterID != approval.RequesterID || verification.ApproverID != approval.ApproverID || verification.VerificationDigest == "" { t.Fatalf("promotion verification drift: %#v", verification) }
+	if verification.Authority != PromotionVerificationAuthority || !verification.Verified || verification.RequesterID != approval.RequesterID || verification.ApproverID != approval.ApproverID || !verification.ValidUntil.After(now) || verification.VerificationDigest == "" { t.Fatalf("promotion verification drift: %#v", verification) }
 	wrongScope := evidence; wrongScope.ClusterID = "cluster-other"
 	if _, err := VerifyApplicationPromotion(plan, wrongScope, health, approval); err == nil { t.Fatal("deployment evidence from another cluster must not verify promotion") }
 	staleHealth := health; staleHealth.WindowStartedAt = now.Add(-5*time.Minute)
@@ -45,20 +45,29 @@ func TestPromotionVerificationReusesExactDeploymentEvidenceAndHealthWindow(t *te
 	if _, err := VerifyApplicationPromotion(plan, evidence, health, approval); err == nil { t.Fatal("non-converged source deployment must block promotion") }
 }
 
-func TestPromotionUnknownOutcomeRequiresExactTargetReadbackWithoutReplay(t *testing.T) {
-	plan := ApplicationPromotionPlan{Authority: ApplicationPromotionPlanAuthority, ProjectID: "project-a", TargetBindingID: "dst", TargetBindingRevision: 7, DesiredReleaseID: "rel-new", DesiredReleaseDigest: promotionDigest('a')}
+func TestPromotionUnknownOutcomeRequiresExactTargetAndGitOpsReadbackWithoutReplay(t *testing.T) {
+	now := time.Date(2026, 10, 10, 10, 0, 0, 0, time.UTC)
+	plan := ApplicationPromotionPlan{Authority: ApplicationPromotionPlanAuthority, ProjectID: "project-a", TargetBindingID: "dst", TargetBindingRevision: 7, DesiredReleaseID: "rel-new", DesiredReleaseDigest: promotionDigest('a'), ForgejoCommitSHA: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", DesiredStateDigest: promotionDigest('b'), ReconciliationEngine: "argo-cd"}
 	plan.PlanDigest = digestPromotionPlan(plan)
-	verification := PromotionVerification{Authority: PromotionVerificationAuthority, PlanDigest: plan.PlanDigest, Verified: true, RequesterID: "user-requester", ApproverID: "user-approver"}
+	verification := PromotionVerification{Authority: PromotionVerificationAuthority, PlanDigest: plan.PlanDigest, Verified: true, RequesterID: "user-requester", ApproverID: "user-approver", VerifiedAt: now, ValidUntil: now.Add(PromotionVerificationTTL)}
 	verification.VerificationDigest = digestPromotionVerification(verification)
-	if _, err := NewApplicationPromotionOperation(plan, verification, "op-1", "idem-1", 11, "different-requester"); err == nil { t.Fatal("verified promotion packet must not be reusable by another requester") }
-	op, err := NewApplicationPromotionOperation(plan, verification, "op-1", "idem-1", 11, "user-requester")
+	if _, err := NewApplicationPromotionOperation(plan, verification, "op-1", "idem-1", 11, "different-requester", now); err == nil { t.Fatal("verified promotion packet must not be reusable by another requester") }
+	if _, err := NewApplicationPromotionOperation(plan, verification, "op-1", "idem-1", 11, "user-requester", verification.ValidUntil.Add(time.Second)); err == nil { t.Fatal("expired promotion verification must be rejected") }
+	op, err := NewApplicationPromotionOperation(plan, verification, "op-1", "idem-1", 11, "user-requester", now)
 	if err != nil { t.Fatal(err) }
 	unknown := ResolveApplicationPromotionOutcome(op, PromotionOutcomeUnknown, PromotionReadback{})
 	if unknown.State != PromotionRecoveryRequired || !unknown.RecoveryRequired || unknown.RetryAllowed { t.Fatalf("unknown promotion outcome must require recovery: %#v", unknown) }
-	resolved := ResolveApplicationPromotionOutcome(op, PromotionOutcomeUnknown, PromotionReadback{Observed: true, EnvironmentBindingID: "dst", Revision: 8, ReleaseID: "rel-new", ReleaseDigest: promotionDigest('a'), BindingDigest: promotionDigest('d'), EvidenceDigest: promotionDigest('e')})
+	withoutGitOps := PromotionReadback{Observed: true, EnvironmentBindingID: "dst", Revision: 8, ReleaseID: "rel-new", ReleaseDigest: promotionDigest('a'), BindingDigest: promotionDigest('d'), EvidenceDigest: promotionDigest('e')}
+	if got := ResolveApplicationPromotionOutcome(op, PromotionOutcomeUnknown, withoutGitOps); got.State != PromotionRecoveryRequired { t.Fatalf("binding readback without exact GitOps reconciliation must stay recovery-required: %#v", got) }
+	resolvedReadback := withoutGitOps
+	resolvedReadback.ReconciliationObserved = true
+	resolvedReadback.ForgejoCommitSHA = plan.ForgejoCommitSHA
+	resolvedReadback.DesiredStateDigest = plan.DesiredStateDigest
+	resolvedReadback.ReconciliationEngine = plan.ReconciliationEngine
+	resolved := ResolveApplicationPromotionOutcome(op, PromotionOutcomeUnknown, resolvedReadback)
 	if resolved.State != PromotionSucceeded || resolved.RecoveryRequired || resolved.EvidenceDigest == "" { t.Fatalf("exact promotion readback must resolve ambiguity: %#v", resolved) }
-	stale := ResolveApplicationPromotionOutcome(op, PromotionOutcomeUnknown, PromotionReadback{Observed: true, EnvironmentBindingID: "dst", Revision: 7, ReleaseID: "rel-new", ReleaseDigest: promotionDigest('a'), BindingDigest: promotionDigest('d'), EvidenceDigest: promotionDigest('e')})
-	if stale.State != PromotionRecoveryRequired { t.Fatalf("stale target readback must not resolve promotion: %#v", stale) }
+	stale := resolvedReadback; stale.Revision = 7
+	if got := ResolveApplicationPromotionOutcome(op, PromotionOutcomeUnknown, stale); got.State != PromotionRecoveryRequired { t.Fatalf("stale target readback must not resolve promotion: %#v", got) }
 }
 
 func promotionRelease() ApplicationRelease {
