@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS application_managed_resource_bindings (
   project_id text NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   instance_id text NOT NULL REFERENCES application_managed_resource_instances(id) ON DELETE RESTRICT,
   instance_revision bigint NOT NULL CHECK (instance_revision > 0),
-  environment_binding_id text NOT NULL REFERENCES application_environment_bindings(id) ON DELETE CASCADE,
+  environment_binding_id text NOT NULL REFERENCES application_environment_bindings(id) ON DELETE RESTRICT,
   environment_digest text NOT NULL CHECK (environment_digest ~ '^sha256:[0-9a-f]{64}$'),
   output_names jsonb NOT NULL CHECK (jsonb_typeof(output_names)='array'),
   outputs_digest text NOT NULL CHECK (outputs_digest ~ '^sha256:[0-9a-f]{64}$'),
