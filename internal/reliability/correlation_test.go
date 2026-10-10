@@ -1,0 +1,55 @@
+package reliability
+
+import (
+	"testing"
+	"time"
+)
+
+func TestCorrelateSignalsRequiresExactScopeEvidenceAndIndependentKinds(t *testing.T) {
+	now := time.Date(2026, 10, 10, 10, 0, 0, 0, time.UTC)
+	signals := []SignalObservation{
+		{Kind: SignalMetric, OrganizationID: "org-a", ProjectID: "project-a", ClusterID: "cluster-a", Service: "orders", Source: "prometheus", Fingerprint: corrDigest('a'), EvidenceDigest: corrDigest('b'), Complete: true, Severity: 4, ObservedAt: now.Add(-2*time.Minute)},
+		{Kind: SignalTrace, OrganizationID: "org-a", ProjectID: "project-a", ClusterID: "cluster-a", Service: "orders", Source: "otel", Fingerprint: corrDigest('c'), EvidenceDigest: corrDigest('d'), Complete: true, Severity: 4, ObservedAt: now.Add(-time.Minute)},
+		{Kind: SignalChange, OrganizationID: "org-a", ProjectID: "project-a", ClusterID: "cluster-a", Service: "orders", Source: "deployment-audit", Fingerprint: corrDigest('e'), EvidenceDigest: corrDigest('f'), Complete: true, Severity: 3, ObservedAt: now},
+	}
+	correlation, err := CorrelateSignals(signals, now, 10*time.Minute)
+	if err != nil { t.Fatal(err) }
+	if correlation.Authority != SignalCorrelationAuthority || correlation.Digest == "" || len(correlation.SignalKinds) != 3 || correlation.Confidence != CorrelationHigh || !correlation.RemediationEligible {
+		t.Fatalf("unexpected correlation: %#v", correlation)
+	}
+	crossProject := append([]SignalObservation(nil), signals...)
+	crossProject[1].ProjectID = "project-b"
+	if _, err := CorrelateSignals(crossProject, now, 10*time.Minute); err == nil { t.Fatal("cross-project signals must never correlate") }
+	sameKind := []SignalObservation{signals[0], signals[0]}
+	sameKind[1].Fingerprint = corrDigest('9')
+	if _, err := CorrelateSignals(sameKind, now, 10*time.Minute); err == nil { t.Fatal("same signal kind alone must not create remediation correlation") }
+}
+
+func TestIncompleteOrStaleSignalsNeverAuthorizeRemediation(t *testing.T) {
+	now := time.Date(2026, 10, 10, 10, 0, 0, 0, time.UTC)
+	signals := []SignalObservation{
+		{Kind: SignalMetric, OrganizationID: "org-a", ProjectID: "project-a", ClusterID: "cluster-a", Service: "orders", Source: "prometheus", Fingerprint: corrDigest('a'), EvidenceDigest: corrDigest('b'), Complete: false, Severity: 5, ObservedAt: now},
+		{Kind: SignalLog, OrganizationID: "org-a", ProjectID: "project-a", ClusterID: "cluster-a", Service: "orders", Source: "logs", Fingerprint: corrDigest('c'), EvidenceDigest: corrDigest('d'), Complete: true, Severity: 5, ObservedAt: now.Add(-30*time.Minute)},
+	}
+	if _, err := CorrelateSignals(signals, now, 10*time.Minute); err == nil { t.Fatal("incomplete/stale correlation must fail closed") }
+}
+
+func TestBuildRepairProposalBindsIncidentRevisionAndForbidsRawCommand(t *testing.T) {
+	now := time.Date(2026, 10, 10, 10, 0, 0, 0, time.UTC)
+	correlation, err := CorrelateSignals([]SignalObservation{
+		{Kind: SignalMetric, OrganizationID: "org-a", ProjectID: "project-a", ClusterID: "cluster-a", Service: "orders", Source: "prometheus", Fingerprint: corrDigest('a'), EvidenceDigest: corrDigest('b'), Complete: true, Severity: 4, ObservedAt: now},
+		{Kind: SignalNetwork, OrganizationID: "org-a", ProjectID: "project-a", ClusterID: "cluster-a", Service: "orders", Source: "network-observer", Fingerprint: corrDigest('c'), EvidenceDigest: corrDigest('d'), Complete: true, Severity: 4, ObservedAt: now},
+	}, now, 10*time.Minute)
+	if err != nil { t.Fatal(err) }
+	incident := Incident{ID: "inc-1", ProjectID: "project-a", ClusterID: "cluster-a", Revision: 7, State: IncidentOpen, Severity: SeverityCritical, Title: "orders unavailable"}
+	proposal, err := BuildRepairProposal(correlation, incident, RepairActionNodeRemediation, []string{"node-a"})
+	if err != nil { t.Fatal(err) }
+	if proposal.Authority != RepairProposalAuthority || proposal.IncidentRevision != 7 || proposal.ExecutionAuthority != "GENERALIZED_DAY2_CAMPAIGN_ENGINE_V1" || !proposal.IndependentApprovalRequired || proposal.Digest == "" {
+		t.Fatalf("repair proposal authority drift: %#v", proposal)
+	}
+	if _, err := BuildRepairProposal(correlation, incident, RepairAction("kubectl-delete"), []string{"node-a"}); err == nil { t.Fatal("arbitrary repair command/action must be rejected") }
+	incident.State = IncidentResolved
+	if _, err := BuildRepairProposal(correlation, incident, RepairActionNodeRemediation, []string{"node-a"}); err == nil { t.Fatal("resolved incident must not admit remediation") }
+}
+
+func corrDigest(ch byte) string { b:=make([]byte,64); for i:=range b { b[i]=ch }; return "sha256:"+string(b) }
