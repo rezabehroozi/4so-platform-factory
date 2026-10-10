@@ -157,7 +157,6 @@ type PlacementPlan struct {
 
 func PlanPlacement(inv Inventory, class GPUClass, quota Quota, usage Usage, request PlacementRequest, now time.Time) (PlacementPlan, error) {
 	inv, err := validateInventory(inv); if err != nil { return PlacementPlan{}, err }
-	if err = validatePlacementObservationEpoch(inv, now); err != nil { return PlacementPlan{}, err }
 	class, err = normalizeClass(class); if err != nil { return PlacementPlan{}, err }
 	quota, err = normalizeQuota(quota, class.ID); if err != nil { return PlacementPlan{}, err }
 	request.OrganizationID = strings.TrimSpace(request.OrganizationID)
@@ -168,6 +167,7 @@ func PlanPlacement(inv Inventory, class GPUClass, quota Quota, usage Usage, requ
 		return PlacementPlan{}, errors.New("accelerator placement request is outside quota/class scope")
 	}
 	if request.ClusterID == "" || request.Devices <= 0 || request.MemoryMiB <= 0 { return PlacementPlan{}, errors.New("clusterId, devices and memoryMiB are required") }
+	if err = validatePlacementObservationEpoch(inv, request.ClusterID, now); err != nil { return PlacementPlan{}, err }
 	if usage.Devices < 0 || usage.MemoryMiB < 0 { return PlacementPlan{}, errors.New("accelerator usage cannot be negative") }
 	allocated, err := exactAllocatedSet(inv, usage); if err != nil { return PlacementPlan{}, err }
 	if usage.Devices+request.Devices > quota.MaxDevices || usage.MemoryMiB+request.MemoryMiB > quota.MaxMemoryMiB { return PlacementPlan{}, errors.New("accelerator quota would be exceeded") }
@@ -201,10 +201,11 @@ func validateInventory(inv Inventory) (Inventory, error) {
 	return canonical, nil
 }
 
-func validatePlacementObservationEpoch(inv Inventory, now time.Time) error {
+func validatePlacementObservationEpoch(inv Inventory, clusterID string, now time.Time) error {
 	if now.IsZero() { return errors.New("accelerator placement requires a current observation epoch") }
 	now = now.UTC()
 	for _, device := range inv.Devices {
+		if device.ClusterID != clusterID { continue }
 		observedAt := device.ObservedAt.UTC()
 		if observedAt.After(now) { return fmt.Errorf("accelerator observation %q is from the future", device.DeviceID) }
 		if now.Sub(observedAt) > MaxPlacementObservationAge { return fmt.Errorf("accelerator observation %q is stale for placement", device.DeviceID) }
@@ -393,4 +394,4 @@ func containsAll(have, required []string) bool { set := map[string]bool{}; for _
 func containsMode(values []PartitionMode, want PartitionMode) bool { for _, value := range values { if value == want { return true } }; return false }
 func containsString(values []string, want string) bool { for _, value := range values { if value == want { return true } }; return false }
 func sortedKeys(values map[string]bool) []string { out := make([]string, 0, len(values)); for value := range values { out = append(out, value) }; sort.Strings(out); return out }
-func isDigest(value string) bool { value = strings.ToLower(strings.TrimSpace(value)); if len(value) != len("sha256:")+64 || !strings.HasPrefix(value, "sha256:") { return false }; for _, r := range value[len("sha256:"):] { if !strings.ContainsRune("0123456789abcdef", r) { return false } }; return true }
+func isDigest(value string) bool { value = strings.ToLower(strings.TrimSpace(value)); if len(value) != len("sha256:")+64 || !strings.HasPrefix(value, "sha256:") { return false }; for _, r := range value[len("sha256:"):] { if !strings.ContainsRune("0123456789abcdef", r) { return false }; return true }
