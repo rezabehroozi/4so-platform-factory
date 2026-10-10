@@ -39,9 +39,9 @@ func TestManagedResourceOperationUnknownOutcomeRequiresReadbackRecovery(t *testi
 	op, err := NewManagedResourceOperation(plan, "mri_1", 4, "op-1", "idem-1", 9, ManagedResourceProvision); if err != nil { t.Fatal(err) }
 	unknown := ResolveManagedResourceOutcome(op, ManagedResourceOutcomeUnknown, ManagedResourceReadback{})
 	if unknown.State != ManagedResourceRecoveryRequired || !unknown.RecoveryRequired || unknown.RetryAllowed { t.Fatalf("unknown external outcome must require recovery without replay: %#v", unknown) }
-	resolved := ResolveManagedResourceOutcome(op, ManagedResourceOutcomeUnknown, ManagedResourceReadback{Observed: true, InstanceID: "mri_1", Revision: 5, State: ManagedResourceReady, ObservedDigest: testMRDigest('d'), EvidenceDigest: testMRDigest('e')})
+	resolved := ResolveManagedResourceOutcome(op, ManagedResourceOutcomeUnknown, ManagedResourceReadback{Observed: true, OperationID: op.OperationID, FenceToken: op.FenceToken, PlanDigest: op.PlanDigest, InstanceID: "mri_1", Revision: 5, State: ManagedResourceReady, ObservedDigest: testMRDigest('d'), EvidenceDigest: testMRDigest('e')})
 	if resolved.State != ManagedResourceReady || resolved.RecoveryRequired || resolved.EvidenceDigest == "" { t.Fatalf("matching authoritative readback must resolve unknown provision: %#v", resolved) }
-	stale := ResolveManagedResourceOutcome(op, ManagedResourceOutcomeUnknown, ManagedResourceReadback{Observed: true, InstanceID: "mri_1", Revision: 4, State: ManagedResourceReady, ObservedDigest: testMRDigest('d'), EvidenceDigest: testMRDigest('e')})
+	stale := ResolveManagedResourceOutcome(op, ManagedResourceOutcomeUnknown, ManagedResourceReadback{Observed: true, OperationID: op.OperationID, FenceToken: op.FenceToken, PlanDigest: op.PlanDigest, InstanceID: "mri_1", Revision: 4, State: ManagedResourceReady, ObservedDigest: testMRDigest('d'), EvidenceDigest: testMRDigest('e')})
 	if stale.State != ManagedResourceRecoveryRequired { t.Fatalf("stale readback must not resolve ambiguous outcome: %#v", stale) }
 }
 

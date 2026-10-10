@@ -189,7 +189,7 @@ type ManagedResourceOutcome string
 const ( ManagedResourceOutcomeApplied ManagedResourceOutcome = "APPLIED"; ManagedResourceOutcomePending ManagedResourceOutcome = "PENDING"; ManagedResourceOutcomeUnknown ManagedResourceOutcome = "UNKNOWN"; ManagedResourceOutcomeFailed ManagedResourceOutcome = "FAILED" )
 
 type ManagedResourceOperation struct { Authority string `json:"authority"`; OperationID string `json:"operationId"`; InstanceID string `json:"instanceId"`; ExpectedRevision int64 `json:"expectedRevision"`; IdempotencyKey string `json:"idempotencyKey"`; FenceToken int64 `json:"fenceToken"`; Action ManagedResourceAction `json:"action"`; ProjectID string `json:"projectId"`; PlanDigest string `json:"planDigest"`; DeletePolicy string `json:"deletePolicy,omitempty"` }
-type ManagedResourceReadback struct { Observed bool `json:"observed"`; InstanceID string `json:"instanceId"`; Revision int64 `json:"revision"`; State ManagedResourceState `json:"state"`; ObservedDigest string `json:"observedDigest"`; EvidenceDigest string `json:"evidenceDigest"` }
+type ManagedResourceReadback struct { Observed bool `json:"observed"`; OperationID string `json:"operationId"`; FenceToken int64 `json:"fenceToken"`; PlanDigest string `json:"planDigest"`; InstanceID string `json:"instanceId"`; Revision int64 `json:"revision"`; State ManagedResourceState `json:"state"`; ObservedDigest string `json:"observedDigest"`; EvidenceDigest string `json:"evidenceDigest"` }
 type ManagedResourceOperationResult struct { State ManagedResourceState `json:"state"`; RecoveryRequired bool `json:"recoveryRequired"`; RetryAllowed bool `json:"retryAllowed"`; ObservedDigest string `json:"observedDigest,omitempty"`; EvidenceDigest string `json:"evidenceDigest,omitempty"`; Message string `json:"message,omitempty"` }
 
 func NewManagedResourceOperation(plan ManagedResourcePlan, instanceID string, expectedRevision int64, operationID, idempotencyKey string, fenceToken int64, action ManagedResourceAction) (ManagedResourceOperation, error) {
@@ -218,7 +218,7 @@ func ResolveManagedResourceOutcome(op ManagedResourceOperation, outcome ManagedR
 }
 
 func managedResourceReadbackConverged(op ManagedResourceOperation, readback ManagedResourceReadback) bool {
-	if !readback.Observed || strings.TrimSpace(readback.InstanceID) != op.InstanceID || readback.Revision <= op.ExpectedRevision || !applicationPlatformDigestPattern.MatchString(strings.TrimSpace(readback.ObservedDigest)) || !applicationPlatformDigestPattern.MatchString(strings.TrimSpace(readback.EvidenceDigest)) { return false }
+	if !readback.Observed || strings.TrimSpace(readback.OperationID) != op.OperationID || readback.FenceToken != op.FenceToken || strings.TrimSpace(readback.PlanDigest) != op.PlanDigest || strings.TrimSpace(readback.InstanceID) != op.InstanceID || readback.Revision <= op.ExpectedRevision || !applicationPlatformDigestPattern.MatchString(strings.TrimSpace(readback.ObservedDigest)) || !applicationPlatformDigestPattern.MatchString(strings.TrimSpace(readback.EvidenceDigest)) { return false }
 	if op.Action == ManagedResourceProvision { return readback.State == ManagedResourceReady }
 	if op.Action == ManagedResourceDelete { if op.DeletePolicy == "retain" { return readback.State == ManagedResourceRetained }; return readback.State == ManagedResourceDeleted }
 	return false
