@@ -1,6 +1,8 @@
 package api
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
@@ -12,6 +14,14 @@ import (
 
 const workloadResourcePageDefaultLimit = 100
 const workloadResourcePageMaxLimit = 200
+const workloadResourceCursorVersion = 1
+const workloadResourceCursorMaxBytes = 4096
+
+type workloadResourceCursorEnvelope struct {
+	Version         int    `json:"v"`
+	InventoryDigest string `json:"inventoryDigest"`
+	Cursor          string `json:"cursor"`
+}
 
 func (s *Server) clusterWorkloadExplorer(w http.ResponseWriter, r *http.Request) {
 	cluster, err := s.store.GetManagedCluster(r.Context(), r.PathValue("id"))
@@ -41,10 +51,22 @@ func (s *Server) clusterWorkloadExplorer(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusBadRequest, "RESOURCE_EXPLORER_QUERY_INVALID", err.Error())
 		return
 	}
+	query.Cursor, err = decodeWorkloadResourceCursor(query.Cursor, inventory.Digest)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "RESOURCE_EXPLORER_QUERY_INVALID", err.Error())
+		return
+	}
 	resourcePage, err := resourceexplorer.BuildPage(workloadResourceObservations(project.OrganizationID, cluster.ProjectID, cluster.ID, inventory, fresh), query, now, 5*time.Minute)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "RESOURCE_EXPLORER_QUERY_INVALID", err.Error())
 		return
+	}
+	if resourcePage.NextCursor != "" {
+		resourcePage.NextCursor, err = encodeWorkloadResourceCursor(inventory.Digest, resourcePage.NextCursor)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "RESOURCE_EXPLORER_CURSOR_ENCODING_FAILED", err.Error())
+			return
+		}
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -101,6 +123,49 @@ func workloadResourceQuery(r *http.Request, organizationID, projectID, clusterID
 type workloadResourceQueryError struct{ message string }
 
 func (e *workloadResourceQueryError) Error() string { return e.message }
+
+func encodeWorkloadResourceCursor(inventoryDigest, cursor string) (string, error) {
+	inventoryDigest = strings.ToLower(strings.TrimSpace(inventoryDigest))
+	cursor = strings.TrimSpace(cursor)
+	if inventoryDigest == "" || cursor == "" {
+		return "", &workloadResourceQueryError{message: "resource explorer cursor snapshot identity is incomplete"}
+	}
+	raw, err := json.Marshal(workloadResourceCursorEnvelope{Version: workloadResourceCursorVersion, InventoryDigest: inventoryDigest, Cursor: cursor})
+	if err != nil {
+		return "", err
+	}
+	if len(raw) > workloadResourceCursorMaxBytes {
+		return "", &workloadResourceQueryError{message: "resource explorer cursor exceeds bounded size"}
+	}
+	return base64.RawURLEncoding.EncodeToString(raw), nil
+}
+
+func decodeWorkloadResourceCursor(cursor, inventoryDigest string) (string, error) {
+	cursor = strings.TrimSpace(cursor)
+	if cursor == "" {
+		return "", nil
+	}
+	if len(cursor) > workloadResourceCursorMaxBytes*2 {
+		return "", &workloadResourceQueryError{message: "resource explorer cursor exceeds bounded size"}
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(cursor)
+	if err != nil || len(raw) == 0 || len(raw) > workloadResourceCursorMaxBytes {
+		return "", &workloadResourceQueryError{message: "resource explorer cursor envelope is invalid"}
+	}
+	var envelope workloadResourceCursorEnvelope
+	if err = json.Unmarshal(raw, &envelope); err != nil {
+		return "", &workloadResourceQueryError{message: "resource explorer cursor envelope is invalid"}
+	}
+	expectedDigest := strings.ToLower(strings.TrimSpace(inventoryDigest))
+	cursorDigest := strings.ToLower(strings.TrimSpace(envelope.InventoryDigest))
+	if envelope.Version != workloadResourceCursorVersion || expectedDigest == "" || cursorDigest == "" || strings.TrimSpace(envelope.Cursor) == "" {
+		return "", &workloadResourceQueryError{message: "resource explorer cursor envelope is invalid"}
+	}
+	if cursorDigest != expectedDigest {
+		return "", &workloadResourceQueryError{message: "resource explorer cursor inventory snapshot changed; restart pagination"}
+	}
+	return strings.TrimSpace(envelope.Cursor), nil
+}
 
 // workloadObservedAPIVersion is bounded to the exact Kubernetes list endpoints
 // used by the current Agent workload collector. It deliberately does not infer
