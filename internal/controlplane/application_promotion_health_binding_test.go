@@ -37,7 +37,7 @@ func TestPromotionVerificationRejectsHealthEvidenceFromStaleBindingRevision(t *t
 	if err := json.Unmarshal(rawHealth, &health); err != nil {
 		t.Fatal(err)
 	}
-	approval := PromotionApprovalEvidence{Granted: true, RequesterID: "user-requester", ApproverID: "user-approver", EvidenceDigest: promotionDigest('e')}
+	approval := PromotionApprovalEvidence{Granted: true, PlanDigest: plan.PlanDigest, RequesterID: "user-requester", ApproverID: "user-approver", EvidenceDigest: promotionDigest('e')}
 	if _, err := VerifyApplicationPromotion(plan, evidence, health, approval); err == nil {
 		t.Fatal("health evidence from an older environment binding revision must not authorize promotion")
 	}
