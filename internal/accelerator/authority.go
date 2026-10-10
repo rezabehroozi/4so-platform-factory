@@ -17,6 +17,7 @@ const (
 	QuotaPlacementAuthority     = "ACCELERATOR_QUOTA_PLACEMENT_AUTHORITY_V1"
 	PartitionLifecycleAuthority = "ACCELERATOR_PARTITION_LIFECYCLE_AUTHORITY_V1"
 	ModelServingAdmission       = "DEFERRED_UNTIL_ACCELERATOR_LIFECYCLE_CERTIFIED"
+	MaxHealthObservationAge     = 10 * time.Minute
 )
 
 type ObservationSource string
@@ -161,7 +162,7 @@ func PlanPlacement(inv Inventory, class GPUClass, quota Quota, usage Usage, requ
 	request.ProjectID = strings.TrimSpace(request.ProjectID)
 	request.ClusterID = strings.TrimSpace(request.ClusterID)
 	request.ClassID = strings.TrimSpace(request.ClassID)
-	if request.OrganizationID != quota.OrganizationID || request.ProjectID != quota.ProjectID || request.ClassID != quota.ClassID || request.ClassID != class.ID {
+	if request.OrganizationID != quota.OrganizationID || request.ProjectID != quota.ProjectID || request.ClassID != class.ID || request.ClassID != quota.ClassID {
 		return PlacementPlan{}, errors.New("accelerator placement request is outside quota/class scope")
 	}
 	if request.ClusterID == "" || request.Devices <= 0 || request.MemoryMiB <= 0 { return PlacementPlan{}, errors.New("clusterId, devices and memoryMiB are required") }
@@ -325,8 +326,14 @@ func validHealthObservation(observation DeviceObservation) bool {
 	switch observation.Health { case HealthHealthy, HealthDegraded, HealthUnhealthy, HealthUnknown: return true; default: return false }
 }
 
-func AssessHealth(observation DeviceObservation) HealthDecision {
+func AssessHealth(observation DeviceObservation, nowValues ...time.Time) HealthDecision {
 	if !validHealthObservation(observation) { return HealthDecision{Reason: "health is not backed by an identified admitted target observation"} }
+	if len(nowValues) > 1 { return HealthDecision{Reason: "health observation evaluation accepts at most one current time"} }
+	now := time.Now().UTC()
+	if len(nowValues) == 1 { now = nowValues[0].UTC() }
+	observedAt := observation.ObservedAt.UTC()
+	if observedAt.After(now) { return HealthDecision{Reason: "health observation timestamp is in the future; mutation is not authorized"} }
+	if now.Sub(observedAt) > MaxHealthObservationAge { return HealthDecision{Reason: "health observation is stale; mutation is not authorized"} }
 	switch observation.Health {
 	case HealthHealthy: return HealthDecision{Reason: "device is healthy"}
 	case HealthUnknown: return HealthDecision{Reason: "device health is unknown; mutation is not authorized"}
