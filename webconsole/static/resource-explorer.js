@@ -4,6 +4,31 @@
   const AUTHORITY = 'BOUNDED_RESOURCE_EXPLORER_AUTHORITY_V1';
   const OWNER_POLICY = 'OWNER_PRODUCT_API_ONLY';
   const PAGE_LIMIT = 25;
+  const COPY = {
+    en: {
+      heading: 'Inspect scoped resource state', loading: 'Loading bounded resource state…', unavailable: 'Resource inspection unavailable.',
+      authorityFailed: 'The bounded read authority could not be verified.', requestFailed: 'The resource authority request failed.',
+      noMutation: 'No mutation action is exposed from this view.', readOnly: 'READ ONLY', taskJourney: 'Task journey', next: 'Next bounded page',
+      empty: 'No resources match the current bounded page.', evidence: 'Evidence', unavailableValue: 'unavailable', inventoryStale: 'inventory stale', observed: 'observed',
+      boundedHelp: 'This view is bounded, evidence-linked and never exposes raw Kubernetes mutation.',
+      identityReady: 'Exact identity observed; continue only through a typed Product API owner workflow.',
+      identityUnknown: 'Resource identity is incomplete; owner actions stay unavailable until exact API identity and UID are observed.'
+    },
+    fa: {
+      heading: 'بررسی وضعیت محدودشده منابع', loading: 'در حال دریافت وضعیت محدودشده منابع…', unavailable: 'بررسی منابع در دسترس نیست.',
+      authorityFailed: 'مرجع خواندن محدودشده قابل تأیید نیست.', requestFailed: 'درخواست مرجع منابع ناموفق بود.',
+      noMutation: 'در این نما هیچ اقدام تغییردهنده‌ای ارائه نمی‌شود.', readOnly: 'فقط خواندنی', taskJourney: 'مسیر کار', next: 'صفحه محدود بعدی',
+      empty: 'هیچ منبعی با این صفحه محدود تطبیق ندارد.', evidence: 'شواهد', unavailableValue: 'ناموجود', inventoryStale: 'موجودی قدیمی است', observed: 'مشاهده‌شده',
+      boundedHelp: 'این نما محدود، متصل به شواهد و بدون دسترسی مستقیم برای تغییر منابع Kubernetes است.',
+      identityReady: 'هویت دقیق مشاهده شده است؛ ادامه تغییر فقط باید از جریان کاری نوع‌دار Product API مالک انجام شود.',
+      identityUnknown: 'هویت منبع کامل نیست؛ تا مشاهده API identity و UID دقیق، اقدام مالک در دسترس نمی‌شود.'
+    }
+  };
+  const FA_TASKS = {
+    operator: ['بررسی وضعیت منبع', 'بازکردن جریان کاری نوع‌دار مالک', 'بررسی اثر و تأیید', 'پیگیری عملیات و شواهد'],
+    'platform-engineer': ['بررسی وضعیت منبع در محدوده مجاز', 'برنامه‌ریزی تغییر پلتفرم', 'بازکردن جریان کاری نوع‌دار مالک', 'پیگیری پیشرفت عملیات'],
+    developer: ['بررسی وضعیت workload پروژه', 'بازکردن جریان کاری اپلیکیشن یا Workspace', 'پیگیری پیشرفت استقرار']
+  };
   let activeClusterId = '';
   let loadGeneration = 0;
 
@@ -13,6 +38,15 @@
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
+
+  function locale() {
+    return typeof state !== 'undefined' && state?.locale === 'fa' ? 'fa' : 'en';
+  }
+
+  function text(key) {
+    const selected = locale();
+    return COPY[selected]?.[key] || COPY.en[key] || key;
+  }
 
   function personaForSession() {
     const roles = typeof sessionRoles === 'function' ? sessionRoles() : [];
@@ -25,6 +59,13 @@
     const persona = personaForSession();
     const journeys = Array.isArray(payload?.personaJourneys) ? payload.personaJourneys : [];
     return journeys.find(item => item?.persona === persona && item?.taskLanguageFirst === true) || null;
+  }
+
+  function tasksFor(payload) {
+    const persona = personaForSession();
+    const journey = journeyFor(payload);
+    if (locale() === 'fa') return FA_TASKS[persona] || FA_TASKS.developer;
+    return journey?.tasks || ['Inspect scoped resource state', 'Open a typed owner workflow only when exact ownership is known', 'Follow operation progress and evidence'];
   }
 
   function resourcePath(clusterId, cursor = '') {
@@ -50,8 +91,8 @@
       payload?.mutationContinuationPolicy === OWNER_POLICY;
   }
 
-  function stateBadge(state) {
-    const normalized = String(state || 'UNKNOWN').toUpperCase();
+  function stateBadge(stateValue) {
+    const normalized = String(stateValue || 'UNKNOWN').toUpperCase();
     const className = normalized === 'FRESH' ? 'success' : normalized === 'STALE' ? 'warning' : 'neutral';
     return `<span class="badge ${className}">${htmlEscape(normalized)}</span>`;
   }
@@ -62,42 +103,39 @@
     const identity = [key.kind || 'Resource', key.namespace || '', key.name || 'unknown'].filter(Boolean).join(' · ');
     const evidence = String(item?.sourceDigest || '');
     const summary = item?.summary || {};
-    const observed = item?.observedAt ? new Date(item.observedAt).toLocaleString() : '—';
-    const ownerMessage = identityComplete
-      ? 'Exact identity observed; continue only through a typed Product API owner workflow.'
-      : 'Resource identity is incomplete; owner actions stay unavailable until exact API identity and UID are observed.';
+    const observed = item?.observedAt ? new Date(item.observedAt).toLocaleString(locale() === 'fa' ? 'fa-IR' : 'en-US') : '—';
+    const ownerMessage = identityComplete ? text('identityReady') : text('identityUnknown');
     return `<div class="activity-item" data-resource-truth="${htmlEscape(item?.state || 'UNKNOWN')}">
       <div class="activity-main"><span class="check-icon">${identityComplete ? '○' : '?'}</span><div>
         <strong>${htmlEscape(identity)}</strong>
-        <small>${stateBadge(item?.state)} · observed ${htmlEscape(observed)}</small>
+        <small>${stateBadge(item?.state)} · ${htmlEscape(text('observed'))} ${htmlEscape(observed)}</small>
         <small>${htmlEscape(ownerMessage)}</small>
-        <small>Evidence <span class="technical">${htmlEscape(evidence ? evidence.slice(0, 19) + '…' : 'unavailable')}</span>${summary.inventoryAuthorityFresh === 'false' ? ' · inventory stale' : ''}</small>
+        <small>${htmlEscape(text('evidence'))} <span class="technical">${htmlEscape(evidence ? evidence.slice(0, 19) + '…' : text('unavailableValue'))}</span>${summary.inventoryAuthorityFresh === 'false' ? ` · ${htmlEscape(text('inventoryStale'))}` : ''}</small>
       </div></div>
     </div>`;
   }
 
   function renderAuthorityFailure(host, message) {
-    host.innerHTML = `<div class="warning-banner" data-resource-explorer-bounded="blocked"><strong>Resource inspection unavailable.</strong> ${htmlEscape(message)} No mutation action is exposed from this view.</div>`;
+    host.innerHTML = `<div class="warning-banner" data-resource-explorer-bounded="blocked"><strong>${htmlEscape(text('unavailable'))}</strong> ${htmlEscape(message)} ${htmlEscape(text('noMutation'))}</div>`;
   }
 
   function renderPage(host, payload, append = false) {
     if (!authorityValid(payload)) {
-      renderAuthorityFailure(host, 'The bounded read authority could not be verified.');
+      renderAuthorityFailure(host, text('authorityFailed'));
       return;
     }
     const page = payload.resourcePage || {};
     const items = Array.isArray(page.items) ? page.items : [];
-    const journey = journeyFor(payload);
-    const tasks = journey?.tasks || ['Inspect scoped resource state', 'Open a typed owner workflow only when exact ownership is known', 'Follow operation progress and evidence'];
-    const rows = items.map(resourceRow).join('') || '<p>No resources match the current bounded page.</p>';
+    const tasks = tasksFor(payload);
+    const rows = items.map(resourceRow).join('') || `<p>${htmlEscape(text('empty'))}</p>`;
     const next = page.hasMore && page.nextCursor
-      ? `<button type="button" class="secondary small-button" data-resource-explorer-next="${htmlEscape(page.nextCursor)}">Next bounded page</button>`
+      ? `<button type="button" class="secondary small-button" data-resource-explorer-next="${htmlEscape(page.nextCursor)}">${htmlEscape(text('next'))}</button>`
       : '';
     const content = `<div data-resource-explorer-bounded="ready" data-authority="${AUTHORITY}">
-      <div class="resource-meta">${stateBadge(items.some(item => item?.state === 'UNKNOWN') ? 'UNKNOWN' : items.some(item => item?.state === 'STALE') ? 'STALE' : 'FRESH')}<span class="badge neutral">READ ONLY</span></div>
-      <h4>Inspect scoped resource state</h4>
-      <p>${htmlEscape(tasks[0])}. This view is bounded, evidence-linked and never exposes raw Kubernetes mutation.</p>
-      <details><summary>Task journey</summary><ol>${tasks.map(task => `<li>${htmlEscape(task)}</li>`).join('')}</ol></details>
+      <div class="resource-meta">${stateBadge(items.some(item => item?.state === 'UNKNOWN') ? 'UNKNOWN' : items.some(item => item?.state === 'STALE') ? 'STALE' : 'FRESH')}<span class="badge neutral">${htmlEscape(text('readOnly'))}</span></div>
+      <h4>${htmlEscape(text('heading'))}</h4>
+      <p>${htmlEscape(tasks[0])}. ${htmlEscape(text('boundedHelp'))}</p>
+      <details><summary>${htmlEscape(text('taskJourney'))}</summary><ol>${tasks.map(task => `<li>${htmlEscape(task)}</li>`).join('')}</ol></details>
       <div class="activity-list" data-resource-explorer-items>${rows}</div>
       <div class="resource-actions">${next}</div>
     </div>`;
@@ -113,14 +151,14 @@
 
   async function loadInto(host, clusterId, cursor = '', append = false) {
     const generation = ++loadGeneration;
-    if (!append) host.innerHTML = '<p data-resource-explorer-bounded="loading">Loading bounded resource state…</p>';
+    if (!append) host.innerHTML = `<p data-resource-explorer-bounded="loading">${htmlEscape(text('loading'))}</p>`;
     try {
       const payload = await readResourcePage(clusterId, cursor);
       if (generation !== loadGeneration || clusterId !== activeClusterId) return;
       renderPage(host, payload, append);
     } catch (error) {
       if (generation !== loadGeneration || clusterId !== activeClusterId) return;
-      renderAuthorityFailure(host, error?.message || 'The resource authority request failed.');
+      renderAuthorityFailure(host, error?.message || text('requestFailed'));
     }
   }
 
