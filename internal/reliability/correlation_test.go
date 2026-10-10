@@ -17,6 +17,10 @@ func TestCorrelateSignalsRequiresExactScopeEvidenceAndIndependentKinds(t *testin
 	if correlation.Authority != SignalCorrelationAuthority || correlation.Digest == "" || len(correlation.SignalKinds) != 3 || correlation.Confidence != CorrelationHigh || !correlation.RemediationEligible {
 		t.Fatalf("unexpected correlation: %#v", correlation)
 	}
+	if err := ValidateSignalCorrelation(correlation); err != nil { t.Fatalf("valid correlation did not revalidate: %v", err) }
+	tampered := correlation
+	tampered.ProjectID = "project-b"
+	if err := ValidateSignalCorrelation(tampered); err == nil { t.Fatal("tampered correlation content must fail digest validation") }
 	crossProject := append([]SignalObservation(nil), signals...)
 	crossProject[1].ProjectID = "project-b"
 	if _, err := CorrelateSignals(crossProject, now, 10*time.Minute); err == nil { t.Fatal("cross-project signals must never correlate") }
@@ -35,7 +39,7 @@ func TestIncompleteOrStaleSignalsNeverAuthorizeRemediation(t *testing.T) {
 	if _, err := CorrelateSignals(signals, now, 10*time.Minute); err == nil { t.Fatal("incomplete/stale correlation must fail closed") }
 }
 
-func TestBuildRepairProposalBindsIncidentRevisionAndForbidsRawCommand(t *testing.T) {
+func TestBuildRepairProposalBindsIncidentRevisionFreshnessAndForbidsRawCommand(t *testing.T) {
 	now := time.Date(2026, 10, 10, 10, 0, 0, 0, time.UTC)
 	correlation, err := CorrelateSignals([]SignalObservation{
 		{Kind: SignalMetric, OrganizationID: "org-a", ProjectID: "project-a", ClusterID: "cluster-a", Service: "orders", Source: "prometheus", Fingerprint: corrDigest('a'), EvidenceDigest: corrDigest('b'), Complete: true, Severity: 4, ObservedAt: now},
@@ -43,14 +47,19 @@ func TestBuildRepairProposalBindsIncidentRevisionAndForbidsRawCommand(t *testing
 	}, now, 10*time.Minute)
 	if err != nil { t.Fatal(err) }
 	incident := Incident{ID: "inc-1", OrganizationID: "org-a", ProjectID: "project-a", ClusterID: "cluster-a", Service: "orders", Revision: 7, State: IncidentOpen, Severity: "CRITICAL"}
-	proposal, err := BuildRepairProposal(correlation, incident, RepairActionNodeRemediation, []string{"node-a"})
+	proposal, err := BuildRepairProposal(correlation, incident, RepairActionNodeRemediation, []string{"node-b", "node-a"}, now)
 	if err != nil { t.Fatal(err) }
-	if proposal.Authority != RepairProposalAuthority || proposal.IncidentRevision != 7 || proposal.ExecutionAuthority != Day2ExecutionAuthority || !proposal.IndependentApprovalRequired || proposal.Digest == "" {
+	if proposal.Authority != RepairProposalAuthority || proposal.IncidentRevision != 7 || proposal.ExecutionAuthority != Day2ExecutionAuthority || proposal.AdapterID != RepairAdapterNodeMaintenance || !proposal.IndependentApprovalRequired || proposal.Digest == "" || len(proposal.TargetIDs) != 2 || proposal.TargetIDs[0] != "node-a" {
 		t.Fatalf("repair proposal authority drift: %#v", proposal)
 	}
-	if _, err := BuildRepairProposal(correlation, incident, RepairAction("kubectl-delete"), []string{"node-a"}); err == nil { t.Fatal("arbitrary repair command/action must be rejected") }
+	if err := ValidateRepairProposal(proposal); err != nil { t.Fatalf("valid repair proposal did not revalidate: %v", err) }
+	tampered := proposal
+	tampered.TargetIDs = []string{"node-c"}
+	if err := ValidateRepairProposal(tampered); err == nil { t.Fatal("tampered repair target must fail content digest validation") }
+	if _, err := BuildRepairProposal(correlation, incident, RepairAction("kubectl-delete"), []string{"node-a"}, now); err == nil { t.Fatal("arbitrary repair command/action must be rejected") }
+	if _, err := BuildRepairProposal(correlation, incident, RepairActionNodeRemediation, []string{"node-a"}, correlation.ObservedAt.Add(RepairCorrelationTTL)); err == nil { t.Fatal("correlation must expire at exact repair TTL boundary") }
 	incident.State = IncidentResolved
-	if _, err := BuildRepairProposal(correlation, incident, RepairActionNodeRemediation, []string{"node-a"}); err == nil { t.Fatal("resolved incident must not admit remediation") }
+	if _, err := BuildRepairProposal(correlation, incident, RepairActionNodeRemediation, []string{"node-a"}, now); err == nil { t.Fatal("resolved incident must not admit remediation") }
 }
 
 func corrDigest(ch byte) string { b:=make([]byte,64); for i:=range b { b[i]=ch }; return "sha256:"+string(b) }
