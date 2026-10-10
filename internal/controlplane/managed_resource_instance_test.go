@@ -35,7 +35,7 @@ func TestManagedResourceOutputsBindExactTypeIdentityAndNeverExposeSensitiveValue
 }
 
 func TestManagedResourceOperationUnknownOutcomeRequiresReadbackRecovery(t *testing.T) {
-	plan := ManagedResourcePlan{Authority: ResourceRequestPlanAuthority, ProjectID: "project-a", TypeID: "type-1", TypeDigest: testMRDigest('a'), Name: "orders-db", InputDigest: testMRDigest('b')}
+	plan := ManagedResourcePlan{Authority: ResourceRequestPlanAuthority, ProjectID: "project-a", TypeID: "type-1", TypeDigest: testMRDigest('a'), Name: "orders-db", InputDigest: testMRDigest('b'), DeletePolicy: "delete"}
 	plan.PlanDigest = managedResourcePlanDigest(plan)
 	op, err := NewManagedResourceOperation(plan, "mri_1", 4, "op-1", "idem-1", 9, ManagedResourceProvision); if err != nil { t.Fatal(err) }
 	unknown := ResolveManagedResourceOutcome(op, ManagedResourceOutcomeUnknown, ManagedResourceReadback{})

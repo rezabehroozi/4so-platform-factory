@@ -188,7 +188,7 @@ const ( ManagedResourceProvision ManagedResourceAction = "PROVISION"; ManagedRes
 type ManagedResourceOutcome string
 const ( ManagedResourceOutcomeApplied ManagedResourceOutcome = "APPLIED"; ManagedResourceOutcomePending ManagedResourceOutcome = "PENDING"; ManagedResourceOutcomeUnknown ManagedResourceOutcome = "UNKNOWN"; ManagedResourceOutcomeFailed ManagedResourceOutcome = "FAILED" )
 
-type ManagedResourceOperation struct { Authority string `json:"authority"`; OperationID string `json:"operationId"`; InstanceID string `json:"instanceId"`; ExpectedRevision int64 `json:"expectedRevision"`; IdempotencyKey string `json:"idempotencyKey"`; FenceToken int64 `json:"fenceToken"`; Action ManagedResourceAction `json:"action"`; ProjectID string `json:"projectId"`; PlanDigest string `json:"planDigest"`; DeletePolicy string `json:"deletePolicy,omitempty"` }
+type ManagedResourceOperation struct { Authority string `json:"authority"`; OperationID string `json:"operationId"`; InstanceID string `json:"instanceId"`; ExpectedRevision int64 `json:"expectedRevision"`; IdempotencyKey string `json:"idempotencyKey"`; FenceToken int64 `json:"fenceToken"`; Action ManagedResourceAction `json:"action"`; ProjectID string `json:"projectId"`; PlanDigest string `json:"planDigest"`; DeletePolicy string `json:"deletePolicy,omitempty"`; OperationDigest string `json:"operationDigest"` }
 type ManagedResourceReadback struct { Observed bool `json:"observed"`; OperationID string `json:"operationId"`; FenceToken int64 `json:"fenceToken"`; PlanDigest string `json:"planDigest"`; InstanceID string `json:"instanceId"`; Revision int64 `json:"revision"`; State ManagedResourceState `json:"state"`; ObservedDigest string `json:"observedDigest"`; EvidenceDigest string `json:"evidenceDigest"` }
 type ManagedResourceOperationResult struct { State ManagedResourceState `json:"state"`; RecoveryRequired bool `json:"recoveryRequired"`; RetryAllowed bool `json:"retryAllowed"`; ObservedDigest string `json:"observedDigest,omitempty"`; EvidenceDigest string `json:"evidenceDigest,omitempty"`; Message string `json:"message,omitempty"` }
 
@@ -196,11 +196,14 @@ func NewManagedResourceOperation(plan ManagedResourcePlan, instanceID string, ex
 	instanceID = strings.TrimSpace(instanceID); operationID = strings.TrimSpace(operationID); idempotencyKey = strings.TrimSpace(idempotencyKey)
 	if plan.Authority != ResourceRequestPlanAuthority || !applicationPlatformDigestPattern.MatchString(plan.PlanDigest) || managedResourcePlanDigest(plan) != plan.PlanDigest || instanceID == "" || expectedRevision <= 0 || operationID == "" || idempotencyKey == "" || fenceToken <= 0 { return ManagedResourceOperation{}, fmt.Errorf("%w: managed resource operation authority/identity/fence is incomplete", ErrValidation) }
 	if action != ManagedResourceProvision && action != ManagedResourceDelete { return ManagedResourceOperation{}, fmt.Errorf("%w: unsupported managed resource action %q", ErrValidation, action) }
-	return ManagedResourceOperation{Authority: ResourceProvisionOperationAuthority, OperationID: operationID, InstanceID: instanceID, ExpectedRevision: expectedRevision, IdempotencyKey: idempotencyKey, FenceToken: fenceToken, Action: action, ProjectID: plan.ProjectID, PlanDigest: plan.PlanDigest, DeletePolicy: plan.DeletePolicy}, nil
+	op := ManagedResourceOperation{Authority: ResourceProvisionOperationAuthority, OperationID: operationID, InstanceID: instanceID, ExpectedRevision: expectedRevision, IdempotencyKey: idempotencyKey, FenceToken: fenceToken, Action: action, ProjectID: plan.ProjectID, PlanDigest: plan.PlanDigest, DeletePolicy: plan.DeletePolicy}
+	op.OperationDigest = managedResourceOperationDigest(op)
+	return op, nil
 }
 
 func validManagedResourceOperation(op ManagedResourceOperation) bool {
-	if op.Authority != ResourceProvisionOperationAuthority || strings.TrimSpace(op.OperationID) == "" || strings.TrimSpace(op.InstanceID) == "" || op.ExpectedRevision <= 0 || strings.TrimSpace(op.IdempotencyKey) == "" || op.FenceToken <= 0 || strings.TrimSpace(op.ProjectID) == "" || !applicationPlatformDigestPattern.MatchString(op.PlanDigest) { return false }
+	if op.Authority != ResourceProvisionOperationAuthority || strings.TrimSpace(op.OperationID) == "" || strings.TrimSpace(op.InstanceID) == "" || op.ExpectedRevision <= 0 || strings.TrimSpace(op.IdempotencyKey) == "" || op.FenceToken <= 0 || strings.TrimSpace(op.ProjectID) == "" || !applicationPlatformDigestPattern.MatchString(op.PlanDigest) || !applicationPlatformDigestPattern.MatchString(op.OperationDigest) || managedResourceOperationDigest(op) != op.OperationDigest { return false }
+	if op.DeletePolicy != "delete" && op.DeletePolicy != "retain" { return false }
 	return op.Action == ManagedResourceProvision || op.Action == ManagedResourceDelete
 }
 
