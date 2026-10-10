@@ -32,7 +32,7 @@ func TestPromotionVerificationReusesExactDeploymentEvidenceAndHealthWindow(t *te
 	approval := PromotionApprovalEvidence{Granted: true, RequesterID: "user-requester", ApproverID: "user-approver", EvidenceDigest: promotionDigest('e')}
 	verification, err := VerifyApplicationPromotion(plan, evidence, health, approval)
 	if err != nil { t.Fatal(err) }
-	if verification.Authority != PromotionVerificationAuthority || !verification.Verified || verification.RequesterID != approval.RequesterID || verification.ApproverID != approval.ApproverID || !verification.ValidUntil.After(now) || verification.VerificationDigest == "" { t.Fatalf("promotion verification drift: %#v", verification) }
+	if verification.Authority != PromotionVerificationAuthority || !verification.Verified || verification.RequesterID != approval.RequesterID || verification.ApproverID != approval.ApproverID || !verification.ValidUntil.After(now) || verification.DeploymentEvidenceDigest == "" || verification.HealthEvidenceDigest == "" || verification.ApprovalEvidenceDigest == "" || verification.VerificationDigest == "" { t.Fatalf("promotion verification drift: %#v", verification) }
 	wrongScope := evidence; wrongScope.ClusterID = "cluster-other"
 	if _, err := VerifyApplicationPromotion(plan, wrongScope, health, approval); err == nil { t.Fatal("deployment evidence from another cluster must not verify promotion") }
 	staleHealth := health; staleHealth.WindowStartedAt = now.Add(-5*time.Minute)
@@ -47,9 +47,9 @@ func TestPromotionVerificationReusesExactDeploymentEvidenceAndHealthWindow(t *te
 
 func TestPromotionUnknownOutcomeRequiresExactTargetAndGitOpsReadbackWithoutReplay(t *testing.T) {
 	now := time.Date(2026, 10, 10, 10, 0, 0, 0, time.UTC)
-	plan := ApplicationPromotionPlan{Authority: ApplicationPromotionPlanAuthority, ProjectID: "project-a", TargetBindingID: "dst", TargetBindingRevision: 7, DesiredReleaseID: "rel-new", DesiredReleaseDigest: promotionDigest('a'), ForgejoCommitSHA: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", DesiredStateDigest: promotionDigest('b'), ReconciliationEngine: "argo-cd"}
+	plan := ApplicationPromotionPlan{Authority: ApplicationPromotionPlanAuthority, ProjectID: "project-a", TargetBindingID: "dst", TargetBindingRevision: 7, DesiredReleaseID: "rel-new", DesiredReleaseDigest: promotionDigest('a'), ForgejoCommitSHA: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", DesiredStateDigest: promotionDigest('b'), ReconciliationEngine: "argo-cd", RequiresApproval: true}
 	plan.PlanDigest = digestPromotionPlan(plan)
-	verification := PromotionVerification{Authority: PromotionVerificationAuthority, PlanDigest: plan.PlanDigest, Verified: true, RequesterID: "user-requester", ApproverID: "user-approver", VerifiedAt: now, ValidUntil: now.Add(PromotionVerificationTTL)}
+	verification := PromotionVerification{Authority: PromotionVerificationAuthority, PlanDigest: plan.PlanDigest, Verified: true, RequesterID: "user-requester", ApproverID: "user-approver", DeploymentEvidenceDigest: promotionDigest('6'), HealthEvidenceDigest: promotionDigest('7'), ApprovalEvidenceDigest: promotionDigest('8'), VerifiedAt: now, ValidUntil: now.Add(PromotionVerificationTTL)}
 	verification.VerificationDigest = digestPromotionVerification(verification)
 	if _, err := NewApplicationPromotionOperation(plan, verification, "op-1", "idem-1", 11, "different-requester", now); err == nil { t.Fatal("verified promotion packet must not be reusable by another requester") }
 	if _, err := NewApplicationPromotionOperation(plan, verification, "op-1", "idem-1", 11, "user-requester", verification.ValidUntil.Add(time.Second)); err == nil { t.Fatal("expired promotion verification must be rejected") }
