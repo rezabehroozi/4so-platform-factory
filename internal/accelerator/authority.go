@@ -152,6 +152,7 @@ type PlacementPlan struct {
 	PartitionMode PartitionMode
 	RequestedDevices int
 	RequestedMemoryMiB int
+	DecisionContextDigest string
 	PlanDigest string
 }
 
@@ -188,10 +189,36 @@ func PlanPlacement(inv Inventory, class GPUClass, quota Quota, usage Usage, requ
 	deviceIDs := make([]string, 0, len(selected)); totalMemory := 0
 	for _, device := range selected { deviceIDs = append(deviceIDs, device.DeviceID); totalMemory += device.MemoryMiB }
 	if totalMemory < request.MemoryMiB { return PlacementPlan{}, errors.New("selected accelerator capacity cannot satisfy requested memory") }
-	plan := PlacementPlan{Authority: QuotaPlacementAuthority, OrganizationID: request.OrganizationID, ProjectID: request.ProjectID, ClusterID: request.ClusterID, ClassID: class.ID, DeviceIDs: deviceIDs, PartitionMode: request.PartitionMode, RequestedDevices: request.Devices, RequestedMemoryMiB: request.MemoryMiB}
-	plan.PlanDigest, err = digestValue([]any{plan.Authority, inv.Digest, quota, usage.Devices, usage.MemoryMiB, sortedKeys(allocated), plan.OrganizationID, plan.ProjectID, plan.ClusterID, plan.ClassID, plan.DeviceIDs, plan.PartitionMode, plan.RequestedDevices, plan.RequestedMemoryMiB})
+	decisionContextDigest, err := digestValue([]any{inv.Digest, class, quota, usage.Devices, usage.MemoryMiB, sortedKeys(allocated)})
+	if err != nil { return PlacementPlan{}, err }
+	plan := PlacementPlan{Authority: QuotaPlacementAuthority, OrganizationID: request.OrganizationID, ProjectID: request.ProjectID, ClusterID: request.ClusterID, ClassID: class.ID, DeviceIDs: deviceIDs, PartitionMode: request.PartitionMode, RequestedDevices: request.Devices, RequestedMemoryMiB: request.MemoryMiB, DecisionContextDigest: decisionContextDigest}
+	plan.PlanDigest, err = digestPlacementPlan(plan)
 	if err != nil { return PlacementPlan{}, err }
 	return plan, nil
+}
+
+func digestPlacementPlan(plan PlacementPlan) (string, error) {
+	copy := plan
+	copy.PlanDigest = ""
+	return digestValue(copy)
+}
+
+func validatePlacementPlan(plan PlacementPlan) error {
+	if plan.Authority != QuotaPlacementAuthority || strings.TrimSpace(plan.OrganizationID) == "" || strings.TrimSpace(plan.ProjectID) == "" || strings.TrimSpace(plan.ClusterID) == "" || strings.TrimSpace(plan.ClassID) == "" || plan.RequestedDevices <= 0 || plan.RequestedMemoryMiB <= 0 || !isDigest(plan.DecisionContextDigest) || !isDigest(plan.PlanDigest) {
+		return errors.New("placement plan authority/scope/capacity/content address is incomplete")
+	}
+	if plan.PartitionMode != PartitionMIG && plan.PartitionMode != PartitionVGPU { return fmt.Errorf("unsupported placement partition mode %q", plan.PartitionMode) }
+	if len(plan.DeviceIDs) != plan.RequestedDevices { return errors.New("placement plan device identity count does not match requested devices") }
+	seen := map[string]bool{}
+	for _, raw := range plan.DeviceIDs {
+		id := strings.TrimSpace(raw)
+		if id == "" || seen[id] { return errors.New("placement plan device identities are empty or duplicated") }
+		seen[id] = true
+	}
+	digest, err := digestPlacementPlan(plan)
+	if err != nil { return err }
+	if digest != strings.ToLower(strings.TrimSpace(plan.PlanDigest)) { return errors.New("placement plan content does not match sealed digest") }
+	return nil
 }
 
 func validateInventory(inv Inventory) (Inventory, error) {
@@ -303,7 +330,8 @@ type PartitionResult struct {
 
 func NewPartitionOperation(plan PlacementPlan, operationID, idempotencyKey string, fenceToken int64, action PartitionAction, deviceID, partitionID string, expectedGeneration int64) (PartitionOperation, error) {
 	operationID = strings.TrimSpace(operationID); idempotencyKey = strings.TrimSpace(idempotencyKey); deviceID = strings.TrimSpace(deviceID); partitionID = strings.TrimSpace(partitionID)
-	if plan.Authority != QuotaPlacementAuthority || !isDigest(plan.PlanDigest) || operationID == "" || idempotencyKey == "" || fenceToken <= 0 || expectedGeneration < 0 || deviceID == "" || partitionID == "" { return PartitionOperation{}, errors.New("partition operation authority/fence/identity is incomplete") }
+	if err := validatePlacementPlan(plan); err != nil { return PartitionOperation{}, fmt.Errorf("partition operation requires a sealed placement plan: %w", err) }
+	if operationID == "" || idempotencyKey == "" || fenceToken <= 0 || expectedGeneration < 0 || deviceID == "" || partitionID == "" { return PartitionOperation{}, errors.New("partition operation authority/fence/identity is incomplete") }
 	if !containsString(plan.DeviceIDs, deviceID) { return PartitionOperation{}, errors.New("partition operation device is outside placement plan") }
 	switch action { case PartitionCreate, PartitionAssign, PartitionDrain, PartitionReplace: default: return PartitionOperation{}, fmt.Errorf("unsupported partition action %q", action) }
 	return PartitionOperation{Authority: PartitionLifecycleAuthority, OperationID: operationID, IdempotencyKey: idempotencyKey, FenceToken: fenceToken, Action: action, DeviceID: deviceID, PartitionID: partitionID, ExpectedGeneration: expectedGeneration, PlanDigest: plan.PlanDigest, OrganizationID: plan.OrganizationID, ProjectID: plan.ProjectID, ClusterID: plan.ClusterID}, nil

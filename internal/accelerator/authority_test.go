@@ -50,6 +50,9 @@ func TestPlacementIsScopedCapacityAwareAndNeverReselectsAllocatedDevice(t *testi
 	if len(plan.DeviceIDs) != 2 || plan.DeviceIDs[0] != "gpu-a" || plan.DeviceIDs[1] != "gpu-b" {
 		t.Fatalf("placement must be deterministic over healthy observed capacity: %#v", plan)
 	}
+	if err := validatePlacementPlan(plan); err != nil {
+		t.Fatalf("placement output must remain self-verifiable before execution: %v", err)
+	}
 	one, err := PlanPlacement(inv, class, quota, Usage{Devices: 1, MemoryMiB: 81920, AllocatedDeviceIDs: []string{"gpu-a"}}, PlacementRequest{OrganizationID: "org-a", ProjectID: "project-a", ClusterID: "cluster-a", ClassID: class.ID, Devices: 1, MemoryMiB: 80000, PartitionMode: PartitionMIG}, now)
 	if err != nil { t.Fatal(err) }
 	if len(one.DeviceIDs) != 1 || one.DeviceIDs[0] != "gpu-b" {
@@ -64,7 +67,7 @@ func TestPlacementIsScopedCapacityAwareAndNeverReselectsAllocatedDevice(t *testi
 }
 
 func TestPartitionLifecycleUsesFenceAndAuthoritativeReadbackForUnknownOutcome(t *testing.T) {
-	plan := PlacementPlan{Authority: QuotaPlacementAuthority, OrganizationID: "org-a", ProjectID: "project-a", ClusterID: "cluster-a", ClassID: "h100-mig", DeviceIDs: []string{"gpu-a"}, PartitionMode: PartitionMIG, RequestedDevices: 1, RequestedMemoryMiB: 40000, PlanDigest: digest64('a')}
+	plan := testPlacementPlan()
 	op, err := NewPartitionOperation(plan, "op-1", "idem-1", 7, PartitionCreate, "gpu-a", "partition-1", 3)
 	if err != nil { t.Fatal(err) }
 	unknown := ResolvePartitionOutcome(op, OutcomeUnknown, PartitionReadback{})
@@ -81,6 +84,28 @@ func TestPartitionLifecycleUsesFenceAndAuthoritativeReadbackForUnknownOutcome(t 
 	}
 }
 
+func TestPartitionOperationRejectsTamperedPlacementPlanContent(t *testing.T) {
+	plan := testPlacementPlan()
+	if _, err := NewPartitionOperation(plan, "op-1", "idem-1", 7, PartitionCreate, "gpu-a", "partition-1", 3); err != nil {
+		t.Fatalf("sealed placement plan must remain executable: %v", err)
+	}
+	foreignScope := plan
+	foreignScope.ProjectID = "project-b"
+	if _, err := NewPartitionOperation(foreignScope, "op-1", "idem-1", 7, PartitionCreate, "gpu-a", "partition-1", 3); err == nil {
+		t.Fatal("partition operation must reject placement scope changed after plan sealing")
+	}
+	foreignDevice := plan
+	foreignDevice.DeviceIDs = []string{"gpu-b"}
+	if _, err := NewPartitionOperation(foreignDevice, "op-1", "idem-1", 7, PartitionCreate, "gpu-b", "partition-1", 3); err == nil {
+		t.Fatal("partition operation must reject device selection changed after plan sealing")
+	}
+	foreignContext := plan
+	foreignContext.DecisionContextDigest = digest64('e')
+	if _, err := NewPartitionOperation(foreignContext, "op-1", "idem-1", 7, PartitionCreate, "gpu-a", "partition-1", 3); err == nil {
+		t.Fatal("partition operation must reject placement decision context changed after plan sealing")
+	}
+}
+
 func TestHealthDecisionRequiresDurableRemediationAndModelServingRemainsDeferred(t *testing.T) {
 	unknown := AssessHealth(DeviceObservation{DeviceID: "gpu-a", ClusterID: "cluster-a", NodeID: "node-a", Health: HealthUnknown, Observed: true, Source: SourceTargetAgent, ObservedAt: time.Now().UTC()})
 	if unknown.ReplacementAllowed || unknown.RepairRequired {
@@ -93,6 +118,12 @@ func TestHealthDecisionRequiresDurableRemediationAndModelServingRemainsDeferred(
 	if ModelServingAdmission != "DEFERRED_UNTIL_ACCELERATOR_LIFECYCLE_CERTIFIED" {
 		t.Fatalf("model serving boundary drift: %s", ModelServingAdmission)
 	}
+}
+
+func testPlacementPlan() PlacementPlan {
+	plan := PlacementPlan{Authority: QuotaPlacementAuthority, OrganizationID: "org-a", ProjectID: "project-a", ClusterID: "cluster-a", ClassID: "h100-mig", DeviceIDs: []string{"gpu-a"}, PartitionMode: PartitionMIG, RequestedDevices: 1, RequestedMemoryMiB: 40000, DecisionContextDigest: digest64('d')}
+	plan.PlanDigest, _ = digestPlacementPlan(plan)
+	return plan
 }
 
 func digest64(ch byte) string {

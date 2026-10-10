@@ -3,7 +3,7 @@ package accelerator
 import "testing"
 
 func TestAmbiguousPartitionOutcomeRequiresExactOperationReadbackBinding(t *testing.T) {
-	plan := PlacementPlan{Authority: QuotaPlacementAuthority, OrganizationID: "org-a", ProjectID: "project-a", ClusterID: "cluster-a", ClassID: "h100-mig", DeviceIDs: []string{"gpu-a"}, PartitionMode: PartitionMIG, RequestedDevices: 1, RequestedMemoryMiB: 40000, PlanDigest: digest64('a')}
+	plan := testPlacementPlan()
 	op, err := NewPartitionOperation(plan, "op-1", "idem-1", 7, PartitionCreate, "gpu-a", "partition-1", 3)
 	if err != nil {
 		t.Fatal(err)
