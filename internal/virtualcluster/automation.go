@@ -7,10 +7,11 @@ import (
 )
 
 const (
-	IdlePolicyAuthority     = "VIRTUAL_CLUSTER_IDLE_POLICY_AUTHORITY_V1"
-	SnapshotPolicyAuthority = "VIRTUAL_CLUSTER_SNAPSHOT_POLICY_AUTHORITY_V1"
-	TTLPolicyAuthority      = "VIRTUAL_CLUSTER_TTL_AUTHORITY_V1"
-	MaxIdleTelemetryAge     = 10 * time.Minute
+	IdlePolicyAuthority       = "VIRTUAL_CLUSTER_IDLE_POLICY_AUTHORITY_V1"
+	SnapshotPolicyAuthority   = "VIRTUAL_CLUSTER_SNAPSHOT_POLICY_AUTHORITY_V1"
+	TTLPolicyAuthority        = "VIRTUAL_CLUSTER_TTL_AUTHORITY_V1"
+	MaxIdleTelemetryAge       = 10 * time.Minute
+	MaxAuthorizedActivityAge  = 10 * time.Minute
 )
 
 type IdlePolicy struct {
@@ -90,11 +91,16 @@ func EvaluateIdle(policy IdlePolicy, state State, telemetry TelemetryWindow, now
 	return decision
 }
 
-func EvaluateWake(policy IdlePolicy, state State, activity AuthorizedActivity) AutomationDecision {
+func EvaluateWake(policy IdlePolicy, state State, activity AuthorizedActivity, nowValues ...time.Time) AutomationDecision {
 	decision := AutomationDecision{PolicyRevision: policy.Revision}
 	if err := validateIdlePolicy(policy); err != nil {
 		decision.Blocker = "POLICY_INVALID"
 		decision.Reason = err.Error()
+		return decision
+	}
+	if len(nowValues) > 1 {
+		decision.Blocker = "AUTHORIZED_ACTIVITY_TIME_INVALID"
+		decision.Reason = "wake evaluation accepts at most one explicit observation epoch"
 		return decision
 	}
 	if !policy.WakeOnAuthorizedActivity {
@@ -112,11 +118,26 @@ func EvaluateWake(policy IdlePolicy, state State, activity AuthorizedActivity) A
 		decision.Reason = "wake activity must match project/workspace/virtual-cluster authority and carry authorization evidence"
 		return decision
 	}
+	now := time.Now().UTC()
+	if len(nowValues) == 1 {
+		now = nowValues[0].UTC()
+	}
+	activityObservedAt := activity.ObservedAt.UTC()
+	if now.IsZero() || activityObservedAt.After(now) {
+		decision.Blocker = "AUTHORIZED_ACTIVITY_TIME_INVALID"
+		decision.Reason = "wake activity observation time is outside the evaluation window"
+		return decision
+	}
+	if now.Sub(activityObservedAt) > MaxAuthorizedActivityAge {
+		decision.Blocker = "AUTHORIZED_ACTIVITY_STALE"
+		decision.Reason = "stale authorized activity cannot be replayed to wake a suspended virtual cluster"
+		return decision
+	}
 	decision.Known = true
 	decision.Action = ActionResume
 	decision.MutationAllowed = true
 	decision.RequiresDurableLifecycle = true
-	decision.Reason = "authorized activity may wake only through durable lifecycle resume"
+	decision.Reason = "fresh authorized activity may wake only through durable lifecycle resume"
 	return decision
 }
 
@@ -215,8 +236,14 @@ func EvaluateTTL(policy TTLPolicy, state State, now time.Time, prerequisites TTL
 		decision.Reason = "TTL policy authority/scope/revision/deadline is invalid"
 		return decision
 	}
-	if !policy.Enabled { decision.Blocker = "TTL_DISABLED"; return decision }
-	if now.IsZero() || now.Before(policy.DeleteAfter) { decision.Blocker = "TTL_NOT_EXPIRED"; return decision }
+	if !policy.Enabled {
+		decision.Blocker = "TTL_DISABLED"
+		return decision
+	}
+	if now.IsZero() || now.Before(policy.DeleteAfter) {
+		decision.Blocker = "TTL_NOT_EXPIRED"
+		return decision
+	}
 	if prerequisites.RecoveryPending || state == StateRecoveryRequired {
 		decision.Blocker = "RECOVERY_PENDING"
 		decision.Reason = "recovery must be resolved before TTL deletion"
@@ -246,7 +273,13 @@ func EvaluateTTL(policy TTLPolicy, state State, now time.Time, prerequisites TTL
 
 func validAutomationDigest(value string) bool {
 	value = strings.TrimSpace(value)
-	if len(value) != len("sha256:")+64 || !strings.HasPrefix(value, "sha256:") { return false }
-	for _, r := range value[len("sha256:"):] { if !strings.ContainsRune("0123456789abcdef", r) { return false } }
+	if len(value) != len("sha256:")+64 || !strings.HasPrefix(value, "sha256:") {
+		return false
+	}
+	for _, r := range value[len("sha256:"):] {
+		if !strings.ContainsRune("0123456789abcdef", r) {
+			return false
+		}
+	}
 	return true
 }
