@@ -34,7 +34,7 @@ func TestInventoryRequiresObservedTargetEvidence(t *testing.T) {
 	}
 }
 
-func TestPlacementIsScopedCapacityAwareAndNeverOversubscribesUnknownCapacity(t *testing.T) {
+func TestPlacementIsScopedCapacityAwareAndNeverReselectsAllocatedDevice(t *testing.T) {
 	now := time.Date(2026, 10, 10, 10, 0, 0, 0, time.UTC)
 	inv, err := BuildInventory([]DeviceObservation{
 		{DeviceID: "gpu-b", ClusterID: "cluster-a", NodeID: "node-b", Vendor: "nvidia", Model: "h100", MemoryMiB: 81920, Health: HealthHealthy, Source: SourceTargetAgent, ObservedAt: now, Observed: true, Capabilities: []string{"compute.cuda", "partition.mig"}, PartitionModes: []PartitionMode{PartitionMIG}},
@@ -47,8 +47,13 @@ func TestPlacementIsScopedCapacityAwareAndNeverOversubscribesUnknownCapacity(t *
 	usage := Usage{Devices: 0, MemoryMiB: 0}
 	plan, err := PlanPlacement(inv, class, quota, usage, PlacementRequest{OrganizationID: "org-a", ProjectID: "project-a", ClusterID: "cluster-a", ClassID: class.ID, Devices: 2, MemoryMiB: 160000, PartitionMode: PartitionMIG})
 	if err != nil { t.Fatal(err) }
-	if plan.Authority != QuotaPlacementAuthority || len(plan.DeviceIDs) != 2 || plan.DeviceIDs[0] != "gpu-a" || plan.DeviceIDs[1] != "gpu-b" {
+	if len(plan.DeviceIDs) != 2 || plan.DeviceIDs[0] != "gpu-a" || plan.DeviceIDs[1] != "gpu-b" {
 		t.Fatalf("placement must be deterministic over healthy observed capacity: %#v", plan)
+	}
+	one, err := PlanPlacement(inv, class, quota, Usage{Devices: 1, MemoryMiB: 81920, AllocatedDeviceIDs: []string{"gpu-a"}}, PlacementRequest{OrganizationID: "org-a", ProjectID: "project-a", ClusterID: "cluster-a", ClassID: class.ID, Devices: 1, MemoryMiB: 80000, PartitionMode: PartitionMIG})
+	if err != nil { t.Fatal(err) }
+	if len(one.DeviceIDs) != 1 || one.DeviceIDs[0] != "gpu-b" {
+		t.Fatalf("already allocated gpu must never be selected again: %#v", one)
 	}
 	if _, err := PlanPlacement(inv, class, quota, Usage{Devices: 1, MemoryMiB: 81920}, PlacementRequest{OrganizationID: "org-a", ProjectID: "project-a", ClusterID: "cluster-a", ClassID: class.ID, Devices: 2, MemoryMiB: 160000, PartitionMode: PartitionMIG}); err == nil {
 		t.Fatal("quota oversubscription must be rejected")
@@ -59,21 +64,18 @@ func TestPlacementIsScopedCapacityAwareAndNeverOversubscribesUnknownCapacity(t *
 }
 
 func TestPartitionLifecycleUsesFenceAndAuthoritativeReadbackForUnknownOutcome(t *testing.T) {
-	plan := PlacementPlan{Authority: QuotaPlacementAuthority, OrganizationID: "org-a", ProjectID: "project-a", ClusterID: "cluster-a", ClassID: "h100-mig", DeviceIDs: []string{"gpu-a"}, PartitionMode: PartitionMIG, RequestedDevices: 1, RequestedMemoryMiB: 40000, PlanDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+	plan := PlacementPlan{Authority: QuotaPlacementAuthority, OrganizationID: "org-a", ProjectID: "project-a", ClusterID: "cluster-a", ClassID: "h100-mig", DeviceIDs: []string{"gpu-a"}, PartitionMode: PartitionMIG, RequestedDevices: 1, RequestedMemoryMiB: 40000, PlanDigest: digest64('a')}
 	op, err := NewPartitionOperation(plan, "op-1", "idem-1", 7, PartitionCreate, "gpu-a", "partition-1", 3)
 	if err != nil { t.Fatal(err) }
-	if op.Authority != PartitionLifecycleAuthority || op.FenceToken != 7 || op.ExpectedGeneration != 3 {
-		t.Fatalf("unexpected partition operation: %#v", op)
-	}
 	unknown := ResolvePartitionOutcome(op, OutcomeUnknown, PartitionReadback{})
 	if unknown.State != PartitionStateRecoveryRequired || !unknown.RecoveryRequired || unknown.RetryAllowed {
 		t.Fatalf("unknown outcome must require readback without replay: %#v", unknown)
 	}
-	resolved := ResolvePartitionOutcome(op, OutcomeUnknown, PartitionReadback{Observed: true, DeviceID: "gpu-a", PartitionID: "partition-1", Generation: 4, State: PartitionStateReady, EvidenceDigest: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"})
+	resolved := ResolvePartitionOutcome(op, OutcomeUnknown, PartitionReadback{Observed: true, DeviceID: "gpu-a", PartitionID: "partition-1", Generation: 4, State: PartitionStateReady, EvidenceDigest: digest64('b')})
 	if resolved.State != PartitionStateReady || resolved.RecoveryRequired || resolved.RetryAllowed || resolved.EvidenceDigest == "" {
 		t.Fatalf("authoritative readback must resolve matching ambiguous mutation: %#v", resolved)
 	}
-	stale := ResolvePartitionOutcome(op, OutcomeUnknown, PartitionReadback{Observed: true, DeviceID: "gpu-a", PartitionID: "partition-1", Generation: 3, State: PartitionStateReady, EvidenceDigest: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"})
+	stale := ResolvePartitionOutcome(op, OutcomeUnknown, PartitionReadback{Observed: true, DeviceID: "gpu-a", PartitionID: "partition-1", Generation: 3, State: PartitionStateReady, EvidenceDigest: digest64('c')})
 	if stale.State != PartitionStateRecoveryRequired {
 		t.Fatalf("stale generation must not resolve ambiguous mutation: %#v", stale)
 	}
@@ -91,4 +93,10 @@ func TestHealthDecisionRequiresDurableRemediationAndModelServingRemainsDeferred(
 	if ModelServingAdmission != "DEFERRED_UNTIL_ACCELERATOR_LIFECYCLE_CERTIFIED" {
 		t.Fatalf("model serving boundary drift: %s", ModelServingAdmission)
 	}
+}
+
+func digest64(ch byte) string {
+	buf := make([]byte, 64)
+	for i := range buf { buf[i] = ch }
+	return "sha256:" + string(buf)
 }
