@@ -19,13 +19,9 @@ func (s *Server) clusterWorkloadExplorer(w http.ResponseWriter, r *http.Request)
 		writeStoreError(w, err)
 		return
 	}
-	if _, err = s.requireProjectAccess(r, cluster.ProjectID, organizationRead); err != nil {
-		writeScopeError(w, err)
-		return
-	}
-	project, err := s.store.GetProject(r.Context(), cluster.ProjectID)
+	project, err := s.requireProjectAccess(r, cluster.ProjectID, organizationRead)
 	if err != nil {
-		writeStoreError(w, err)
+		writeScopeError(w, err)
 		return
 	}
 	inventory, err := s.store.GetLatestClusterInventory(r.Context(), cluster.ID)
