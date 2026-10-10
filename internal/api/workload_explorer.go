@@ -102,6 +102,26 @@ type workloadResourceQueryError struct{ message string }
 
 func (e *workloadResourceQueryError) Error() string { return e.message }
 
+// workloadObservedAPIVersion is bounded to the exact Kubernetes list endpoints
+// used by the current Agent workload collector. It deliberately does not infer
+// versions for arbitrary kinds. UID remains absent until the Agent carries the
+// real metadata.uid end-to-end, so these observations stay UNKNOWN rather than
+// manufacturing a stable identity.
+func workloadObservedAPIVersion(kind string) string {
+	switch strings.TrimSpace(kind) {
+	case "Deployment", "StatefulSet", "DaemonSet":
+		return "apps/v1"
+	case "Job":
+		return "batch/v1"
+	case "Service", "PersistentVolumeClaim":
+		return "v1"
+	case "Ingress":
+		return "networking.k8s.io/v1"
+	default:
+		return ""
+	}
+}
+
 func workloadResourceObservations(organizationID, projectID, clusterID string, inventory controlplane.ClusterInventory, fresh bool) []resourceexplorer.ResourceObservation {
 	baseSummary := map[string]string{
 		"source":                  "clusterInventory.workloadExplorer",
@@ -123,9 +143,10 @@ func workloadResourceObservations(organizationID, projectID, clusterID string, i
 			ProjectID:      strings.TrimSpace(projectID),
 			ClusterID:      strings.TrimSpace(clusterID),
 			Key: resourceexplorer.ResourceKey{
-				Kind:      strings.TrimSpace(kind),
-				Namespace: strings.TrimSpace(namespace),
-				Name:      strings.TrimSpace(name),
+				APIVersion: workloadObservedAPIVersion(kind),
+				Kind:       strings.TrimSpace(kind),
+				Namespace:  strings.TrimSpace(namespace),
+				Name:       strings.TrimSpace(name),
 			},
 			State:        resourceexplorer.TruthUnknown,
 			ObservedAt:   inventory.ObservedAt,
