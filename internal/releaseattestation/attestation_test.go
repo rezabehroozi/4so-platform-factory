@@ -11,7 +11,7 @@ func TestBuildSetKeepsRuntimeEvidenceIndependentAndMissingByDefault(t *testing.T
 		nil,
 	)
 	if err != nil { t.Fatal(err) }
-	if set.Authority != AttestationSetAuthority || !set.SourceBuildComplete || set.ExactRuntimeEvidencePresent || set.SetDigest == "" || set.PublicationKey == "" {
+	if set.Authority != AttestationSetAuthority || !set.SourceBuildComplete || set.ExactRuntimeEvidencePresent || set.SetDigest == "" || set.PublicationKey == "" || set.TrustMaterialDigest != "" {
 		t.Fatalf("unexpected source-only attestation set: %#v", set)
 	}
 	projection := ProjectAssurance(set)
@@ -57,7 +57,7 @@ func TestExactRuntimeEvidenceRequiresExecutedExactPhysicalLayer(t *testing.T) {
 	}
 }
 
-func TestDisconnectedVerificationUsesContentAddressAndShippedTrustOnly(t *testing.T) {
+func TestDisconnectedVerificationRequiresExactShippedTrustBinding(t *testing.T) {
 	identity := ArtifactIdentity{SourceCommitSHA: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", ReleaseSHA256: digest('b'), Version: "0.0.1", ReleaseName: "factory"}
 	set, err := BuildSet(identity,
 		EvidenceDocument{Authority: SBOMEvidenceAuthority, Kind: KindSBOM, Identity: identity, PayloadDigest: digest('c'), Layer: LayerSourceBuild, Present: true},
@@ -66,16 +66,24 @@ func TestDisconnectedVerificationUsesContentAddressAndShippedTrustOnly(t *testin
 		nil,
 	)
 	if err != nil { t.Fatal(err) }
-	if err := VerifyDisconnected(set, identity, digest('9')); err != nil {
+	if err := VerifyDisconnected(set, identity, digest('9')); err == nil {
+		t.Fatal("unbound attestation set must not verify offline")
+	}
+	sealed, err := BindShippedTrust(set, digest('9'))
+	if err != nil { t.Fatal(err) }
+	if sealed.TrustMaterialDigest != digest('9') || sealed.SetDigest == set.SetDigest || sealed.PublicationKey == set.PublicationKey {
+		t.Fatalf("trust binding must reseal content address: before=%#v after=%#v", set, sealed)
+	}
+	if err := VerifyDisconnected(sealed, identity, digest('9')); err != nil {
 		t.Fatal(err)
 	}
-	mutated := set
+	if err := VerifyDisconnected(sealed, identity, digest('8')); err == nil {
+		t.Fatal("different shipped trust material must be rejected")
+	}
+	mutated := sealed
 	mutated.PublicationKey = "sha256/" + digest('8')[7:]
 	if err := VerifyDisconnected(mutated, identity, digest('9')); err == nil {
 		t.Fatal("tampered content-address publication key must be rejected")
-	}
-	if err := VerifyDisconnected(set, identity, ""); err == nil {
-		t.Fatal("shipped trust material digest is required")
 	}
 }
 
