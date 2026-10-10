@@ -12,6 +12,7 @@ const (
 	PromotionHealthAuthority           = "APPLICATION_PROMOTION_HEALTH_AUTHORITY_V1"
 	PromotionVerificationAuthority     = "APPLICATION_PROMOTION_VERIFICATION_AUTHORITY_V1"
 	PromotionOperationAuthority        = "APPLICATION_PROMOTION_OPERATION_AUTHORITY_V1"
+	PromotionVerificationTTL           = 10 * time.Minute
 )
 
 type PromotionStage struct {
@@ -190,15 +191,17 @@ type PromotionApprovalEvidence struct {
 }
 
 type PromotionVerification struct {
-	Authority                string `json:"authority"`
-	PlanDigest               string `json:"planDigest"`
-	Verified                 bool   `json:"verified"`
-	RequesterID              string `json:"requesterId"`
-	ApproverID               string `json:"approverId,omitempty"`
-	DeploymentEvidenceDigest string `json:"deploymentEvidenceDigest"`
-	HealthEvidenceDigest     string `json:"healthEvidenceDigest"`
-	ApprovalEvidenceDigest   string `json:"approvalEvidenceDigest,omitempty"`
-	VerificationDigest       string `json:"verificationDigest"`
+	Authority                string    `json:"authority"`
+	PlanDigest               string    `json:"planDigest"`
+	Verified                 bool      `json:"verified"`
+	RequesterID              string    `json:"requesterId"`
+	ApproverID               string    `json:"approverId,omitempty"`
+	DeploymentEvidenceDigest string    `json:"deploymentEvidenceDigest"`
+	HealthEvidenceDigest     string    `json:"healthEvidenceDigest"`
+	ApprovalEvidenceDigest   string    `json:"approvalEvidenceDigest,omitempty"`
+	VerifiedAt               time.Time `json:"verifiedAt"`
+	ValidUntil               time.Time `json:"validUntil"`
+	VerificationDigest       string    `json:"verificationDigest"`
 }
 
 func VerifyApplicationPromotion(plan ApplicationPromotionPlan, deployment ApplicationDeploymentEvidence, health PromotionHealthObservation, approval PromotionApprovalEvidence) (PromotionVerification, error) {
@@ -244,6 +247,8 @@ func VerifyApplicationPromotion(plan ApplicationPromotionPlan, deployment Applic
 		DeploymentEvidenceDigest: digestApplicationPlatformMaterial(deployment),
 		HealthEvidenceDigest: health.EvidenceDigest,
 		ApprovalEvidenceDigest: approvalDigest,
+		VerifiedAt: health.ObservedAt.UTC(),
+		ValidUntil: health.ObservedAt.UTC().Add(PromotionVerificationTTL),
 	}
 	verification.VerificationDigest = digestPromotionVerification(verification)
 	return verification, nil
@@ -299,6 +304,9 @@ type ApplicationPromotionOperation struct {
 	TargetBindingRevision int64  `json:"targetBindingRevision"`
 	DesiredReleaseID      string `json:"desiredReleaseId"`
 	DesiredReleaseDigest  string `json:"desiredReleaseDigest"`
+	ForgejoCommitSHA      string `json:"forgejoCommitSHA"`
+	DesiredStateDigest    string `json:"desiredStateDigest"`
+	ReconciliationEngine  string `json:"reconciliationEngine"`
 	PlanDigest            string `json:"planDigest"`
 	VerificationDigest    string `json:"verificationDigest"`
 	IdempotencyKey        string `json:"idempotencyKey"`
@@ -307,13 +315,17 @@ type ApplicationPromotionOperation struct {
 }
 
 type PromotionReadback struct {
-	Observed             bool   `json:"observed"`
-	EnvironmentBindingID string `json:"environmentBindingId"`
-	Revision             int64  `json:"revision"`
-	ReleaseID            string `json:"releaseId"`
-	ReleaseDigest        string `json:"releaseDigest"`
-	BindingDigest        string `json:"bindingDigest"`
-	EvidenceDigest       string `json:"evidenceDigest"`
+	Observed               bool   `json:"observed"`
+	EnvironmentBindingID   string `json:"environmentBindingId"`
+	Revision               int64  `json:"revision"`
+	ReleaseID              string `json:"releaseId"`
+	ReleaseDigest          string `json:"releaseDigest"`
+	BindingDigest          string `json:"bindingDigest"`
+	ReconciliationObserved bool   `json:"reconciliationObserved"`
+	ForgejoCommitSHA       string `json:"forgejoCommitSHA"`
+	DesiredStateDigest     string `json:"desiredStateDigest"`
+	ReconciliationEngine   string `json:"reconciliationEngine"`
+	EvidenceDigest         string `json:"evidenceDigest"`
 }
 
 type PromotionOperationResult struct {
@@ -324,12 +336,12 @@ type PromotionOperationResult struct {
 	Message          string                  `json:"message,omitempty"`
 }
 
-func NewApplicationPromotionOperation(plan ApplicationPromotionPlan, verification PromotionVerification, operationID, idempotencyKey string, fenceToken int64, requesterID string) (ApplicationPromotionOperation, error) {
+func NewApplicationPromotionOperation(plan ApplicationPromotionPlan, verification PromotionVerification, operationID, idempotencyKey string, fenceToken int64, requesterID string, now time.Time) (ApplicationPromotionOperation, error) {
 	operationID = strings.TrimSpace(operationID)
 	idempotencyKey = strings.TrimSpace(idempotencyKey)
 	requesterID = strings.TrimSpace(requesterID)
-	if plan.Authority != ApplicationPromotionPlanAuthority || !applicationPlatformDigestPattern.MatchString(plan.PlanDigest) || digestPromotionPlan(plan) != plan.PlanDigest || verification.Authority != PromotionVerificationAuthority || !verification.Verified || verification.PlanDigest != plan.PlanDigest || !applicationPlatformDigestPattern.MatchString(verification.VerificationDigest) || digestPromotionVerification(verification) != verification.VerificationDigest || verification.RequesterID != requesterID || operationID == "" || idempotencyKey == "" || requesterID == "" || fenceToken <= 0 {
-		return ApplicationPromotionOperation{}, fmt.Errorf("%w: promotion operation requires exact verified plan, requester identity and fence", ErrValidation)
+	if now.IsZero() || plan.Authority != ApplicationPromotionPlanAuthority || !applicationPlatformDigestPattern.MatchString(plan.PlanDigest) || digestPromotionPlan(plan) != plan.PlanDigest || !isPromotionCommitSHA(plan.ForgejoCommitSHA) || !applicationPlatformDigestPattern.MatchString(plan.DesiredStateDigest) || plan.ReconciliationEngine != "argo-cd" || verification.Authority != PromotionVerificationAuthority || !verification.Verified || verification.PlanDigest != plan.PlanDigest || !applicationPlatformDigestPattern.MatchString(verification.VerificationDigest) || digestPromotionVerification(verification) != verification.VerificationDigest || verification.RequesterID != requesterID || verification.VerifiedAt.IsZero() || verification.ValidUntil.IsZero() || now.Before(verification.VerifiedAt) || now.After(verification.ValidUntil) || operationID == "" || idempotencyKey == "" || requesterID == "" || fenceToken <= 0 {
+		return ApplicationPromotionOperation{}, fmt.Errorf("%w: promotion operation requires fresh exact verified plan, requester identity and fence", ErrValidation)
 	}
 	return ApplicationPromotionOperation{
 		Authority: PromotionOperationAuthority,
@@ -339,6 +351,9 @@ func NewApplicationPromotionOperation(plan ApplicationPromotionPlan, verificatio
 		TargetBindingRevision: plan.TargetBindingRevision,
 		DesiredReleaseID: plan.DesiredReleaseID,
 		DesiredReleaseDigest: plan.DesiredReleaseDigest,
+		ForgejoCommitSHA: plan.ForgejoCommitSHA,
+		DesiredStateDigest: plan.DesiredStateDigest,
+		ReconciliationEngine: plan.ReconciliationEngine,
 		PlanDigest: plan.PlanDigest,
 		VerificationDigest: verification.VerificationDigest,
 		IdempotencyKey: idempotencyKey,
@@ -348,21 +363,21 @@ func NewApplicationPromotionOperation(plan ApplicationPromotionPlan, verificatio
 }
 
 func ResolveApplicationPromotionOutcome(op ApplicationPromotionOperation, outcome PromotionOutcome, readback PromotionReadback) PromotionOperationResult {
-	if op.Authority != PromotionOperationAuthority || op.FenceToken <= 0 || !applicationPlatformDigestPattern.MatchString(op.PlanDigest) || !applicationPlatformDigestPattern.MatchString(op.VerificationDigest) {
+	if op.Authority != PromotionOperationAuthority || op.FenceToken <= 0 || !applicationPlatformDigestPattern.MatchString(op.PlanDigest) || !applicationPlatformDigestPattern.MatchString(op.VerificationDigest) || !isPromotionCommitSHA(op.ForgejoCommitSHA) || !applicationPlatformDigestPattern.MatchString(op.DesiredStateDigest) || op.ReconciliationEngine != "argo-cd" {
 		return PromotionOperationResult{State: PromotionFailed, Message: "promotion operation authority is invalid"}
 	}
-	converged := readback.Observed && strings.TrimSpace(readback.EnvironmentBindingID) == op.TargetBindingID && readback.Revision > op.TargetBindingRevision && strings.TrimSpace(readback.ReleaseID) == op.DesiredReleaseID && strings.TrimSpace(readback.ReleaseDigest) == op.DesiredReleaseDigest && applicationPlatformDigestPattern.MatchString(strings.TrimSpace(readback.BindingDigest)) && applicationPlatformDigestPattern.MatchString(strings.TrimSpace(readback.EvidenceDigest))
+	converged := readback.Observed && strings.TrimSpace(readback.EnvironmentBindingID) == op.TargetBindingID && readback.Revision > op.TargetBindingRevision && strings.TrimSpace(readback.ReleaseID) == op.DesiredReleaseID && strings.TrimSpace(readback.ReleaseDigest) == op.DesiredReleaseDigest && applicationPlatformDigestPattern.MatchString(strings.TrimSpace(readback.BindingDigest)) && readback.ReconciliationObserved && strings.ToLower(strings.TrimSpace(readback.ForgejoCommitSHA)) == op.ForgejoCommitSHA && strings.ToLower(strings.TrimSpace(readback.DesiredStateDigest)) == op.DesiredStateDigest && strings.ToLower(strings.TrimSpace(readback.ReconciliationEngine)) == op.ReconciliationEngine && applicationPlatformDigestPattern.MatchString(strings.TrimSpace(readback.EvidenceDigest))
 	switch outcome {
 	case PromotionOutcomeUnknown:
 		if converged {
-			return PromotionOperationResult{State: PromotionSucceeded, EvidenceDigest: readback.EvidenceDigest, Message: "ambiguous promotion resolved by exact target readback"}
+			return PromotionOperationResult{State: PromotionSucceeded, EvidenceDigest: readback.EvidenceDigest, Message: "ambiguous promotion resolved by exact target and GitOps readback"}
 		}
-		return PromotionOperationResult{State: PromotionRecoveryRequired, RecoveryRequired: true, RetryAllowed: false, Message: "promotion outcome is ambiguous; exact target readback is required"}
+		return PromotionOperationResult{State: PromotionRecoveryRequired, RecoveryRequired: true, RetryAllowed: false, Message: "promotion outcome is ambiguous; exact target and GitOps readback is required"}
 	case PromotionOutcomeApplied:
 		if converged {
 			return PromotionOperationResult{State: PromotionSucceeded, EvidenceDigest: readback.EvidenceDigest}
 		}
-		return PromotionOperationResult{State: PromotionRunning, Message: "promotion accepted; target authority has not converged"}
+		return PromotionOperationResult{State: PromotionRunning, Message: "promotion accepted; target/GitOps authority has not converged"}
 	case PromotionOutcomePending:
 		return PromotionOperationResult{State: PromotionRunning}
 	case PromotionOutcomeFailed:
