@@ -19,6 +19,8 @@ func TestPromotionOperationRejectsIncompleteAuthorityPacket(t *testing.T) {
 		PlanDigest: plan.PlanDigest,
 		Verified: true,
 		RequesterID: "user-requester",
+		DeploymentEvidenceDigest: promotionDigest('c'),
+		HealthEvidenceDigest: promotionDigest('d'),
 		VerifiedAt: now,
 		ValidUntil: now.Add(PromotionVerificationTTL),
 	}
@@ -28,8 +30,43 @@ func TestPromotionOperationRejectsIncompleteAuthorityPacket(t *testing.T) {
 	}
 }
 
+func TestPromotionOperationRejectsSyntheticVerificationWithoutEvidence(t *testing.T) {
+	now := time.Date(2026, 10, 10, 10, 0, 0, 0, time.UTC)
+	plan := completePromotionAdmissionPlan()
+	verification := PromotionVerification{
+		Authority: PromotionVerificationAuthority,
+		PlanDigest: plan.PlanDigest,
+		Verified: true,
+		RequesterID: "user-requester",
+		VerifiedAt: now,
+		ValidUntil: now.Add(PromotionVerificationTTL),
+	}
+	verification.VerificationDigest = digestPromotionVerification(verification)
+	if _, err := NewApplicationPromotionOperation(plan, verification, "op-1", "idem-1", 11, "user-requester", now); err == nil {
+		t.Fatal("verified=true without exact deployment/health evidence must not admit promotion")
+	}
+}
+
 func TestPromotionVerificationExpiresAtBoundary(t *testing.T) {
 	now := time.Date(2026, 10, 10, 10, 0, 0, 0, time.UTC)
+	plan := completePromotionAdmissionPlan()
+	verification := PromotionVerification{
+		Authority: PromotionVerificationAuthority,
+		PlanDigest: plan.PlanDigest,
+		Verified: true,
+		RequesterID: "user-requester",
+		DeploymentEvidenceDigest: promotionDigest('c'),
+		HealthEvidenceDigest: promotionDigest('d'),
+		VerifiedAt: now,
+		ValidUntil: now.Add(PromotionVerificationTTL),
+	}
+	verification.VerificationDigest = digestPromotionVerification(verification)
+	if _, err := NewApplicationPromotionOperation(plan, verification, "op-1", "idem-1", 11, "user-requester", verification.ValidUntil); err == nil {
+		t.Fatal("promotion verification must be expired at the exact ValidUntil boundary")
+	}
+}
+
+func completePromotionAdmissionPlan() ApplicationPromotionPlan {
 	plan := ApplicationPromotionPlan{
 		Authority: ApplicationPromotionPlanAuthority,
 		ProjectID: "project-a",
@@ -42,16 +79,5 @@ func TestPromotionVerificationExpiresAtBoundary(t *testing.T) {
 		ReconciliationEngine: "argo-cd",
 	}
 	plan.PlanDigest = digestPromotionPlan(plan)
-	verification := PromotionVerification{
-		Authority: PromotionVerificationAuthority,
-		PlanDigest: plan.PlanDigest,
-		Verified: true,
-		RequesterID: "user-requester",
-		VerifiedAt: now,
-		ValidUntil: now.Add(PromotionVerificationTTL),
-	}
-	verification.VerificationDigest = digestPromotionVerification(verification)
-	if _, err := NewApplicationPromotionOperation(plan, verification, "op-1", "idem-1", 11, "user-requester", verification.ValidUntil); err == nil {
-		t.Fatal("promotion verification must be expired at the exact ValidUntil boundary")
-	}
+	return plan
 }
