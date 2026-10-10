@@ -22,7 +22,7 @@ func TestOwnerContinuationBindsExactResourceEvidenceAndTypedProductRoute(t *test
 	if _, err := BuildOwnerContinuation(detail, binding, OwnerAction("kubectl-delete")); err == nil { t.Fatal("arbitrary kubernetes action must fail closed") }
 }
 
-func TestOwnerContinuationSupportsExistingVirtualClusterAndPromotionRoutesOnly(t *testing.T) {
+func TestOwnerContinuationSupportsExistingVirtualClusterRoutesAndGatesUnclosedPromotion(t *testing.T) {
 	detail := ResourceDetail{Authority:BoundedResourceExplorerAuthority,OrganizationID:"org-a",ProjectID:"project-a",ClusterID:"cluster-a",Key:ResourceKey{APIVersion:"v1",Kind:"Service",Namespace:"apps",Name:"vc-api"},State:TruthForbidden,EvidenceDigest:continuationDigest('c'),ReadOnly:true}
 	vc, err := BuildProductOwnerBinding(detail, OwnerFamilyVirtualCluster, "vc-1", "ws-1", 4)
 	if err != nil { t.Fatal(err) }
@@ -35,9 +35,9 @@ func TestOwnerContinuationSupportsExistingVirtualClusterAndPromotionRoutesOnly(t
 
 	promotionOwner, err := BuildProductOwnerBinding(detail, OwnerFamilyApplicationEnvironmentBinding, "envbind-1", "", 7)
 	if err != nil { t.Fatal(err) }
-	promotion, err := BuildOwnerContinuation(detail, promotionOwner, OwnerActionPromoteApplication)
-	if err != nil { t.Fatal(err) }
-	if promotion.PathTemplate != "/api/v1/application-platform/environment-bindings/{id}/promote" || promotion.PathParams["id"] != "envbind-1" || !promotion.ApprovalRequired { t.Fatalf("application promotion route drift: %#v", promotion) }
+	if _, err := BuildOwnerContinuation(detail, promotionOwner, OwnerActionPromoteApplication); err == nil {
+		t.Fatal("application promotion continuation must stay gated until CP3 verified durable promotion owns the Product API path")
+	}
 }
 
 func TestPersonaJourneysRemainTaskFirstAndNeverExposeRawKubernetesMutation(t *testing.T) {
