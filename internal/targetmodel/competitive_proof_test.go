@@ -1,13 +1,14 @@
 package targetmodel
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
 
 func TestCompetitiveProofExpansionAuthority(t *testing.T) {
 	model := ArchitectureModel()
-	proof := model.CompetitiveProof
+	proof := model.CompetitiveProofProgram()
 	if proof.Authority != CompetitiveProofAuthority || proof.BaselineProgramAuthority != ProgramAuthorityMethod || !proof.CoreReleasePathUnchanged {
 		t.Fatalf("competitive proof authority drift: %#v", proof)
 	}
@@ -64,6 +65,26 @@ func TestCompetitiveProofExpansionAuthority(t *testing.T) {
 	}
 	if !sliceContainsFragment(proof.PhysicalProofTargets, "connected Managed OKD") || !sliceContainsFragment(proof.PhysicalProofTargets, "disconnected Managed OKD") || !sliceContainsFragment(proof.PhysicalProofTargets, "Exact-SHA") {
 		t.Fatalf("physical competitive proof targets incomplete: %#v", proof.PhysicalProofTargets)
+	}
+
+	raw, err := json.Marshal(model)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var projected map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &projected); err != nil {
+		t.Fatal(err)
+	}
+	competitiveRaw, ok := projected["competitiveProof"]
+	if !ok {
+		t.Fatalf("architecture JSON must expose competitiveProof: %s", raw)
+	}
+	var projectedProof CompetitiveProofProgram
+	if err := json.Unmarshal(competitiveRaw, &projectedProof); err != nil {
+		t.Fatal(err)
+	}
+	if projectedProof.Authority != CompetitiveProofAuthority || len(projectedProof.Phases) != 8 {
+		t.Fatalf("competitive proof JSON projection drift: %#v", projectedProof)
 	}
 }
 
