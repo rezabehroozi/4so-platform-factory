@@ -107,9 +107,7 @@ func BuildManagedResourcePlan(resourceType ManagedResourceType, request ManagedR
 		snapshots = append(snapshots, ManagedResourceDependencySnapshot{InstanceID: id, Revision: dep.Revision, ObservedDigest: dep.ObservedDigest})
 	}
 	plan := ManagedResourcePlan{Authority: ResourceRequestPlanAuthority, ProjectID: request.ProjectID, TypeID: normalizedType.ID, TypeDigest: normalizedType.Digest, Name: request.Name, InputDigest: request.InputDigest, Provisioner: normalizedType.Provisioner, DeletePolicy: normalizedType.DeletePolicy, DependencyInstanceIDs: requestedDeps, DependencySnapshots: snapshots, OutputSchema: append([]ManagedResourceOutput(nil), normalizedType.Outputs...)}
-	plan.PlanDigest = digestApplicationPlatformMaterial(struct {
-		Authority string `json:"authority"`; ProjectID string `json:"projectId"`; TypeID string `json:"typeId"`; TypeDigest string `json:"typeDigest"`; Name string `json:"name"`; InputDigest string `json:"inputDigest"`; Provisioner string `json:"provisioner"`; DeletePolicy string `json:"deletePolicy"`; DependencySnapshots []ManagedResourceDependencySnapshot `json:"dependencySnapshots,omitempty"`; OutputSchema []ManagedResourceOutput `json:"outputSchema"`
-	}{plan.Authority, plan.ProjectID, plan.TypeID, plan.TypeDigest, plan.Name, plan.InputDigest, plan.Provisioner, plan.DeletePolicy, plan.DependencySnapshots, plan.OutputSchema})
+	plan.PlanDigest = managedResourcePlanDigest(plan)
 	return plan, nil
 }
 

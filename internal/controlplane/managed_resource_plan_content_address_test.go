@@ -28,8 +28,28 @@ func TestManagedResourceOperationRejectsTamperedPlanContentAddress(t *testing.T)
 		t.Fatal(err)
 	}
 
-	plan.ProjectID = "project-b"
-	if _, err := NewManagedResourceOperation(plan, "mri_1", 4, "op-1", "idem-1", 9, ManagedResourceProvision); err == nil {
+	foreignScope := plan
+	foreignScope.ProjectID = "project-b"
+	if _, err := NewManagedResourceOperation(foreignScope, "mri_1", 4, "op-1", "idem-1", 9, ManagedResourceProvision); err == nil {
 		t.Fatal("managed resource operation must reject plan content changed after its digest was sealed")
+	}
+
+	dependencyPlan := ManagedResourcePlan{
+		Authority: ResourceRequestPlanAuthority,
+		ProjectID: "project-a",
+		TypeID: "type-1",
+		TypeDigest: testMRDigest('a'),
+		Name: "orders-db",
+		InputDigest: testMRDigest('b'),
+		Provisioner: "product-api",
+		DeletePolicy: "delete",
+		DependencyInstanceIDs: []string{"mri_dep"},
+		DependencySnapshots: []ManagedResourceDependencySnapshot{{InstanceID: "mri_dep", Revision: 3, ObservedDigest: testMRDigest('c')}},
+	}
+	dependencyPlan.PlanDigest = managedResourcePlanDigest(dependencyPlan)
+	tamperedDependencies := dependencyPlan
+	tamperedDependencies.DependencyInstanceIDs = []string{"mri_other"}
+	if _, err := NewManagedResourceOperation(tamperedDependencies, "mri_1", 4, "op-2", "idem-2", 10, ManagedResourceProvision); err == nil {
+		t.Fatal("managed resource operation must reject dependency identities changed after plan sealing")
 	}
 }
