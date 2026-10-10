@@ -36,6 +36,16 @@ func TestTargetArchitectureModelSeparatesDistributionFromProvisioning(t *testing
 	if model.CapabilityResolver.Authority != targetmodel.CapabilityResolverAuthority || model.ProgramRoadmap.CurrentPhase != "C7W-mcp-user-admin-write-parity" {
 		t.Fatalf("target program authority=%#v resolver=%#v", model.ProgramRoadmap, model.CapabilityResolver)
 	}
+
+	var projected struct {
+		CompetitiveProof targetmodel.CompetitiveProofProgram `json:"competitiveProof"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &projected); err != nil {
+		t.Fatal(err)
+	}
+	if projected.CompetitiveProof.Authority != targetmodel.CompetitiveProofAuthority || !projected.CompetitiveProof.CoreReleasePathUnchanged || len(projected.CompetitiveProof.Phases) != 8 {
+		t.Fatalf("competitive proof projection=%#v", projected.CompetitiveProof)
+	}
 }
 
 func TestMCPDelegationArchitectureEndpointExposesV27Rebaseline(t *testing.T) {
