@@ -134,6 +134,13 @@ func BindShippedTrust(set AttestationSet, trustMaterialDigest string) (Attestati
 	if err := validateProjectionSet(set); err != nil {
 		return AttestationSet{}, fmt.Errorf("attestation set must be valid before trust binding: %w", err)
 	}
+	existing := strings.ToLower(strings.TrimSpace(set.TrustMaterialDigest))
+	if existing != "" {
+		if existing != trustMaterialDigest {
+			return AttestationSet{}, errors.New("attestation set trust material is already bound to a different shipped trust digest")
+		}
+		return set, nil
+	}
 	set.TrustMaterialDigest = trustMaterialDigest
 	return reseal(set)
 }
