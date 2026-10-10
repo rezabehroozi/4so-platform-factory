@@ -697,7 +697,7 @@ func (s *PostgresStore) NextProviderClusterTask(ctx context.Context, clusterID, 
 				return e
 			}
 		}
-		if controlplane.IsTargetNodeProviderPendingAction(v.PendingAction) {
+		if controlplane.ProviderClusterTargetNodeMutationRequiresClaimFence(v) {
 			m := v.TargetNodeMutation
 			inv, ie := latestInventoryTx(ctx, tx, m.TargetClusterID)
 			if ie != nil {

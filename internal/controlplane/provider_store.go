@@ -729,7 +729,7 @@ func (s *MemoryStore) NextProviderClusterTask(_ context.Context, clusterID, toke
 		s.appendAuditLocked("cluster-agent", "provider_cluster.apply.lease_expired_readback", "providerCluster", v.ID, v.Revision, map[string]any{"pendingAction": v.PendingAction, "taskFenceToken": v.TaskFenceToken})
 		s.appendOutboxLocked("providerCluster", v.ID, "provider_cluster.state.changed", v)
 	}
-	if IsTargetNodeProviderPendingAction(v.PendingAction) {
+	if ProviderClusterTargetNodeMutationRequiresClaimFence(v) {
 		m := v.TargetNodeMutation
 		inv, ok := s.clusterInventories[m.TargetClusterID]
 		window, wok := s.clusterMaintenanceWindows[m.WindowID]
