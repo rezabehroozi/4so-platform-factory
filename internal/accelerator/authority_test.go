@@ -45,20 +45,20 @@ func TestPlacementIsScopedCapacityAwareAndNeverReselectsAllocatedDevice(t *testi
 	class := GPUClass{Authority: GPUClassAuthority, ID: "h100-mig", Vendor: "nvidia", MinMemoryMiB: 80000, RequiredCapabilities: []string{"compute.cuda", "partition.mig"}, AllowedPartitionModes: []PartitionMode{PartitionMIG}}
 	quota := Quota{Authority: QuotaPlacementAuthority, OrganizationID: "org-a", ProjectID: "project-a", ClassID: class.ID, MaxDevices: 2, MaxMemoryMiB: 163840}
 	usage := Usage{Devices: 0, MemoryMiB: 0}
-	plan, err := PlanPlacement(inv, class, quota, usage, PlacementRequest{OrganizationID: "org-a", ProjectID: "project-a", ClusterID: "cluster-a", ClassID: class.ID, Devices: 2, MemoryMiB: 160000, PartitionMode: PartitionMIG})
+	plan, err := PlanPlacement(inv, class, quota, usage, PlacementRequest{OrganizationID: "org-a", ProjectID: "project-a", ClusterID: "cluster-a", ClassID: class.ID, Devices: 2, MemoryMiB: 160000, PartitionMode: PartitionMIG}, now)
 	if err != nil { t.Fatal(err) }
 	if len(plan.DeviceIDs) != 2 || plan.DeviceIDs[0] != "gpu-a" || plan.DeviceIDs[1] != "gpu-b" {
 		t.Fatalf("placement must be deterministic over healthy observed capacity: %#v", plan)
 	}
-	one, err := PlanPlacement(inv, class, quota, Usage{Devices: 1, MemoryMiB: 81920, AllocatedDeviceIDs: []string{"gpu-a"}}, PlacementRequest{OrganizationID: "org-a", ProjectID: "project-a", ClusterID: "cluster-a", ClassID: class.ID, Devices: 1, MemoryMiB: 80000, PartitionMode: PartitionMIG})
+	one, err := PlanPlacement(inv, class, quota, Usage{Devices: 1, MemoryMiB: 81920, AllocatedDeviceIDs: []string{"gpu-a"}}, PlacementRequest{OrganizationID: "org-a", ProjectID: "project-a", ClusterID: "cluster-a", ClassID: class.ID, Devices: 1, MemoryMiB: 80000, PartitionMode: PartitionMIG}, now)
 	if err != nil { t.Fatal(err) }
 	if len(one.DeviceIDs) != 1 || one.DeviceIDs[0] != "gpu-b" {
 		t.Fatalf("already allocated gpu must never be selected again: %#v", one)
 	}
-	if _, err := PlanPlacement(inv, class, quota, Usage{Devices: 1, MemoryMiB: 81920}, PlacementRequest{OrganizationID: "org-a", ProjectID: "project-a", ClusterID: "cluster-a", ClassID: class.ID, Devices: 2, MemoryMiB: 160000, PartitionMode: PartitionMIG}); err == nil {
+	if _, err := PlanPlacement(inv, class, quota, Usage{Devices: 1, MemoryMiB: 81920}, PlacementRequest{OrganizationID: "org-a", ProjectID: "project-a", ClusterID: "cluster-a", ClassID: class.ID, Devices: 2, MemoryMiB: 160000, PartitionMode: PartitionMIG}, now); err == nil {
 		t.Fatal("quota oversubscription must be rejected")
 	}
-	if _, err := PlanPlacement(inv, class, quota, usage, PlacementRequest{OrganizationID: "org-a", ProjectID: "project-b", ClusterID: "cluster-a", ClassID: class.ID, Devices: 1, MemoryMiB: 80000, PartitionMode: PartitionMIG}); err == nil {
+	if _, err := PlanPlacement(inv, class, quota, usage, PlacementRequest{OrganizationID: "org-a", ProjectID: "project-b", ClusterID: "cluster-a", ClassID: class.ID, Devices: 1, MemoryMiB: 80000, PartitionMode: PartitionMIG}, now); err == nil {
 		t.Fatal("cross-project quota use must be rejected")
 	}
 }
