@@ -25,6 +25,8 @@ func TestBoundedResourceExplorerConsoleEnhancementContract(t *testing.T) {
 		"personaJourneys",
 		"taskLanguageFirst",
 		"/workloads?",
+		"Inspect scoped resource state",
+		"بررسی وضعیت محدودشده منابع",
 	} {
 		if !strings.Contains(js, contract) {
 			t.Fatalf("bounded resource explorer console contract missing %q", contract)
