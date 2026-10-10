@@ -1,6 +1,7 @@
 package resourceexplorer
 
 import (
+	"encoding/base64"
 	"testing"
 	"time"
 )
@@ -27,6 +28,23 @@ func TestBuildPageScopesBeforeLimitAndBindsCursorToQuery(t *testing.T) {
 	wrongScope := query
 	wrongScope.ProjectID = "project-b"
 	if _, err := BuildPage(items, wrongScope, now, 10*time.Minute); err == nil { t.Fatal("cursor from another scope/query must fail closed") }
+	rawCursor, err := base64.RawURLEncoding.DecodeString(page.NextCursor)
+	if err != nil { t.Fatal(err) }
+	trailing := query
+	trailing.Cursor = base64.RawURLEncoding.EncodeToString(append(rawCursor, []byte(`{}`)...))
+	if _, err := BuildPage(items, trailing, now, 10*time.Minute); err == nil { t.Fatal("cursor with trailing JSON payload must fail closed") }
+}
+
+func TestBuildPageRejectsDuplicateResourceSortIdentity(t *testing.T) {
+	now := time.Date(2026, 10, 10, 10, 0, 0, 0, time.UTC)
+	first := explorerObservation("org-a", "project-a", "cluster-a", "v1", "Pod", "apps", "pod-a", now, TruthFresh)
+	duplicate := first
+	duplicate.ObservedAt = now.Add(-time.Minute)
+	duplicate.SourceDigest = explorerDigest('9')
+	query := ResourceQuery{OrganizationID:"org-a",ProjectID:"project-a",ClusterID:"cluster-a",Limit:10}
+	if _, err := BuildPage([]ResourceObservation{first, duplicate}, query, now, 10*time.Minute); err == nil {
+		t.Fatal("duplicate resource sort identity must fail closed instead of producing ambiguous pagination")
+	}
 }
 
 func TestExplorerPreservesUnknownForbiddenStaleAndRejectsSecretPayloadFields(t *testing.T) {
