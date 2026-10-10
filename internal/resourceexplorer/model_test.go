@@ -49,9 +49,9 @@ func TestBuildPageRejectsDuplicateResourceSortIdentity(t *testing.T) {
 
 func TestExplorerPreservesUnknownForbiddenStaleAndRejectsSecretPayloadFields(t *testing.T) {
 	now := time.Date(2026, 10, 10, 10, 0, 0, 0, time.UTC)
-	unknown := explorerObservation("org-a", "project-a", "cluster-a", "v1", "Service", "apps", "svc", now, TruthUnknown)
+	unknown := explorerObservation("org-a", "project-a", "cluster-a", "", "Service", "apps", "svc", now, TruthUnknown)
 	unknown.Key.UID = ""
-	forbidden := explorerObservation("org-a", "project-a", "cluster-a", "apps/v1", "Deployment", "apps", "web", now, TruthForbidden)
+	forbidden := explorerObservation("org-a", "project-a", "cluster-a", "", "Deployment", "apps", "web", now, TruthForbidden)
 	forbidden.Key.UID = ""
 	stale := explorerObservation("org-a", "project-a", "cluster-a", "v1", "Pod", "apps", "old", now.Add(-30*time.Minute), TruthFresh)
 	page, err := BuildPage([]ResourceObservation{unknown, forbidden, stale}, ResourceQuery{OrganizationID:"org-a",ProjectID:"project-a",ClusterID:"cluster-a",Limit:10}, now, 5*time.Minute)
