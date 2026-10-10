@@ -127,7 +127,7 @@ func isPromotionCommitSHA(value string) bool {
 }
 
 type PromotionHealthObservation struct {
-	Authority string `json:"authority"`; ProjectID string `json:"projectId"`; EnvironmentBindingID string `json:"environmentBindingId"`
+	Authority string `json:"authority"`; ProjectID string `json:"projectId"`; EnvironmentBindingID string `json:"environmentBindingId"`; EnvironmentBindingRevision int64 `json:"environmentBindingRevision"`; EnvironmentBindingDigest string `json:"environmentBindingDigest"`
 	Complete bool `json:"complete"`; Healthy bool `json:"healthy"`; WindowStartedAt time.Time `json:"windowStartedAt"`; ObservedAt time.Time `json:"observedAt"`; EvidenceDigest string `json:"evidenceDigest"`
 }
 
@@ -143,7 +143,8 @@ func VerifyApplicationPromotion(plan ApplicationPromotionPlan, deployment Applic
 	if plan.Authority != ApplicationPromotionPlanAuthority || !applicationPlatformDigestPattern.MatchString(plan.PlanDigest) || digestPromotionPlan(plan) != plan.PlanDigest { return PromotionVerification{}, fmt.Errorf("%w: promotion plan authority/digest is invalid", ErrValidation) }
 	if err := validatePromotionDeploymentEvidence(plan, deployment); err != nil { return PromotionVerification{}, err }
 	deploymentObservedAt, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(deployment.ObservedAt)); if err != nil { return PromotionVerification{}, fmt.Errorf("%w: deployment evidence observedAt is invalid", ErrValidation) }
-	if health.Authority != PromotionHealthAuthority || strings.TrimSpace(health.ProjectID) != plan.ProjectID || strings.TrimSpace(health.EnvironmentBindingID) != plan.SourceBindingID || !health.Complete || !health.Healthy || health.WindowStartedAt.IsZero() || health.ObservedAt.IsZero() || health.ObservedAt.Before(health.WindowStartedAt) || health.WindowStartedAt.Before(deploymentObservedAt) || !applicationPlatformDigestPattern.MatchString(strings.TrimSpace(health.EvidenceDigest)) {
+	healthBindingDigest := strings.ToLower(strings.TrimSpace(health.EnvironmentBindingDigest))
+	if health.Authority != PromotionHealthAuthority || strings.TrimSpace(health.ProjectID) != plan.ProjectID || strings.TrimSpace(health.EnvironmentBindingID) != plan.SourceBindingID || health.EnvironmentBindingRevision != plan.SourceBindingRevision || !applicationPlatformDigestPattern.MatchString(healthBindingDigest) || healthBindingDigest != strings.ToLower(strings.TrimSpace(plan.SourceBindingDigest)) || !health.Complete || !health.Healthy || health.WindowStartedAt.IsZero() || health.ObservedAt.IsZero() || health.ObservedAt.Before(health.WindowStartedAt) || health.WindowStartedAt.Before(deploymentObservedAt) || !applicationPlatformDigestPattern.MatchString(strings.TrimSpace(health.EvidenceDigest)) {
 		return PromotionVerification{}, fmt.Errorf("%w: promotion health evidence is incomplete, unhealthy, stale or predates deployment evidence", ErrPrerequisite)
 	}
 	if health.ObservedAt.Sub(health.WindowStartedAt) < time.Duration(plan.MinHealthyMinutes)*time.Minute { return PromotionVerification{}, fmt.Errorf("%w: promotion health window is shorter than policy minimum", ErrPrerequisite) }

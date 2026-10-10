@@ -28,7 +28,7 @@ func TestPromotionVerificationReusesExactDeploymentEvidenceAndHealthWindow(t *te
 	if err != nil { t.Fatal(err) }
 	deployedAt := now.Add(-31*time.Minute)
 	evidence := promotionDeploymentEvidence(source, release, deployedAt)
-	health := PromotionHealthObservation{Authority: PromotionHealthAuthority, ProjectID: "project-a", EnvironmentBindingID: source.ID, Complete: true, Healthy: true, WindowStartedAt: now.Add(-30*time.Minute), ObservedAt: now, EvidenceDigest: promotionDigest('d')}
+	health := PromotionHealthObservation{Authority: PromotionHealthAuthority, ProjectID: "project-a", EnvironmentBindingID: source.ID, EnvironmentBindingRevision: source.Revision, EnvironmentBindingDigest: source.Digest, Complete: true, Healthy: true, WindowStartedAt: now.Add(-30*time.Minute), ObservedAt: now, EvidenceDigest: promotionDigest('d')}
 	approval := PromotionApprovalEvidence{Granted: true, RequesterID: "user-requester", ApproverID: "user-approver", EvidenceDigest: promotionDigest('e')}
 	verification, err := VerifyApplicationPromotion(plan, evidence, health, approval)
 	if err != nil { t.Fatal(err) }
