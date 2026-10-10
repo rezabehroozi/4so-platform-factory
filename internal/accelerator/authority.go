@@ -179,7 +179,10 @@ func PlanPlacement(inv Inventory, class GPUClass, quota Quota, usage Usage, requ
 		if !containsAll(device.Capabilities, class.RequiredCapabilities) || !containsMode(device.PartitionModes, request.PartitionMode) { continue }
 		candidates = append(candidates, device)
 	}
-	sort.Slice(candidates, func(i, j int) bool { return candidates[i].DeviceID < candidates[j].DeviceID })
+	sort.Slice(candidates, func(i, j int) bool {
+		if candidates[i].MemoryMiB != candidates[j].MemoryMiB { return candidates[i].MemoryMiB > candidates[j].MemoryMiB }
+		return candidates[i].DeviceID < candidates[j].DeviceID
+	})
 	if len(candidates) < request.Devices { return PlacementPlan{}, errors.New("insufficient healthy observed unallocated accelerator capacity") }
 	selected := candidates[:request.Devices]
 	deviceIDs := make([]string, 0, len(selected)); totalMemory := 0
