@@ -20,6 +20,7 @@ const workloadResourceCursorMaxBytes = 4096
 type workloadResourceCursorEnvelope struct {
 	Version         int    `json:"v"`
 	InventoryDigest string `json:"inventoryDigest"`
+	ObservedAt      string `json:"observedAt"`
 	Cursor          string `json:"cursor"`
 }
 
@@ -51,7 +52,7 @@ func (s *Server) clusterWorkloadExplorer(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusBadRequest, "RESOURCE_EXPLORER_QUERY_INVALID", err.Error())
 		return
 	}
-	query.Cursor, err = decodeWorkloadResourceCursor(query.Cursor, inventory.Digest)
+	query.Cursor, err = decodeWorkloadResourceCursor(query.Cursor, inventory.Digest, inventory.ObservedAt)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "RESOURCE_EXPLORER_QUERY_INVALID", err.Error())
 		return
@@ -62,7 +63,7 @@ func (s *Server) clusterWorkloadExplorer(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if resourcePage.NextCursor != "" {
-		resourcePage.NextCursor, err = encodeWorkloadResourceCursor(inventory.Digest, resourcePage.NextCursor)
+		resourcePage.NextCursor, err = encodeWorkloadResourceCursor(inventory.Digest, inventory.ObservedAt, resourcePage.NextCursor)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "RESOURCE_EXPLORER_CURSOR_ENCODING_FAILED", err.Error())
 			return
@@ -124,13 +125,18 @@ type workloadResourceQueryError struct{ message string }
 
 func (e *workloadResourceQueryError) Error() string { return e.message }
 
-func encodeWorkloadResourceCursor(inventoryDigest, cursor string) (string, error) {
+func encodeWorkloadResourceCursor(inventoryDigest string, observedAt time.Time, cursor string) (string, error) {
 	inventoryDigest = strings.ToLower(strings.TrimSpace(inventoryDigest))
 	cursor = strings.TrimSpace(cursor)
-	if inventoryDigest == "" || cursor == "" {
+	if inventoryDigest == "" || observedAt.IsZero() || cursor == "" {
 		return "", &workloadResourceQueryError{message: "resource explorer cursor snapshot identity is incomplete"}
 	}
-	raw, err := json.Marshal(workloadResourceCursorEnvelope{Version: workloadResourceCursorVersion, InventoryDigest: inventoryDigest, Cursor: cursor})
+	raw, err := json.Marshal(workloadResourceCursorEnvelope{
+		Version:         workloadResourceCursorVersion,
+		InventoryDigest: inventoryDigest,
+		ObservedAt:      observedAt.UTC().Format(time.RFC3339Nano),
+		Cursor:          cursor,
+	})
 	if err != nil {
 		return "", err
 	}
@@ -140,7 +146,7 @@ func encodeWorkloadResourceCursor(inventoryDigest, cursor string) (string, error
 	return base64.RawURLEncoding.EncodeToString(raw), nil
 }
 
-func decodeWorkloadResourceCursor(cursor, inventoryDigest string) (string, error) {
+func decodeWorkloadResourceCursor(cursor, inventoryDigest string, observedAt time.Time) (string, error) {
 	cursor = strings.TrimSpace(cursor)
 	if cursor == "" {
 		return "", nil
@@ -158,10 +164,15 @@ func decodeWorkloadResourceCursor(cursor, inventoryDigest string) (string, error
 	}
 	expectedDigest := strings.ToLower(strings.TrimSpace(inventoryDigest))
 	cursorDigest := strings.ToLower(strings.TrimSpace(envelope.InventoryDigest))
-	if envelope.Version != workloadResourceCursorVersion || expectedDigest == "" || cursorDigest == "" || strings.TrimSpace(envelope.Cursor) == "" {
+	expectedObservedAt := ""
+	if !observedAt.IsZero() {
+		expectedObservedAt = observedAt.UTC().Format(time.RFC3339Nano)
+	}
+	cursorObservedAt := strings.TrimSpace(envelope.ObservedAt)
+	if envelope.Version != workloadResourceCursorVersion || expectedDigest == "" || cursorDigest == "" || expectedObservedAt == "" || cursorObservedAt == "" || strings.TrimSpace(envelope.Cursor) == "" {
 		return "", &workloadResourceQueryError{message: "resource explorer cursor envelope is invalid"}
 	}
-	if cursorDigest != expectedDigest {
+	if cursorDigest != expectedDigest || cursorObservedAt != expectedObservedAt {
 		return "", &workloadResourceQueryError{message: "resource explorer cursor inventory snapshot changed; restart pagination"}
 	}
 	return strings.TrimSpace(envelope.Cursor), nil
