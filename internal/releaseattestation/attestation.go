@@ -32,8 +32,8 @@ const (
 type CertificationLayer string
 
 const (
-	LayerSourceBuild       CertificationLayer = "SOURCE_BUILD"
-	LayerExactSHAPhysical  CertificationLayer = "EXACT_SHA_PHYSICAL_RUNTIME"
+	LayerSourceBuild      CertificationLayer = "SOURCE_BUILD"
+	LayerExactSHAPhysical CertificationLayer = "EXACT_SHA_PHYSICAL_RUNTIME"
 )
 
 type ArtifactIdentity struct {
@@ -62,6 +62,7 @@ type AttestationSet struct {
 	ExactRuntime                *EvidenceDocument `json:"exactRuntime,omitempty"`
 	SourceBuildComplete         bool              `json:"sourceBuildComplete"`
 	ExactRuntimeEvidencePresent bool              `json:"exactRuntimeEvidencePresent"`
+	TrustMaterialDigest         string            `json:"trustMaterialDigest,omitempty"`
 	SetDigest                   string            `json:"setDigest"`
 	PublicationKey              string            `json:"publicationKey"`
 }
@@ -74,10 +75,10 @@ type LayerProjection struct {
 }
 
 type AssuranceProjection struct {
-	Authority    string          `json:"authority"`
+	Authority    string           `json:"authority"`
 	Identity     ArtifactIdentity `json:"identity"`
-	SourceBuild  LayerProjection `json:"sourceBuild"`
-	ExactRuntime LayerProjection `json:"exactRuntime"`
+	SourceBuild  LayerProjection  `json:"sourceBuild"`
+	ExactRuntime LayerProjection  `json:"exactRuntime"`
 }
 
 func BuildSet(identity ArtifactIdentity, sbom, vex, provenance EvidenceDocument, runtime *EvidenceDocument) (AttestationSet, error) {
@@ -119,27 +120,27 @@ func BuildSet(identity ArtifactIdentity, sbom, vex, provenance EvidenceDocument,
 		SourceBuildComplete: true,
 		ExactRuntimeEvidencePresent: runtimeCopy != nil,
 	}
-	digest, err := attestationDigest(set)
-	if err != nil {
-		return AttestationSet{}, err
+	return reseal(set)
+}
+
+func BindShippedTrust(set AttestationSet, trustMaterialDigest string) (AttestationSet, error) {
+	trustMaterialDigest = strings.ToLower(strings.TrimSpace(trustMaterialDigest))
+	if !isDigest(trustMaterialDigest) {
+		return AttestationSet{}, errors.New("shipped trust material digest is required")
 	}
-	set.SetDigest = digest
-	set.PublicationKey = "sha256/" + digest[len("sha256:"):]
-	return set, nil
+	if set.Authority != AttestationSetAuthority || !set.SourceBuildComplete {
+		return AttestationSet{}, errors.New("attestation set must be complete before trust binding")
+	}
+	set.TrustMaterialDigest = trustMaterialDigest
+	return reseal(set)
 }
 
 func ProjectAssurance(set AttestationSet) AssuranceProjection {
 	projection := AssuranceProjection{
 		Authority: AttestationSetAuthority,
 		Identity: set.Identity,
-		SourceBuild: LayerProjection{
-			Layer: LayerSourceBuild,
-			Status: StatusMissingNotInferred,
-		},
-		ExactRuntime: LayerProjection{
-			Layer: LayerExactSHAPhysical,
-			Status: StatusMissingNotInferred,
-		},
+		SourceBuild: LayerProjection{Layer: LayerSourceBuild, Status: StatusMissingNotInferred},
+		ExactRuntime: LayerProjection{Layer: LayerExactSHAPhysical, Status: StatusMissingNotInferred},
 	}
 	if set.SourceBuildComplete {
 		projection.SourceBuild.Status = StatusPresent
@@ -156,11 +157,15 @@ func ProjectAssurance(set AttestationSet) AssuranceProjection {
 
 func VerifyDisconnected(set AttestationSet, expected ArtifactIdentity, shippedTrustMaterialDigest string) error {
 	expected = normalizeIdentity(expected)
+	shippedTrustMaterialDigest = strings.ToLower(strings.TrimSpace(shippedTrustMaterialDigest))
 	if err := validateIdentity(expected); err != nil {
 		return err
 	}
-	if !isDigest(strings.TrimSpace(shippedTrustMaterialDigest)) {
+	if !isDigest(shippedTrustMaterialDigest) {
 		return errors.New("shipped trust material digest is required for disconnected verification")
+	}
+	if !isDigest(set.TrustMaterialDigest) || set.TrustMaterialDigest != shippedTrustMaterialDigest {
+		return errors.New("attestation set is not bound to the supplied shipped trust material")
 	}
 	if set.Authority != AttestationSetAuthority || !identityEqual(set.Identity, expected) {
 		return errors.New("attestation set identity does not match expected release")
@@ -168,33 +173,29 @@ func VerifyDisconnected(set AttestationSet, expected ArtifactIdentity, shippedTr
 	if !set.SourceBuildComplete {
 		return errors.New("source/build attestation set is incomplete")
 	}
-	if err := validateDocument(set.SBOM, expected, SBOMEvidenceAuthority, KindSBOM, LayerSourceBuild, false); err != nil {
-		return err
-	}
-	if err := validateDocument(set.VEX, expected, VEXEvidenceAuthority, KindVEX, LayerSourceBuild, false); err != nil {
-		return err
-	}
-	if err := validateDocument(set.BuildProvenance, expected, BuildProvenanceAuthority, KindBuildProvenance, LayerSourceBuild, false); err != nil {
-		return err
-	}
+	if err := validateDocument(set.SBOM, expected, SBOMEvidenceAuthority, KindSBOM, LayerSourceBuild, false); err != nil { return err }
+	if err := validateDocument(set.VEX, expected, VEXEvidenceAuthority, KindVEX, LayerSourceBuild, false); err != nil { return err }
+	if err := validateDocument(set.BuildProvenance, expected, BuildProvenanceAuthority, KindBuildProvenance, LayerSourceBuild, false); err != nil { return err }
 	if set.ExactRuntimeEvidencePresent {
-		if set.ExactRuntime == nil {
-			return errors.New("exact runtime evidence flag is set without evidence")
-		}
-		if err := validateDocument(*set.ExactRuntime, expected, ExactRuntimeEvidenceAuthority, KindExactRuntime, LayerExactSHAPhysical, true); err != nil {
-			return err
-		}
+		if set.ExactRuntime == nil { return errors.New("exact runtime evidence flag is set without evidence") }
+		if err := validateDocument(*set.ExactRuntime, expected, ExactRuntimeEvidenceAuthority, KindExactRuntime, LayerExactSHAPhysical, true); err != nil { return err }
 	} else if set.ExactRuntime != nil {
 		return errors.New("exact runtime evidence must not be attached while marked absent")
 	}
 	digest, err := attestationDigest(set)
-	if err != nil {
-		return err
-	}
+	if err != nil { return err }
 	if set.SetDigest != digest || set.PublicationKey != "sha256/"+digest[len("sha256:"):] {
 		return errors.New("attestation set content address is invalid")
 	}
 	return nil
+}
+
+func reseal(set AttestationSet) (AttestationSet, error) {
+	digest, err := attestationDigest(set)
+	if err != nil { return AttestationSet{}, err }
+	set.SetDigest = digest
+	set.PublicationKey = "sha256/" + digest[len("sha256:"):]
+	return set, nil
 }
 
 func validateDocument(doc EvidenceDocument, identity ArtifactIdentity, authority string, kind EvidenceKind, layer CertificationLayer, requireExecuted bool) error {
@@ -227,9 +228,7 @@ func normalizeIdentity(identity ArtifactIdentity) ArtifactIdentity {
 }
 
 func identityEqual(a, b ArtifactIdentity) bool {
-	a = normalizeIdentity(a)
-	b = normalizeIdentity(b)
-	return a == b
+	return normalizeIdentity(a) == normalizeIdentity(b)
 }
 
 func attestationDigest(set AttestationSet) (string, error) {
@@ -242,6 +241,7 @@ func attestationDigest(set AttestationSet) (string, error) {
 		ExactRuntime                *EvidenceDocument `json:"exactRuntime,omitempty"`
 		SourceBuildComplete         bool              `json:"sourceBuildComplete"`
 		ExactRuntimeEvidencePresent bool              `json:"exactRuntimeEvidencePresent"`
+		TrustMaterialDigest         string            `json:"trustMaterialDigest,omitempty"`
 	}{
 		Authority: set.Authority,
 		Identity: set.Identity,
@@ -251,37 +251,24 @@ func attestationDigest(set AttestationSet) (string, error) {
 		ExactRuntime: set.ExactRuntime,
 		SourceBuildComplete: set.SourceBuildComplete,
 		ExactRuntimeEvidencePresent: set.ExactRuntimeEvidencePresent,
+		TrustMaterialDigest: set.TrustMaterialDigest,
 	}
 	raw, err := json.Marshal(material)
-	if err != nil {
-		return "", fmt.Errorf("encode release attestation set: %w", err)
-	}
+	if err != nil { return "", fmt.Errorf("encode release attestation set: %w", err) }
 	sum := sha256.Sum256(raw)
 	return "sha256:" + hex.EncodeToString(sum[:]), nil
 }
 
 func isCommitSHA(value string) bool {
 	value = strings.ToLower(strings.TrimSpace(value))
-	if len(value) != 40 {
-		return false
-	}
-	for _, r := range value {
-		if !strings.ContainsRune("0123456789abcdef", r) {
-			return false
-		}
-	}
+	if len(value) != 40 { return false }
+	for _, r := range value { if !strings.ContainsRune("0123456789abcdef", r) { return false } }
 	return true
 }
 
 func isDigest(value string) bool {
 	value = strings.ToLower(strings.TrimSpace(value))
-	if len(value) != len("sha256:")+64 || !strings.HasPrefix(value, "sha256:") {
-		return false
-	}
-	for _, r := range value[len("sha256:"):] {
-		if !strings.ContainsRune("0123456789abcdef", r) {
-			return false
-		}
-	}
+	if len(value) != len("sha256:")+64 || !strings.HasPrefix(value, "sha256:") { return false }
+	for _, r := range value[len("sha256:"):] { if !strings.ContainsRune("0123456789abcdef", r) { return false } }
 	return true
 }
