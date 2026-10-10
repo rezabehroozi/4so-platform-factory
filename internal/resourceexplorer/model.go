@@ -252,8 +252,8 @@ func normalizeObservation(observation ResourceObservation, now time.Time, freshn
 	if !validTruthState(observation.State) {
 		return ResourceSummary{}, errors.New("resource observation truth state is invalid")
 	}
-	requiresUID := observation.State == TruthFresh || observation.State == TruthStale
-	if observation.OrganizationID == "" || observation.ProjectID == "" || observation.ClusterID == "" || observation.Key.APIVersion == "" || observation.Key.Kind == "" || observation.Key.Name == "" || (requiresUID && observation.Key.UID == "") || observation.ObservedAt.IsZero() || observation.ObservedAt.After(now) || !validDigest(observation.SourceDigest) {
+	requiresStableIdentity := observation.State == TruthFresh || observation.State == TruthStale
+	if observation.OrganizationID == "" || observation.ProjectID == "" || observation.ClusterID == "" || (requiresStableIdentity && observation.Key.APIVersion == "") || observation.Key.Kind == "" || observation.Key.Name == "" || (requiresStableIdentity && observation.Key.UID == "") || observation.ObservedAt.IsZero() || observation.ObservedAt.After(now) || !validDigest(observation.SourceDigest) {
 		return ResourceSummary{}, errors.New("resource observation identity/evidence/time is invalid")
 	}
 	state := observation.State
