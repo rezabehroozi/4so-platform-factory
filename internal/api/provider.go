@@ -536,10 +536,10 @@ func (s *Server) nextProviderClusterTask(w http.ResponseWriter, r *http.Request)
 	case controlplane.ProviderClusterReconciling:
 		action = "INSPECT"
 	case controlplane.ProviderClusterDeleting:
-		if v.Phase == "RecoveryInspectQueued" || v.TaskAttempt > 1 {
-			action = "INSPECT_DELETE"
-		} else {
+		if controlplane.ProviderClusterDeleteMutationRequired(v) {
 			action = "DELETE"
+		} else {
+			action = "INSPECT_DELETE"
 		}
 	default:
 		writeError(w, http.StatusConflict, "PROVIDER_TASK_STATE_INVALID", fmt.Sprintf("provider cluster state %s has no task", v.State))
