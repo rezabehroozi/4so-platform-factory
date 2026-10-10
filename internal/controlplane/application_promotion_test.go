@@ -46,13 +46,11 @@ func TestPromotionVerificationReusesExactDeploymentEvidenceAndHealthWindow(t *te
 }
 
 func TestPromotionUnknownOutcomeRequiresExactTargetReadbackWithoutReplay(t *testing.T) {
-	plan := ApplicationPromotionPlan{Authority: ApplicationPromotionPlanAuthority, ProjectID: "project-a", TargetBindingID: "dst", TargetBindingRevision: 7, DesiredReleaseID: "rel-new", DesiredReleaseDigest: promotionDigest('a'), PlanDigest: promotionDigest('b')}
-	verification := PromotionVerification{Authority: PromotionVerificationAuthority, PlanDigest: plan.PlanDigest, Verified: true, RequesterID: "user-requester", ApproverID: "user-approver", VerificationDigest: promotionDigest('c')}
-	if _, err := NewApplicationPromotionOperation(plan, verification, "op-1", "idem-1", 11, "different-requester"); err == nil { t.Fatal("verified promotion packet must not be reusable by another requester") }
-	// The minimal packet above has synthetic digests. Build exact self-consistent plan/verification for operation tests.
+	plan := ApplicationPromotionPlan{Authority: ApplicationPromotionPlanAuthority, ProjectID: "project-a", TargetBindingID: "dst", TargetBindingRevision: 7, DesiredReleaseID: "rel-new", DesiredReleaseDigest: promotionDigest('a')}
 	plan.PlanDigest = digestPromotionPlan(plan)
-	verification.PlanDigest = plan.PlanDigest
+	verification := PromotionVerification{Authority: PromotionVerificationAuthority, PlanDigest: plan.PlanDigest, Verified: true, RequesterID: "user-requester", ApproverID: "user-approver"}
 	verification.VerificationDigest = digestPromotionVerification(verification)
+	if _, err := NewApplicationPromotionOperation(plan, verification, "op-1", "idem-1", 11, "different-requester"); err == nil { t.Fatal("verified promotion packet must not be reusable by another requester") }
 	op, err := NewApplicationPromotionOperation(plan, verification, "op-1", "idem-1", 11, "user-requester")
 	if err != nil { t.Fatal(err) }
 	unknown := ResolveApplicationPromotionOutcome(op, PromotionOutcomeUnknown, PromotionReadback{})
