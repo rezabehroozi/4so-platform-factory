@@ -154,8 +154,8 @@ type PlacementPlan struct {
 }
 
 func PlanPlacement(inv Inventory, class GPUClass, quota Quota, usage Usage, request PlacementRequest) (PlacementPlan, error) {
-	if inv.Authority != InventoryAuthority || !isDigest(inv.Digest) { return PlacementPlan{}, errors.New("accelerator inventory authority is invalid") }
-	class, err := normalizeClass(class); if err != nil { return PlacementPlan{}, err }
+	inv, err := validateInventory(inv); if err != nil { return PlacementPlan{}, err }
+	class, err = normalizeClass(class); if err != nil { return PlacementPlan{}, err }
 	quota, err = normalizeQuota(quota, class.ID); if err != nil { return PlacementPlan{}, err }
 	request.OrganizationID = strings.TrimSpace(request.OrganizationID)
 	request.ProjectID = strings.TrimSpace(request.ProjectID)
@@ -186,6 +186,13 @@ func PlanPlacement(inv Inventory, class GPUClass, quota Quota, usage Usage, requ
 	plan.PlanDigest, err = digestValue([]any{plan.Authority, inv.Digest, quota, usage.Devices, usage.MemoryMiB, sortedKeys(allocated), plan.OrganizationID, plan.ProjectID, plan.ClusterID, plan.ClassID, plan.DeviceIDs, plan.PartitionMode, plan.RequestedDevices, plan.RequestedMemoryMiB})
 	if err != nil { return PlacementPlan{}, err }
 	return plan, nil
+}
+
+func validateInventory(inv Inventory) (Inventory, error) {
+	if inv.Authority != InventoryAuthority || !isDigest(inv.Digest) { return Inventory{}, errors.New("accelerator inventory authority is invalid") }
+	canonical, err := BuildInventory(inv.Devices); if err != nil { return Inventory{}, fmt.Errorf("accelerator inventory content is invalid: %w", err) }
+	if canonical.Digest != strings.ToLower(strings.TrimSpace(inv.Digest)) { return Inventory{}, errors.New("accelerator inventory content does not match sealed digest") }
+	return canonical, nil
 }
 
 func exactAllocatedSet(inv Inventory, usage Usage) (map[string]bool, error) {
