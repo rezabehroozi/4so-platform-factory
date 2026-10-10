@@ -23,6 +23,7 @@ func TestPromotionReadbackRequiresExactOperationFencePlanAndVerificationBinding(
 		FenceToken: 11,
 		RequesterID: "user-requester",
 	}
+	op.OperationDigest = digestApplicationPromotionOperation(op)
 	readback := PromotionReadback{
 		Observed: true,
 		OperationID: op.OperationID,
