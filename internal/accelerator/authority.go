@@ -279,6 +279,9 @@ type PartitionOperation struct {
 
 type PartitionReadback struct {
 	Observed bool
+	OperationID string
+	FenceToken int64
+	PlanDigest string
 	DeviceID string
 	PartitionID string
 	Generation int64
@@ -322,7 +325,7 @@ func ResolvePartitionOutcome(op PartitionOperation, outcome Outcome, readback Pa
 }
 
 func validReadback(op PartitionOperation, readback PartitionReadback) bool {
-	if !readback.Observed || strings.TrimSpace(readback.DeviceID) != op.DeviceID || strings.TrimSpace(readback.PartitionID) != op.PartitionID || readback.Generation <= op.ExpectedGeneration || !isDigest(readback.EvidenceDigest) { return false }
+	if !readback.Observed || strings.TrimSpace(readback.OperationID) != op.OperationID || readback.FenceToken != op.FenceToken || strings.TrimSpace(readback.PlanDigest) != op.PlanDigest || strings.TrimSpace(readback.DeviceID) != op.DeviceID || strings.TrimSpace(readback.PartitionID) != op.PartitionID || readback.Generation <= op.ExpectedGeneration || !isDigest(readback.EvidenceDigest) { return false }
 	switch op.Action {
 	case PartitionCreate, PartitionAssign: return readback.State == PartitionStateReady
 	case PartitionDrain: return readback.State == PartitionStateDrained
