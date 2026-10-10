@@ -539,6 +539,9 @@ func (s *MemoryStore) ReportTenantTask(_ context.Context, clusterID, agentTokenD
 	if v.Revision != expected || result.TaskFenceToken <= 0 || v.TaskFenceToken != result.TaskFenceToken || !AgentTaskLeaseActive(v.TaskLeaseExpiresAt, now) {
 		return TenantEnvironment{}, ErrConflict
 	}
+	if !TenantTaskResultActionMatchesState(v.State, result.Action) {
+		return TenantEnvironment{}, ErrValidation
+	}
 	wasDelete := v.State == TenantDeleting
 	deleteTerminal := false
 	if !result.Success {

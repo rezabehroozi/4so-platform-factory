@@ -603,6 +603,9 @@ func (s *PostgresStore) ReportTenantTask(ctx context.Context, clusterID, token s
 		if v.Revision != expected || result.TaskFenceToken <= 0 || v.TaskFenceToken != result.TaskFenceToken || !controlplane.AgentTaskLeaseActive(v.TaskLeaseExpiresAt, now) {
 			return controlplane.ErrConflict
 		}
+		if !controlplane.TenantTaskResultActionMatchesState(v.State, result.Action) {
+			return controlplane.ErrValidation
+		}
 		wasDelete := v.State == controlplane.TenantDeleting
 		deleteTerminal := false
 		if !result.Success {
