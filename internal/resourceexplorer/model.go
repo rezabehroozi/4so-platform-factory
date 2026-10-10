@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"sort"
 	"strings"
 	"time"
@@ -130,6 +131,7 @@ func BuildPage(observations []ResourceObservation, query ResourceQuery, now time
 		return ResourcePage{}, errors.New("resource explorer cursor does not match query scope/filter")
 	}
 	filtered := make([]ResourceSummary, 0, len(observations))
+	seenIdentities := map[string]bool{}
 	for _, observation := range observations {
 		if strings.TrimSpace(observation.OrganizationID) != query.OrganizationID || strings.TrimSpace(observation.ProjectID) != query.ProjectID || strings.TrimSpace(observation.ClusterID) != query.ClusterID {
 			continue
@@ -147,6 +149,11 @@ func BuildPage(observations []ResourceObservation, query ResourceQuery, now time
 		if err != nil {
 			return ResourcePage{}, err
 		}
+		identity := summarySortKey(item)
+		if seenIdentities[identity] {
+			return ResourcePage{}, errors.New("resource explorer observations contain duplicate resource identity")
+		}
+		seenIdentities[identity] = true
 		filtered = append(filtered, item)
 	}
 	sort.SliceStable(filtered, func(i, j int) bool {
@@ -386,7 +393,9 @@ func decodeCursor(raw string) (*struct { QueryDigest string; ObservedAt time.Tim
 	dec := json.NewDecoder(bytes.NewReader(payload))
 	dec.DisallowUnknownFields()
 	var envelope cursorEnvelope
-	if err := dec.Decode(&envelope); err != nil || dec.More() { return nil, errors.New("resource explorer cursor payload is invalid") }
+	if err := dec.Decode(&envelope); err != nil { return nil, errors.New("resource explorer cursor payload is invalid") }
+	var trailing any
+	if err := dec.Decode(&trailing); err != io.EOF { return nil, errors.New("resource explorer cursor payload contains trailing data") }
 	if envelope.Version != cursorVersion || !validDigest(strings.ToLower(strings.TrimSpace(envelope.QueryDigest))) || strings.TrimSpace(envelope.SortKey) == "" { return nil, errors.New("resource explorer cursor authority is invalid") }
 	observedAt, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(envelope.ObservedAt))
 	if err != nil || observedAt.IsZero() { return nil, errors.New("resource explorer cursor timestamp is invalid") }
