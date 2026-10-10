@@ -7,12 +7,12 @@ import (
 )
 
 const (
-	PromotionPolicyAuthority           = "APPLICATION_PROMOTION_POLICY_AUTHORITY_V1"
-	ApplicationPromotionPlanAuthority  = "APPLICATION_PROMOTION_PLAN_AUTHORITY_V1"
-	PromotionHealthAuthority           = "APPLICATION_PROMOTION_HEALTH_AUTHORITY_V1"
-	PromotionVerificationAuthority     = "APPLICATION_PROMOTION_VERIFICATION_AUTHORITY_V1"
-	PromotionOperationAuthority        = "APPLICATION_PROMOTION_OPERATION_AUTHORITY_V1"
-	PromotionVerificationTTL           = 10 * time.Minute
+	PromotionPolicyAuthority          = "APPLICATION_PROMOTION_POLICY_AUTHORITY_V1"
+	ApplicationPromotionPlanAuthority = "APPLICATION_PROMOTION_PLAN_AUTHORITY_V1"
+	PromotionHealthAuthority          = "APPLICATION_PROMOTION_HEALTH_AUTHORITY_V1"
+	PromotionVerificationAuthority    = "APPLICATION_PROMOTION_VERIFICATION_AUTHORITY_V1"
+	PromotionOperationAuthority       = "APPLICATION_PROMOTION_OPERATION_AUTHORITY_V1"
+	PromotionVerificationTTL          = 10 * time.Minute
 )
 
 type PromotionStage struct {
@@ -103,30 +103,30 @@ func BuildApplicationPromotionPlan(policy PromotionPolicy, release ApplicationRe
 	}
 	targetStage := stages[targetIndex]
 	plan := ApplicationPromotionPlan{
-		Authority: ApplicationPromotionPlanAuthority,
-		ProjectID: strings.TrimSpace(policy.ProjectID),
-		PolicyID: strings.TrimSpace(policy.PolicyID),
-		PolicyRevision: policy.Revision,
-		SourceStage: stages[sourceIndex].Name,
-		TargetStage: targetStage.Name,
-		SourceBindingID: source.ID,
-		SourceBindingRevision: source.Revision,
-		SourceBindingDigest: source.Digest,
-		SourceClusterID: source.ClusterID,
-		SourceNamespace: source.Namespace,
-		TargetBindingID: target.ID,
-		TargetBindingRevision: target.Revision,
-		TargetBindingDigest: target.Digest,
-		TargetClusterID: target.ClusterID,
-		TargetNamespace: target.Namespace,
-		DesiredReleaseID: release.ID,
-		DesiredReleaseDigest: release.Digest,
+		Authority:              ApplicationPromotionPlanAuthority,
+		ProjectID:              strings.TrimSpace(policy.ProjectID),
+		PolicyID:               strings.TrimSpace(policy.PolicyID),
+		PolicyRevision:         policy.Revision,
+		SourceStage:            stages[sourceIndex].Name,
+		TargetStage:            targetStage.Name,
+		SourceBindingID:        source.ID,
+		SourceBindingRevision:  source.Revision,
+		SourceBindingDigest:    source.Digest,
+		SourceClusterID:        source.ClusterID,
+		SourceNamespace:        source.Namespace,
+		TargetBindingID:        target.ID,
+		TargetBindingRevision:  target.Revision,
+		TargetBindingDigest:    target.Digest,
+		TargetClusterID:        target.ClusterID,
+		TargetNamespace:        target.Namespace,
+		DesiredReleaseID:       release.ID,
+		DesiredReleaseDigest:   release.Digest,
 		WorkloadImageReference: release.WorkloadImageReference,
-		ForgejoCommitSHA: desired.ForgejoCommitSHA,
-		DesiredStateDigest: desired.DesiredStateDigest,
-		ReconciliationEngine: desired.ReconciliationEngine,
-		RequiresApproval: targetStage.RequiresApproval,
-		MinHealthyMinutes: targetStage.MinHealthyMinutes,
+		ForgejoCommitSHA:       desired.ForgejoCommitSHA,
+		DesiredStateDigest:     desired.DesiredStateDigest,
+		ReconciliationEngine:   desired.ReconciliationEngine,
+		RequiresApproval:       targetStage.RequiresApproval,
+		MinHealthyMinutes:      targetStage.MinHealthyMinutes,
 	}
 	plan.PlanDigest = digestPromotionPlan(plan)
 	return plan, nil
@@ -239,16 +239,16 @@ func VerifyApplicationPromotion(plan ApplicationPromotionPlan, deployment Applic
 		return PromotionVerification{}, fmt.Errorf("%w: approval evidence is not admitted when policy does not require approval", ErrValidation)
 	}
 	verification := PromotionVerification{
-		Authority: PromotionVerificationAuthority,
-		PlanDigest: plan.PlanDigest,
-		Verified: true,
-		RequesterID: approval.RequesterID,
-		ApproverID: approverID,
+		Authority:                PromotionVerificationAuthority,
+		PlanDigest:               plan.PlanDigest,
+		Verified:                 true,
+		RequesterID:              approval.RequesterID,
+		ApproverID:               approverID,
 		DeploymentEvidenceDigest: digestApplicationPlatformMaterial(deployment),
-		HealthEvidenceDigest: health.EvidenceDigest,
-		ApprovalEvidenceDigest: approvalDigest,
-		VerifiedAt: health.ObservedAt.UTC(),
-		ValidUntil: health.ObservedAt.UTC().Add(PromotionVerificationTTL),
+		HealthEvidenceDigest:     health.EvidenceDigest,
+		ApprovalEvidenceDigest:   approvalDigest,
+		VerifiedAt:               health.ObservedAt.UTC(),
+		ValidUntil:               health.ObservedAt.UTC().Add(PromotionVerificationTTL),
 	}
 	verification.VerificationDigest = digestPromotionVerification(verification)
 	return verification, nil
@@ -340,42 +340,66 @@ func NewApplicationPromotionOperation(plan ApplicationPromotionPlan, verificatio
 	operationID = strings.TrimSpace(operationID)
 	idempotencyKey = strings.TrimSpace(idempotencyKey)
 	requesterID = strings.TrimSpace(requesterID)
-	if now.IsZero() || plan.Authority != ApplicationPromotionPlanAuthority || !applicationPlatformDigestPattern.MatchString(plan.PlanDigest) || digestPromotionPlan(plan) != plan.PlanDigest || !isPromotionCommitSHA(plan.ForgejoCommitSHA) || !applicationPlatformDigestPattern.MatchString(plan.DesiredStateDigest) || plan.ReconciliationEngine != "argo-cd" || verification.Authority != PromotionVerificationAuthority || !verification.Verified || verification.PlanDigest != plan.PlanDigest || !applicationPlatformDigestPattern.MatchString(verification.VerificationDigest) || digestPromotionVerification(verification) != verification.VerificationDigest || verification.RequesterID != requesterID || verification.VerifiedAt.IsZero() || verification.ValidUntil.IsZero() || now.Before(verification.VerifiedAt) || now.After(verification.ValidUntil) || operationID == "" || idempotencyKey == "" || requesterID == "" || fenceToken <= 0 {
-		return ApplicationPromotionOperation{}, fmt.Errorf("%w: promotion operation requires fresh exact verified plan, requester identity and fence", ErrValidation)
+	projectID := strings.TrimSpace(plan.ProjectID)
+	targetBindingID := strings.TrimSpace(plan.TargetBindingID)
+	desiredReleaseID := strings.TrimSpace(plan.DesiredReleaseID)
+	desiredReleaseDigest := strings.ToLower(strings.TrimSpace(plan.DesiredReleaseDigest))
+	if now.IsZero() ||
+		plan.Authority != ApplicationPromotionPlanAuthority ||
+		projectID == "" || targetBindingID == "" || plan.TargetBindingRevision <= 0 || desiredReleaseID == "" || !applicationPlatformDigestPattern.MatchString(desiredReleaseDigest) ||
+		!applicationPlatformDigestPattern.MatchString(plan.PlanDigest) || digestPromotionPlan(plan) != plan.PlanDigest ||
+		!isPromotionCommitSHA(plan.ForgejoCommitSHA) || !applicationPlatformDigestPattern.MatchString(plan.DesiredStateDigest) || plan.ReconciliationEngine != "argo-cd" ||
+		verification.Authority != PromotionVerificationAuthority || !verification.Verified || verification.PlanDigest != plan.PlanDigest ||
+		!applicationPlatformDigestPattern.MatchString(verification.VerificationDigest) || digestPromotionVerification(verification) != verification.VerificationDigest ||
+		verification.RequesterID != requesterID || verification.VerifiedAt.IsZero() || verification.ValidUntil.IsZero() ||
+		!verification.ValidUntil.After(verification.VerifiedAt) || now.Before(verification.VerifiedAt) || !now.Before(verification.ValidUntil) ||
+		operationID == "" || idempotencyKey == "" || requesterID == "" || fenceToken <= 0 {
+		return ApplicationPromotionOperation{}, fmt.Errorf("%w: promotion operation requires complete fresh exact verified plan, requester identity and fence", ErrValidation)
 	}
 	return ApplicationPromotionOperation{
-		Authority: PromotionOperationAuthority,
-		OperationID: operationID,
-		ProjectID: plan.ProjectID,
-		TargetBindingID: plan.TargetBindingID,
+		Authority:             PromotionOperationAuthority,
+		OperationID:           operationID,
+		ProjectID:             projectID,
+		TargetBindingID:       targetBindingID,
 		TargetBindingRevision: plan.TargetBindingRevision,
-		DesiredReleaseID: plan.DesiredReleaseID,
-		DesiredReleaseDigest: plan.DesiredReleaseDigest,
-		ForgejoCommitSHA: plan.ForgejoCommitSHA,
-		DesiredStateDigest: plan.DesiredStateDigest,
-		ReconciliationEngine: plan.ReconciliationEngine,
-		PlanDigest: plan.PlanDigest,
-		VerificationDigest: verification.VerificationDigest,
-		IdempotencyKey: idempotencyKey,
-		FenceToken: fenceToken,
-		RequesterID: requesterID,
+		DesiredReleaseID:      desiredReleaseID,
+		DesiredReleaseDigest:  desiredReleaseDigest,
+		ForgejoCommitSHA:      strings.ToLower(strings.TrimSpace(plan.ForgejoCommitSHA)),
+		DesiredStateDigest:    strings.ToLower(strings.TrimSpace(plan.DesiredStateDigest)),
+		ReconciliationEngine:  strings.ToLower(strings.TrimSpace(plan.ReconciliationEngine)),
+		PlanDigest:            plan.PlanDigest,
+		VerificationDigest:    verification.VerificationDigest,
+		IdempotencyKey:        idempotencyKey,
+		FenceToken:            fenceToken,
+		RequesterID:           requesterID,
 	}, nil
 }
 
 func ResolveApplicationPromotionOutcome(op ApplicationPromotionOperation, outcome PromotionOutcome, readback PromotionReadback) PromotionOperationResult {
-	if op.Authority != PromotionOperationAuthority || op.FenceToken <= 0 || !applicationPlatformDigestPattern.MatchString(op.PlanDigest) || !applicationPlatformDigestPattern.MatchString(op.VerificationDigest) || !isPromotionCommitSHA(op.ForgejoCommitSHA) || !applicationPlatformDigestPattern.MatchString(op.DesiredStateDigest) || op.ReconciliationEngine != "argo-cd" {
+	if op.Authority != PromotionOperationAuthority ||
+		strings.TrimSpace(op.ProjectID) == "" || strings.TrimSpace(op.TargetBindingID) == "" || op.TargetBindingRevision <= 0 || strings.TrimSpace(op.DesiredReleaseID) == "" ||
+		op.FenceToken <= 0 || !applicationPlatformDigestPattern.MatchString(op.DesiredReleaseDigest) ||
+		!applicationPlatformDigestPattern.MatchString(op.PlanDigest) || !applicationPlatformDigestPattern.MatchString(op.VerificationDigest) ||
+		!isPromotionCommitSHA(op.ForgejoCommitSHA) || !applicationPlatformDigestPattern.MatchString(op.DesiredStateDigest) || op.ReconciliationEngine != "argo-cd" {
 		return PromotionOperationResult{State: PromotionFailed, Message: "promotion operation authority is invalid"}
 	}
-	converged := readback.Observed && strings.TrimSpace(readback.EnvironmentBindingID) == op.TargetBindingID && readback.Revision > op.TargetBindingRevision && strings.TrimSpace(readback.ReleaseID) == op.DesiredReleaseID && strings.TrimSpace(readback.ReleaseDigest) == op.DesiredReleaseDigest && applicationPlatformDigestPattern.MatchString(strings.TrimSpace(readback.BindingDigest)) && readback.ReconciliationObserved && strings.ToLower(strings.TrimSpace(readback.ForgejoCommitSHA)) == op.ForgejoCommitSHA && strings.ToLower(strings.TrimSpace(readback.DesiredStateDigest)) == op.DesiredStateDigest && strings.ToLower(strings.TrimSpace(readback.ReconciliationEngine)) == op.ReconciliationEngine && applicationPlatformDigestPattern.MatchString(strings.TrimSpace(readback.EvidenceDigest))
+	converged := readback.Observed &&
+		strings.TrimSpace(readback.EnvironmentBindingID) == op.TargetBindingID && readback.Revision > op.TargetBindingRevision &&
+		strings.TrimSpace(readback.ReleaseID) == op.DesiredReleaseID && strings.ToLower(strings.TrimSpace(readback.ReleaseDigest)) == op.DesiredReleaseDigest &&
+		applicationPlatformDigestPattern.MatchString(strings.ToLower(strings.TrimSpace(readback.BindingDigest))) && readback.ReconciliationObserved &&
+		strings.ToLower(strings.TrimSpace(readback.ForgejoCommitSHA)) == op.ForgejoCommitSHA &&
+		strings.ToLower(strings.TrimSpace(readback.DesiredStateDigest)) == op.DesiredStateDigest &&
+		strings.ToLower(strings.TrimSpace(readback.ReconciliationEngine)) == op.ReconciliationEngine &&
+		applicationPlatformDigestPattern.MatchString(strings.ToLower(strings.TrimSpace(readback.EvidenceDigest)))
 	switch outcome {
 	case PromotionOutcomeUnknown:
 		if converged {
-			return PromotionOperationResult{State: PromotionSucceeded, EvidenceDigest: readback.EvidenceDigest, Message: "ambiguous promotion resolved by exact target and GitOps readback"}
+			return PromotionOperationResult{State: PromotionSucceeded, EvidenceDigest: strings.ToLower(strings.TrimSpace(readback.EvidenceDigest)), Message: "ambiguous promotion resolved by exact target and GitOps readback"}
 		}
 		return PromotionOperationResult{State: PromotionRecoveryRequired, RecoveryRequired: true, RetryAllowed: false, Message: "promotion outcome is ambiguous; exact target and GitOps readback is required"}
 	case PromotionOutcomeApplied:
 		if converged {
-			return PromotionOperationResult{State: PromotionSucceeded, EvidenceDigest: readback.EvidenceDigest}
+			return PromotionOperationResult{State: PromotionSucceeded, EvidenceDigest: strings.ToLower(strings.TrimSpace(readback.EvidenceDigest))}
 		}
 		return PromotionOperationResult{State: PromotionRunning, Message: "promotion accepted; target/GitOps authority has not converged"}
 	case PromotionOutcomePending:
