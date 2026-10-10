@@ -319,8 +319,14 @@ func validReadback(op PartitionOperation, readback PartitionReadback) bool {
 
 type HealthDecision struct { RepairRequired bool; ReplacementAllowed bool; RequiredAuthority string; Reason string }
 
+func validHealthObservation(observation DeviceObservation) bool {
+	if !observation.Observed || observation.ObservedAt.IsZero() || strings.TrimSpace(observation.DeviceID) == "" || strings.TrimSpace(observation.ClusterID) == "" || strings.TrimSpace(observation.NodeID) == "" { return false }
+	switch observation.Source { case SourceTargetAgent, SourceDevicePlugin, SourceDistributionAPI: default: return false }
+	switch observation.Health { case HealthHealthy, HealthDegraded, HealthUnhealthy, HealthUnknown: return true; default: return false }
+}
+
 func AssessHealth(observation DeviceObservation) HealthDecision {
-	if !observation.Observed || observation.ObservedAt.IsZero() { return HealthDecision{Reason: "health is not backed by observed target evidence"} }
+	if !validHealthObservation(observation) { return HealthDecision{Reason: "health is not backed by an identified admitted target observation"} }
 	switch observation.Health {
 	case HealthHealthy: return HealthDecision{Reason: "device is healthy"}
 	case HealthUnknown: return HealthDecision{Reason: "device health is unknown; mutation is not authorized"}
