@@ -72,6 +72,7 @@ func (s *Server) clusterWorkloadExplorer(w http.ResponseWriter, r *http.Request)
 		"resourceIdentityComplete":   false,
 		"resourceEvidenceAuthority":  "clusterInventory.digest",
 		"mutationContinuationPolicy": "OWNER_PRODUCT_API_ONLY",
+		"personaJourneys":            resourceexplorer.PersonaTaskJourneys(),
 	})
 }
 

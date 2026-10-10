@@ -67,6 +67,7 @@ func TestClusterWorkloadExplorerAddsBoundedUnknownSafeResourcePageWithoutBreakin
 		ResourcePage          resourceexplorer.ResourcePage             `json:"resourcePage"`
 		ResourceReadOnly      bool                                      `json:"resourceReadOnly"`
 		RawKubernetesMutation bool                                      `json:"rawKubernetesMutation"`
+		PersonaJourneys       []resourceexplorer.PersonaTaskJourney     `json:"personaJourneys"`
 	}
 	if err = json.Unmarshal(first.Body.Bytes(), &payload); err != nil {
 		t.Fatal(err)
@@ -79,6 +80,21 @@ func TestClusterWorkloadExplorerAddsBoundedUnknownSafeResourcePageWithoutBreakin
 	}
 	if payload.ResourcePage.Authority != resourceexplorer.BoundedResourceExplorerAuthority || len(payload.ResourcePage.Items) != 1 || !payload.ResourcePage.HasMore || payload.ResourcePage.NextCursor == "" {
 		t.Fatalf("first resource page drift: %#v", payload.ResourcePage)
+	}
+	if len(payload.PersonaJourneys) != 3 {
+		t.Fatalf("expected canonical operator/platform-engineer/developer journeys: %#v", payload.PersonaJourneys)
+	}
+	seenPersona := map[resourceexplorer.Persona]bool{}
+	for _, journey := range payload.PersonaJourneys {
+		seenPersona[journey.Persona] = true
+		if journey.Authority != resourceexplorer.PersonaTaskJourneyAuthority || !journey.TaskLanguageFirst || journey.RawKubernetesMutation || len(journey.Tasks) == 0 {
+			t.Fatalf("persona journey authority drift: %#v", journey)
+		}
+	}
+	for _, persona := range []resourceexplorer.Persona{resourceexplorer.PersonaOperator, resourceexplorer.PersonaPlatformEngineer, resourceexplorer.PersonaDeveloper} {
+		if !seenPersona[persona] {
+			t.Fatalf("missing persona journey %q", persona)
+		}
 	}
 	item := payload.ResourcePage.Items[0]
 	if item.Key.Kind != "Deployment" || item.Key.Namespace != "apps" || item.State != resourceexplorer.TruthUnknown || item.Key.APIVersion != "" || item.Key.UID != "" || item.SourceDigest != stored.Digest {
