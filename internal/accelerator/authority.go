@@ -18,6 +18,7 @@ const (
 	PartitionLifecycleAuthority = "ACCELERATOR_PARTITION_LIFECYCLE_AUTHORITY_V1"
 	ModelServingAdmission       = "DEFERRED_UNTIL_ACCELERATOR_LIFECYCLE_CERTIFIED"
 	MaxHealthObservationAge     = 10 * time.Minute
+	MaxPlacementObservationAge  = 10 * time.Minute
 )
 
 type ObservationSource string
@@ -154,8 +155,9 @@ type PlacementPlan struct {
 	PlanDigest string
 }
 
-func PlanPlacement(inv Inventory, class GPUClass, quota Quota, usage Usage, request PlacementRequest) (PlacementPlan, error) {
+func PlanPlacement(inv Inventory, class GPUClass, quota Quota, usage Usage, request PlacementRequest, now time.Time) (PlacementPlan, error) {
 	inv, err := validateInventory(inv); if err != nil { return PlacementPlan{}, err }
+	if err = validatePlacementObservationEpoch(inv, now); err != nil { return PlacementPlan{}, err }
 	class, err = normalizeClass(class); if err != nil { return PlacementPlan{}, err }
 	quota, err = normalizeQuota(quota, class.ID); if err != nil { return PlacementPlan{}, err }
 	request.OrganizationID = strings.TrimSpace(request.OrganizationID)
@@ -194,6 +196,17 @@ func validateInventory(inv Inventory) (Inventory, error) {
 	canonical, err := BuildInventory(inv.Devices); if err != nil { return Inventory{}, fmt.Errorf("accelerator inventory content is invalid: %w", err) }
 	if canonical.Digest != strings.ToLower(strings.TrimSpace(inv.Digest)) { return Inventory{}, errors.New("accelerator inventory content does not match sealed digest") }
 	return canonical, nil
+}
+
+func validatePlacementObservationEpoch(inv Inventory, now time.Time) error {
+	if now.IsZero() { return errors.New("accelerator placement requires a current observation epoch") }
+	now = now.UTC()
+	for _, device := range inv.Devices {
+		observedAt := device.ObservedAt.UTC()
+		if observedAt.After(now) { return fmt.Errorf("accelerator observation %q is from the future", device.DeviceID) }
+		if now.Sub(observedAt) > MaxPlacementObservationAge { return fmt.Errorf("accelerator observation %q is stale for placement", device.DeviceID) }
+	}
+	return nil
 }
 
 func exactAllocatedSet(inv Inventory, usage Usage) (map[string]bool, error) {
