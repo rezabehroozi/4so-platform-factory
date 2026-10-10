@@ -131,8 +131,8 @@ func BindShippedTrust(set AttestationSet, trustMaterialDigest string) (Attestati
 	if !isDigest(trustMaterialDigest) {
 		return AttestationSet{}, errors.New("shipped trust material digest is required")
 	}
-	if set.Authority != AttestationSetAuthority || !set.SourceBuildComplete {
-		return AttestationSet{}, errors.New("attestation set must be complete before trust binding")
+	if err := validateProjectionSet(set); err != nil {
+		return AttestationSet{}, fmt.Errorf("attestation set must be valid before trust binding: %w", err)
 	}
 	set.TrustMaterialDigest = trustMaterialDigest
 	return reseal(set)
