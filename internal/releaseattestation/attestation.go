@@ -114,13 +114,13 @@ func BuildSet(identity ArtifactIdentity, sbom, vex, provenance EvidenceDocument,
 	}
 
 	set := AttestationSet{
-		Authority: AttestationSetAuthority,
-		Identity: identity,
-		SBOM: sbom,
-		VEX: vex,
-		BuildProvenance: provenance,
-		ExactRuntime: runtimeCopy,
-		SourceBuildComplete: true,
+		Authority:                   AttestationSetAuthority,
+		Identity:                    identity,
+		SBOM:                        sbom,
+		VEX:                         vex,
+		BuildProvenance:             provenance,
+		ExactRuntime:                runtimeCopy,
+		SourceBuildComplete:         true,
 		ExactRuntimeEvidencePresent: runtimeCopy != nil,
 	}
 	return reseal(set)
@@ -140,22 +140,66 @@ func BindShippedTrust(set AttestationSet, trustMaterialDigest string) (Attestati
 
 func ProjectAssurance(set AttestationSet) AssuranceProjection {
 	projection := AssuranceProjection{
-		Authority: AttestationSetAuthority,
-		Identity: set.Identity,
-		SourceBuild: LayerProjection{Layer: LayerSourceBuild, Status: StatusMissingNotInferred},
+		Authority:    AttestationSetAuthority,
+		Identity:     normalizeIdentity(set.Identity),
+		SourceBuild:  LayerProjection{Layer: LayerSourceBuild, Status: StatusMissingNotInferred},
 		ExactRuntime: LayerProjection{Layer: LayerExactSHAPhysical, Status: StatusMissingNotInferred},
 	}
-	if set.SourceBuildComplete {
-		projection.SourceBuild.Status = StatusPresent
-		projection.SourceBuild.ClaimedPass = true
-		projection.SourceBuild.Evidence = []string{set.SBOM.PayloadDigest, set.VEX.PayloadDigest, set.BuildProvenance.PayloadDigest}
+	if err := validateProjectionSet(set); err != nil {
+		return projection
 	}
+	projection.SourceBuild.Status = StatusPresent
+	projection.SourceBuild.ClaimedPass = true
+	projection.SourceBuild.Evidence = []string{set.SBOM.PayloadDigest, set.VEX.PayloadDigest, set.BuildProvenance.PayloadDigest}
 	if set.ExactRuntimeEvidencePresent && set.ExactRuntime != nil {
 		projection.ExactRuntime.Status = StatusPresent
 		projection.ExactRuntime.ClaimedPass = true
 		projection.ExactRuntime.Evidence = []string{set.ExactRuntime.PayloadDigest}
 	}
 	return projection
+}
+
+func validateProjectionSet(set AttestationSet) error {
+	identity := normalizeIdentity(set.Identity)
+	if set.Authority != AttestationSetAuthority {
+		return errors.New("attestation set authority is invalid")
+	}
+	if err := validateIdentity(identity); err != nil {
+		return err
+	}
+	if !set.SourceBuildComplete {
+		return errors.New("source/build attestation set is incomplete")
+	}
+	if err := validateDocument(set.SBOM, identity, SBOMEvidenceAuthority, KindSBOM, LayerSourceBuild, false); err != nil {
+		return err
+	}
+	if err := validateDocument(set.VEX, identity, VEXEvidenceAuthority, KindVEX, LayerSourceBuild, false); err != nil {
+		return err
+	}
+	if err := validateDocument(set.BuildProvenance, identity, BuildProvenanceAuthority, KindBuildProvenance, LayerSourceBuild, false); err != nil {
+		return err
+	}
+	if set.ExactRuntimeEvidencePresent {
+		if set.ExactRuntime == nil {
+			return errors.New("exact runtime evidence flag is set without evidence")
+		}
+		if err := validateDocument(*set.ExactRuntime, identity, ExactRuntimeEvidenceAuthority, KindExactRuntime, LayerExactSHAPhysical, true); err != nil {
+			return err
+		}
+	} else if set.ExactRuntime != nil {
+		return errors.New("exact runtime evidence must not be attached while marked absent")
+	}
+	if set.TrustMaterialDigest != "" && !isDigest(set.TrustMaterialDigest) {
+		return errors.New("attestation set trust material digest is invalid")
+	}
+	digest, err := attestationDigest(set)
+	if err != nil {
+		return err
+	}
+	if set.SetDigest != digest || set.PublicationKey != "sha256/"+digest[len("sha256:"):] {
+		return errors.New("attestation set content address is invalid")
+	}
+	return nil
 }
 
 func VerifyDisconnected(set AttestationSet, expected ArtifactIdentity, shippedTrustMaterialDigest string) error {
@@ -176,17 +220,29 @@ func VerifyDisconnected(set AttestationSet, expected ArtifactIdentity, shippedTr
 	if !set.SourceBuildComplete {
 		return errors.New("source/build attestation set is incomplete")
 	}
-	if err := validateDocument(set.SBOM, expected, SBOMEvidenceAuthority, KindSBOM, LayerSourceBuild, false); err != nil { return err }
-	if err := validateDocument(set.VEX, expected, VEXEvidenceAuthority, KindVEX, LayerSourceBuild, false); err != nil { return err }
-	if err := validateDocument(set.BuildProvenance, expected, BuildProvenanceAuthority, KindBuildProvenance, LayerSourceBuild, false); err != nil { return err }
+	if err := validateDocument(set.SBOM, expected, SBOMEvidenceAuthority, KindSBOM, LayerSourceBuild, false); err != nil {
+		return err
+	}
+	if err := validateDocument(set.VEX, expected, VEXEvidenceAuthority, KindVEX, LayerSourceBuild, false); err != nil {
+		return err
+	}
+	if err := validateDocument(set.BuildProvenance, expected, BuildProvenanceAuthority, KindBuildProvenance, LayerSourceBuild, false); err != nil {
+		return err
+	}
 	if set.ExactRuntimeEvidencePresent {
-		if set.ExactRuntime == nil { return errors.New("exact runtime evidence flag is set without evidence") }
-		if err := validateDocument(*set.ExactRuntime, expected, ExactRuntimeEvidenceAuthority, KindExactRuntime, LayerExactSHAPhysical, true); err != nil { return err }
+		if set.ExactRuntime == nil {
+			return errors.New("exact runtime evidence flag is set without evidence")
+		}
+		if err := validateDocument(*set.ExactRuntime, expected, ExactRuntimeEvidenceAuthority, KindExactRuntime, LayerExactSHAPhysical, true); err != nil {
+			return err
+		}
 	} else if set.ExactRuntime != nil {
 		return errors.New("exact runtime evidence must not be attached while marked absent")
 	}
 	digest, err := attestationDigest(set)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	if set.SetDigest != digest || set.PublicationKey != "sha256/"+digest[len("sha256:"):] {
 		return errors.New("attestation set content address is invalid")
 	}
@@ -195,7 +251,9 @@ func VerifyDisconnected(set AttestationSet, expected ArtifactIdentity, shippedTr
 
 func reseal(set AttestationSet) (AttestationSet, error) {
 	digest, err := attestationDigest(set)
-	if err != nil { return AttestationSet{}, err }
+	if err != nil {
+		return AttestationSet{}, err
+	}
 	set.SetDigest = digest
 	set.PublicationKey = "sha256/" + digest[len("sha256:"):]
 	return set, nil
@@ -252,32 +310,46 @@ func attestationDigest(set AttestationSet) (string, error) {
 		ExactRuntimeEvidencePresent bool              `json:"exactRuntimeEvidencePresent"`
 		TrustMaterialDigest         string            `json:"trustMaterialDigest,omitempty"`
 	}{
-		Authority: set.Authority,
-		Identity: set.Identity,
-		SBOM: set.SBOM,
-		VEX: set.VEX,
-		BuildProvenance: set.BuildProvenance,
-		ExactRuntime: set.ExactRuntime,
-		SourceBuildComplete: set.SourceBuildComplete,
+		Authority:                   set.Authority,
+		Identity:                    set.Identity,
+		SBOM:                        set.SBOM,
+		VEX:                         set.VEX,
+		BuildProvenance:             set.BuildProvenance,
+		ExactRuntime:                set.ExactRuntime,
+		SourceBuildComplete:         set.SourceBuildComplete,
 		ExactRuntimeEvidencePresent: set.ExactRuntimeEvidencePresent,
-		TrustMaterialDigest: set.TrustMaterialDigest,
+		TrustMaterialDigest:         set.TrustMaterialDigest,
 	}
 	raw, err := json.Marshal(material)
-	if err != nil { return "", fmt.Errorf("encode release attestation set: %w", err) }
+	if err != nil {
+		return "", fmt.Errorf("encode release attestation set: %w", err)
+	}
 	sum := sha256.Sum256(raw)
 	return "sha256:" + hex.EncodeToString(sum[:]), nil
 }
 
 func isCommitSHA(value string) bool {
 	value = strings.ToLower(strings.TrimSpace(value))
-	if len(value) != 40 { return false }
-	for _, r := range value { if !strings.ContainsRune("0123456789abcdef", r) { return false } }
+	if len(value) != 40 {
+		return false
+	}
+	for _, r := range value {
+		if !strings.ContainsRune("0123456789abcdef", r) {
+			return false
+		}
+	}
 	return true
 }
 
 func isDigest(value string) bool {
 	value = strings.ToLower(strings.TrimSpace(value))
-	if len(value) != len("sha256:")+64 || !strings.HasPrefix(value, "sha256:") { return false }
-	for _, r := range value[len("sha256:"):] { if !strings.ContainsRune("0123456789abcdef", r) { return false } }
+	if len(value) != len("sha256:")+64 || !strings.HasPrefix(value, "sha256:") {
+		return false
+	}
+	for _, r := range value[len("sha256:"):] {
+		if !strings.ContainsRune("0123456789abcdef", r) {
+			return false
+		}
+	}
 	return true
 }
