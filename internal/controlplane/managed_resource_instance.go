@@ -194,7 +194,7 @@ type ManagedResourceOperationResult struct { State ManagedResourceState `json:"s
 
 func NewManagedResourceOperation(plan ManagedResourcePlan, instanceID string, expectedRevision int64, operationID, idempotencyKey string, fenceToken int64, action ManagedResourceAction) (ManagedResourceOperation, error) {
 	instanceID = strings.TrimSpace(instanceID); operationID = strings.TrimSpace(operationID); idempotencyKey = strings.TrimSpace(idempotencyKey)
-	if plan.Authority != ResourceRequestPlanAuthority || !applicationPlatformDigestPattern.MatchString(plan.PlanDigest) || instanceID == "" || expectedRevision <= 0 || operationID == "" || idempotencyKey == "" || fenceToken <= 0 { return ManagedResourceOperation{}, fmt.Errorf("%w: managed resource operation authority/identity/fence is incomplete", ErrValidation) }
+	if plan.Authority != ResourceRequestPlanAuthority || !applicationPlatformDigestPattern.MatchString(plan.PlanDigest) || managedResourcePlanDigest(plan) != plan.PlanDigest || instanceID == "" || expectedRevision <= 0 || operationID == "" || idempotencyKey == "" || fenceToken <= 0 { return ManagedResourceOperation{}, fmt.Errorf("%w: managed resource operation authority/identity/fence is incomplete", ErrValidation) }
 	if action != ManagedResourceProvision && action != ManagedResourceDelete { return ManagedResourceOperation{}, fmt.Errorf("%w: unsupported managed resource action %q", ErrValidation, action) }
 	return ManagedResourceOperation{Authority: ResourceProvisionOperationAuthority, OperationID: operationID, InstanceID: instanceID, ExpectedRevision: expectedRevision, IdempotencyKey: idempotencyKey, FenceToken: fenceToken, Action: action, ProjectID: plan.ProjectID, PlanDigest: plan.PlanDigest, DeletePolicy: plan.DeletePolicy}, nil
 }
