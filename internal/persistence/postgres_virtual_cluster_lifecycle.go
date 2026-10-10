@@ -53,6 +53,11 @@ func (s *PostgresStore) DispatchVirtualClusterTask(ctx context.Context, clusterI
 		v, err := scanVirtualCluster(tx.QueryRowContext(ctx, `SELECT `+virtualClusterColumns+` FROM virtual_clusters WHERE id=$1 FOR UPDATE`, strings.TrimSpace(virtualClusterID)))
 		if err != nil { return mapDBError(err) }
 		if v.HostClusterID != strings.TrimSpace(clusterID) { return controlplane.ErrNotFound }
+		binding, err := scanWorkspaceBinding(tx.QueryRowContext(ctx, `SELECT `+workspaceBindingColumns+` FROM workspace_bindings WHERE id=$1 FOR SHARE`, v.WorkspaceBindingID))
+		if err != nil { return mapDBError(err) }
+		if binding.WorkspaceID != v.WorkspaceID || binding.ProjectID != v.ProjectID || binding.ClusterID != v.HostClusterID || binding.Namespace != v.HostNamespace || binding.Revision != v.WorkspaceBindingRevision || binding.State != controlplane.WorkspaceBindingActive {
+			return controlplane.ErrPrerequisite
+		}
 		updated, exactReplay, err := controlplane.ApplyVirtualClusterTaskDispatch(v, expected, fence, action, utcNow(s.now))
 		if err != nil { return err }
 		if exactReplay { out, replay = controlplane.VirtualClusterTaskFromRecord(updated), true; return nil }

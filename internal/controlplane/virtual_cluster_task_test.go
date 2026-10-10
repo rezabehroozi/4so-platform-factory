@@ -163,3 +163,25 @@ func TestVirtualClusterBindingRevisionMustRemainCurrentBeforeFirstClaim(t *testi
 		t.Fatalf("revoked binding state=%#v", got)
 	}
 }
+
+func TestVirtualClusterBindingRevisionMustRemainCurrentAtLifecycleDispatch(t *testing.T) {
+	ctx := context.Background()
+	store, cluster, agent, created, task := claimedVirtualClusterFixture(t)
+	active, err := store.ReportVirtualClusterTask(ctx, cluster.ID, agent, task.ClusterRevision, VirtualClusterTaskResult{
+		VirtualClusterID: created.ID, TaskFenceToken: task.TaskFenceToken, Action: "APPLY",
+		Success: true, Ready: true, ObservedDigest: created.DesiredDigest, Phase: "Ready",
+	})
+	if err != nil || active.State != virtualcluster.StateActive { t.Fatalf("activate=%#v err=%v", active, err) }
+	requested, replay, err := store.RequestVirtualClusterLifecycle(ctx, created.ID, active.Revision, "SUSPEND", "suspend-binding-fence", digestTenantTest("suspend-binding-fence"), "owner")
+	if err != nil || replay { t.Fatalf("request=%#v replay=%v err=%v", requested, replay, err) }
+	suspendTask, err := store.NextVirtualClusterTask(ctx, cluster.ID, agent, task.RuntimeSourceDigest)
+	if err != nil || suspendTask.Action != "SUSPEND" { t.Fatalf("suspend task=%#v err=%v", suspendTask, err) }
+	store.mu.Lock()
+	binding := store.workspaceBindings[created.WorkspaceBindingID]
+	binding.Revision++
+	store.workspaceBindings[binding.ID] = binding
+	store.mu.Unlock()
+	if _, _, err = store.DispatchVirtualClusterTask(ctx, cluster.ID, agent, created.ID, suspendTask.ClusterRevision, suspendTask.TaskFenceToken, suspendTask.Action); !errors.Is(err, ErrPrerequisite) {
+		t.Fatalf("binding drift between claim and dispatch must fail closed: %v", err)
+	}
+}

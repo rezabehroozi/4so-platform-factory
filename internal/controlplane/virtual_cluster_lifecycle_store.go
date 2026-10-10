@@ -140,6 +140,9 @@ func (s *MemoryStore) DispatchVirtualClusterTask(_ context.Context, clusterID, t
 	if !ok || v.HostClusterID != strings.TrimSpace(clusterID) {
 		return VirtualClusterTask{}, false, ErrNotFound
 	}
+	if err := s.virtualClusterBindingFenceCurrentLocked(v); err != nil {
+		return VirtualClusterTask{}, false, err
+	}
 	updated, replay, err := ApplyVirtualClusterTaskDispatch(v, expected, fence, action, nowUTC(s.now))
 	if err != nil {
 		return VirtualClusterTask{}, false, err
