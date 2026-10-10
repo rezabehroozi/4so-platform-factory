@@ -8,9 +8,15 @@ import (
 	"platform.4so.io/factory/internal/reliability"
 )
 
-func Day2ContractForRepairProposal(proposal reliability.RepairProposal, window ClusterMaintenanceWindow, now time.Time) (Day2CampaignContract, error) {
+func Day2ContractForRepairProposal(proposal reliability.RepairProposal, incident reliability.Incident, window ClusterMaintenanceWindow, now time.Time) (Day2CampaignContract, error) {
 	if err := reliability.ValidateRepairProposal(proposal); err != nil {
 		return Day2CampaignContract{}, fmt.Errorf("%w: invalid repair proposal: %v", ErrValidation, err)
+	}
+	if strings.TrimSpace(incident.ID) == "" || strings.TrimSpace(incident.ID) != strings.TrimSpace(proposal.IncidentID) || strings.TrimSpace(incident.OrganizationID) != strings.TrimSpace(proposal.OrganizationID) || strings.TrimSpace(incident.ProjectID) != strings.TrimSpace(proposal.ProjectID) || strings.TrimSpace(incident.ClusterID) != strings.TrimSpace(proposal.ClusterID) || strings.TrimSpace(incident.Service) != strings.TrimSpace(proposal.Service) {
+		return Day2CampaignContract{}, fmt.Errorf("%w: current incident authority/scope does not match repair proposal", ErrValidation)
+	}
+	if incident.Revision != proposal.IncidentRevision || (incident.State != reliability.IncidentOpen && incident.State != reliability.IncidentAcknowledged) {
+		return Day2CampaignContract{}, fmt.Errorf("%w: repair proposal incident revision/state is no longer current", ErrPrerequisite)
 	}
 	if proposal.ExecutionAuthority != GeneralizedDay2CampaignAuthorityMethod || proposal.AdapterID != string(Day2CampaignAdapterNodeMaintenance) {
 		return Day2CampaignContract{}, fmt.Errorf("%w: repair proposal execution adapter is not admitted", ErrValidation)

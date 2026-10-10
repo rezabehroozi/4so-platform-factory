@@ -22,7 +22,7 @@ func TestRepairProposalUsesExistingDay2CampaignAuthority(t *testing.T) {
 		ProjectID: "project-a", ClusterID: "cluster-a", State: ClusterMaintenanceWindowActive,
 		StartsAt: now.Add(-time.Minute), EndsAt: now.Add(time.Hour), MaxUnavailable: 1,
 	}
-	contract, err := Day2ContractForRepairProposal(proposal, window, now)
+	contract, err := Day2ContractForRepairProposal(proposal, incident, window, now)
 	if err != nil { t.Fatal(err) }
 	if contract.Authority != GeneralizedDay2CampaignAuthorityMethod || contract.Adapter != Day2CampaignAdapterNodeMaintenance || !contract.IndependentApproval || !contract.WindowRequired || !contract.FencedExecution || !contract.VerificationRequired || !contract.EvidenceRequired {
 		t.Fatalf("repair proposal did not reuse day2 authority: %#v", contract)
@@ -32,14 +32,14 @@ func TestRepairProposalUsesExistingDay2CampaignAuthority(t *testing.T) {
 	}
 	tampered := proposal
 	tampered.TargetIDs = []string{"node-b"}
-	if _, err := Day2ContractForRepairProposal(tampered, window, now); err == nil { t.Fatal("tampered repair proposal must fail owner digest validation") }
+	if _, err := Day2ContractForRepairProposal(tampered, incident, window, now); err == nil { t.Fatal("tampered repair proposal must fail owner digest validation") }
 	window.ProjectID = "project-b"
-	if _, err := Day2ContractForRepairProposal(proposal, window, now); err == nil { t.Fatal("cross-project maintenance window must fail closed") }
+	if _, err := Day2ContractForRepairProposal(proposal, incident, window, now); err == nil { t.Fatal("cross-project maintenance window must fail closed") }
 	window.ProjectID = "project-a"
 	window.State = ClusterMaintenanceWindowCancelled
-	if _, err := Day2ContractForRepairProposal(proposal, window, now); err == nil { t.Fatal("inactive maintenance window must fail closed") }
+	if _, err := Day2ContractForRepairProposal(proposal, incident, window, now); err == nil { t.Fatal("inactive maintenance window must fail closed") }
 	window.State = ClusterMaintenanceWindowActive
-	if _, err := Day2ContractForRepairProposal(proposal, window, proposal.ValidUntil); err == nil { t.Fatal("repair proposal must expire at exact ValidUntil boundary") }
+	if _, err := Day2ContractForRepairProposal(proposal, incident, window, proposal.ValidUntil); err == nil { t.Fatal("repair proposal must expire at exact ValidUntil boundary") }
 }
 
 func remediationDigest(ch byte) string { b:=make([]byte,64); for i:=range b { b[i]=ch }; return "sha256:"+string(b) }
