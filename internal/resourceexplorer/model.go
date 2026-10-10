@@ -242,11 +242,12 @@ func normalizeObservation(observation ResourceObservation, now time.Time, freshn
 	observation.Key.Name = strings.TrimSpace(observation.Key.Name)
 	observation.Key.UID = strings.TrimSpace(observation.Key.UID)
 	observation.SourceDigest = strings.ToLower(strings.TrimSpace(observation.SourceDigest))
-	if observation.OrganizationID == "" || observation.ProjectID == "" || observation.ClusterID == "" || observation.Key.APIVersion == "" || observation.Key.Kind == "" || observation.Key.Name == "" || observation.Key.UID == "" || observation.ObservedAt.IsZero() || observation.ObservedAt.After(now) || !validDigest(observation.SourceDigest) {
-		return ResourceSummary{}, errors.New("resource observation identity/evidence/time is invalid")
-	}
 	if !validTruthState(observation.State) {
 		return ResourceSummary{}, errors.New("resource observation truth state is invalid")
+	}
+	requiresUID := observation.State == TruthFresh || observation.State == TruthStale
+	if observation.OrganizationID == "" || observation.ProjectID == "" || observation.ClusterID == "" || observation.Key.APIVersion == "" || observation.Key.Kind == "" || observation.Key.Name == "" || (requiresUID && observation.Key.UID == "") || observation.ObservedAt.IsZero() || observation.ObservedAt.After(now) || !validDigest(observation.SourceDigest) {
+		return ResourceSummary{}, errors.New("resource observation identity/evidence/time is invalid")
 	}
 	state := observation.State
 	if state == TruthFresh && now.Sub(observation.ObservedAt) > freshness {
