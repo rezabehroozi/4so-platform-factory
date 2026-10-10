@@ -86,6 +86,9 @@ func BuildSet(identity ArtifactIdentity, sbom, vex, provenance EvidenceDocument,
 	if err := validateIdentity(identity); err != nil {
 		return AttestationSet{}, err
 	}
+	sbom = normalizeDocument(sbom)
+	vex = normalizeDocument(vex)
+	provenance = normalizeDocument(provenance)
 	for _, item := range []struct {
 		doc       EvidenceDocument
 		authority string
@@ -103,7 +106,7 @@ func BuildSet(identity ArtifactIdentity, sbom, vex, provenance EvidenceDocument,
 
 	var runtimeCopy *EvidenceDocument
 	if runtime != nil {
-		doc := *runtime
+		doc := normalizeDocument(*runtime)
 		if err := validateDocument(doc, identity, ExactRuntimeEvidenceAuthority, KindExactRuntime, LayerExactSHAPhysical, true); err != nil {
 			return AttestationSet{}, err
 		}
@@ -198,9 +201,15 @@ func reseal(set AttestationSet) (AttestationSet, error) {
 	return set, nil
 }
 
-func validateDocument(doc EvidenceDocument, identity ArtifactIdentity, authority string, kind EvidenceKind, layer CertificationLayer, requireExecuted bool) error {
+func normalizeDocument(doc EvidenceDocument) EvidenceDocument {
 	doc.Identity = normalizeIdentity(doc.Identity)
-	if doc.Authority != authority || doc.Kind != kind || doc.Layer != layer || !doc.Present || !identityEqual(doc.Identity, identity) || !isDigest(strings.TrimSpace(doc.PayloadDigest)) {
+	doc.PayloadDigest = strings.ToLower(strings.TrimSpace(doc.PayloadDigest))
+	return doc
+}
+
+func validateDocument(doc EvidenceDocument, identity ArtifactIdentity, authority string, kind EvidenceKind, layer CertificationLayer, requireExecuted bool) error {
+	doc = normalizeDocument(doc)
+	if doc.Authority != authority || doc.Kind != kind || doc.Layer != layer || !doc.Present || !identityEqual(doc.Identity, identity) || !isDigest(doc.PayloadDigest) {
 		return fmt.Errorf("%s evidence is missing or bound to a different release", kind)
 	}
 	if requireExecuted && !doc.Executed {
