@@ -199,8 +199,13 @@ func NewManagedResourceOperation(plan ManagedResourcePlan, instanceID string, ex
 	return ManagedResourceOperation{Authority: ResourceProvisionOperationAuthority, OperationID: operationID, InstanceID: instanceID, ExpectedRevision: expectedRevision, IdempotencyKey: idempotencyKey, FenceToken: fenceToken, Action: action, ProjectID: plan.ProjectID, PlanDigest: plan.PlanDigest, DeletePolicy: plan.DeletePolicy}, nil
 }
 
+func validManagedResourceOperation(op ManagedResourceOperation) bool {
+	if op.Authority != ResourceProvisionOperationAuthority || strings.TrimSpace(op.OperationID) == "" || strings.TrimSpace(op.InstanceID) == "" || op.ExpectedRevision <= 0 || strings.TrimSpace(op.IdempotencyKey) == "" || op.FenceToken <= 0 || strings.TrimSpace(op.ProjectID) == "" || !applicationPlatformDigestPattern.MatchString(op.PlanDigest) { return false }
+	return op.Action == ManagedResourceProvision || op.Action == ManagedResourceDelete
+}
+
 func ResolveManagedResourceOutcome(op ManagedResourceOperation, outcome ManagedResourceOutcome, readback ManagedResourceReadback) ManagedResourceOperationResult {
-	if op.Authority != ResourceProvisionOperationAuthority || op.FenceToken <= 0 || !applicationPlatformDigestPattern.MatchString(op.PlanDigest) { return ManagedResourceOperationResult{State: ManagedResourceFailed, Message: "managed resource operation authority is invalid"} }
+	if !validManagedResourceOperation(op) { return ManagedResourceOperationResult{State: ManagedResourceFailed, Message: "managed resource operation authority or identity is invalid"} }
 	converged := managedResourceReadbackConverged(op, readback)
 	switch outcome {
 	case ManagedResourceOutcomeUnknown:
