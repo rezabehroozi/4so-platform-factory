@@ -4,7 +4,7 @@ import "testing"
 
 func TestManagedResourcePlanIsDeterministicAndProjectScoped(t *testing.T) {
 	typeDef, err := NormalizeManagedResourceType(ManagedResourceType{
-		ProjectID: "project-a", Name: "postgres", Version: "v1.0.0", Category: "database", Provisioner: "product-api",
+		ProjectID: "project-a", Name: "postgres", Version: "1.0.0", Category: "database", Provisioner: "product-api",
 		InputSchemaDigest: testMRDigest('a'), DeletePolicy: "delete", ReadinessConditions: []string{"ready"},
 		Outputs: []ManagedResourceOutput{{Name: "endpoint", Type: "endpoint"}, {Name: "password", Type: "secret-reference", Sensitive: true, SecretReference: true}},
 	})
@@ -41,7 +41,7 @@ func TestManagedResourceDependencyGraphRejectsCycles(t *testing.T) {
 
 func TestManagedResourceOutputsNeverExposeSensitiveValues(t *testing.T) {
 	typeDef, err := NormalizeManagedResourceType(ManagedResourceType{
-		ProjectID: "project-a", Name: "postgres", Version: "v1.0.0", Category: "database", Provisioner: "product-api",
+		ProjectID: "project-a", Name: "postgres", Version: "1.0.0", Category: "database", Provisioner: "product-api",
 		InputSchemaDigest: testMRDigest('a'), DeletePolicy: "delete", ReadinessConditions: []string{"ready"},
 		Outputs: []ManagedResourceOutput{{Name: "endpoint", Type: "endpoint"}, {Name: "password", Type: "secret-reference", Sensitive: true, SecretReference: true}},
 	})
