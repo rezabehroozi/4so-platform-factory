@@ -87,4 +87,10 @@ func explorerObservation(org, project, cluster, apiVersion, kind, namespace, nam
 	}
 }
 
-func explorerDigest(ch byte) string { b:=make([]byte,64); for i:=range b { b[i]=ch }; return "sha256:"+string(b) }
+func explorerDigest(ch byte) string {
+	hex := "0123456789abcdef"
+	v := hex[int(ch)%len(hex)]
+	b:=make([]byte,64)
+	for i:=range b { b[i]=v }
+	return "sha256:"+string(b)
+}
