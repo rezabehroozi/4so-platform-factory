@@ -306,6 +306,7 @@ type PartitionOperation struct {
 	OrganizationID string
 	ProjectID string
 	ClusterID string
+	OperationDigest string
 }
 
 type PartitionReadback struct {
@@ -334,11 +335,17 @@ func NewPartitionOperation(plan PlacementPlan, operationID, idempotencyKey strin
 	if operationID == "" || idempotencyKey == "" || fenceToken <= 0 || expectedGeneration < 0 || deviceID == "" || partitionID == "" { return PartitionOperation{}, errors.New("partition operation authority/fence/identity is incomplete") }
 	if !containsString(plan.DeviceIDs, deviceID) { return PartitionOperation{}, errors.New("partition operation device is outside placement plan") }
 	switch action { case PartitionCreate, PartitionAssign, PartitionDrain, PartitionReplace: default: return PartitionOperation{}, fmt.Errorf("unsupported partition action %q", action) }
-	return PartitionOperation{Authority: PartitionLifecycleAuthority, OperationID: operationID, IdempotencyKey: idempotencyKey, FenceToken: fenceToken, Action: action, DeviceID: deviceID, PartitionID: partitionID, ExpectedGeneration: expectedGeneration, PlanDigest: plan.PlanDigest, OrganizationID: plan.OrganizationID, ProjectID: plan.ProjectID, ClusterID: plan.ClusterID}, nil
+	op := PartitionOperation{Authority: PartitionLifecycleAuthority, OperationID: operationID, IdempotencyKey: idempotencyKey, FenceToken: fenceToken, Action: action, DeviceID: deviceID, PartitionID: partitionID, ExpectedGeneration: expectedGeneration, PlanDigest: plan.PlanDigest, OrganizationID: plan.OrganizationID, ProjectID: plan.ProjectID, ClusterID: plan.ClusterID}
+	operationDigest, err := digestPartitionOperation(op)
+	if err != nil { return PartitionOperation{}, err }
+	op.OperationDigest = operationDigest
+	return op, nil
 }
 
 func validPartitionOperation(op PartitionOperation) bool {
-	if op.Authority != PartitionLifecycleAuthority || strings.TrimSpace(op.OperationID) == "" || strings.TrimSpace(op.IdempotencyKey) == "" || op.FenceToken <= 0 || op.ExpectedGeneration < 0 || strings.TrimSpace(op.DeviceID) == "" || strings.TrimSpace(op.PartitionID) == "" || !isDigest(op.PlanDigest) || strings.TrimSpace(op.OrganizationID) == "" || strings.TrimSpace(op.ProjectID) == "" || strings.TrimSpace(op.ClusterID) == "" { return false }
+	if op.Authority != PartitionLifecycleAuthority || strings.TrimSpace(op.OperationID) == "" || strings.TrimSpace(op.IdempotencyKey) == "" || op.FenceToken <= 0 || op.ExpectedGeneration < 0 || strings.TrimSpace(op.DeviceID) == "" || strings.TrimSpace(op.PartitionID) == "" || !isDigest(op.PlanDigest) || strings.TrimSpace(op.OrganizationID) == "" || strings.TrimSpace(op.ProjectID) == "" || strings.TrimSpace(op.ClusterID) == "" || !isDigest(op.OperationDigest) { return false }
+	digest, err := digestPartitionOperation(op)
+	if err != nil || digest != strings.ToLower(strings.TrimSpace(op.OperationDigest)) { return false }
 	switch op.Action { case PartitionCreate, PartitionAssign, PartitionDrain, PartitionReplace: return true; default: return false }
 }
 
