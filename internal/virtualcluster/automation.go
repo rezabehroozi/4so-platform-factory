@@ -10,6 +10,7 @@ const (
 	IdlePolicyAuthority     = "VIRTUAL_CLUSTER_IDLE_POLICY_AUTHORITY_V1"
 	SnapshotPolicyAuthority = "VIRTUAL_CLUSTER_SNAPSHOT_POLICY_AUTHORITY_V1"
 	TTLPolicyAuthority      = "VIRTUAL_CLUSTER_TTL_AUTHORITY_V1"
+	MaxIdleTelemetryAge     = 10 * time.Minute
 )
 
 type IdlePolicy struct {
@@ -72,6 +73,11 @@ func EvaluateIdle(policy IdlePolicy, state State, telemetry TelemetryWindow, now
 		decision.Reason = "telemetry observation time is outside the evaluation window"
 		return decision
 	}
+	if now.Sub(telemetry.ObservedAt) > MaxIdleTelemetryAge {
+		decision.Blocker = "TELEMETRY_STALE"
+		decision.Reason = "stale activity telemetry cannot authorize automated suspension"
+		return decision
+	}
 	decision.Known = true
 	if now.Sub(telemetry.LastActivityAt) < time.Duration(policy.SleepAfterMinutes)*time.Minute {
 		decision.Reason = "idle threshold has not elapsed"
@@ -80,7 +86,7 @@ func EvaluateIdle(policy IdlePolicy, state State, telemetry TelemetryWindow, now
 	decision.Action = ActionSuspend
 	decision.MutationAllowed = true
 	decision.RequiresDurableLifecycle = true
-	decision.Reason = "idle threshold elapsed with complete telemetry; suspend must use durable lifecycle authority"
+	decision.Reason = "idle threshold elapsed with complete fresh telemetry; suspend must use durable lifecycle authority"
 	return decision
 }
 
@@ -173,12 +179,7 @@ func BuildSnapshotPlan(policy SnapshotPolicy, virtualClusterRevision int64, sour
 	if virtualClusterRevision <= 0 || snapshotID == "" || !validAutomationDigest(sourceDesiredDigest) {
 		return SnapshotPlan{}, errors.New("snapshot plan requires exact virtual-cluster revision/digest/identity")
 	}
-	return SnapshotPlan{
-		Authority: SnapshotPolicyAuthority, ProjectID: policy.ProjectID, WorkspaceID: policy.WorkspaceID,
-		VirtualClusterID: policy.VirtualClusterID, VirtualClusterRevision: virtualClusterRevision,
-		SourceDesiredDigest: strings.TrimSpace(sourceDesiredDigest), SnapshotID: snapshotID, Retain: policy.Retain,
-		BeforeAutoDelete: policy.BeforeAutoDelete,
-	}, nil
+	return SnapshotPlan{Authority: SnapshotPolicyAuthority, ProjectID: policy.ProjectID, WorkspaceID: policy.WorkspaceID, VirtualClusterID: policy.VirtualClusterID, VirtualClusterRevision: virtualClusterRevision, SourceDesiredDigest: strings.TrimSpace(sourceDesiredDigest), SnapshotID: snapshotID, Retain: policy.Retain, BeforeAutoDelete: policy.BeforeAutoDelete}, nil
 }
 
 func ResolveSnapshotRestore(plan SnapshotPlan, readback SnapshotReadback) SnapshotRestoreResult {
@@ -214,14 +215,8 @@ func EvaluateTTL(policy TTLPolicy, state State, now time.Time, prerequisites TTL
 		decision.Reason = "TTL policy authority/scope/revision/deadline is invalid"
 		return decision
 	}
-	if !policy.Enabled {
-		decision.Blocker = "TTL_DISABLED"
-		return decision
-	}
-	if now.IsZero() || now.Before(policy.DeleteAfter) {
-		decision.Blocker = "TTL_NOT_EXPIRED"
-		return decision
-	}
+	if !policy.Enabled { decision.Blocker = "TTL_DISABLED"; return decision }
+	if now.IsZero() || now.Before(policy.DeleteAfter) { decision.Blocker = "TTL_NOT_EXPIRED"; return decision }
 	if prerequisites.RecoveryPending || state == StateRecoveryRequired {
 		decision.Blocker = "RECOVERY_PENDING"
 		decision.Reason = "recovery must be resolved before TTL deletion"
@@ -251,13 +246,7 @@ func EvaluateTTL(policy TTLPolicy, state State, now time.Time, prerequisites TTL
 
 func validAutomationDigest(value string) bool {
 	value = strings.TrimSpace(value)
-	if len(value) != len("sha256:")+64 || !strings.HasPrefix(value, "sha256:") {
-		return false
-	}
-	for _, r := range value[len("sha256:"):] {
-		if !strings.ContainsRune("0123456789abcdef", r) {
-			return false
-		}
-	}
+	if len(value) != len("sha256:")+64 || !strings.HasPrefix(value, "sha256:") { return false }
+	for _, r := range value[len("sha256:"):] { if !strings.ContainsRune("0123456789abcdef", r) { return false } }
 	return true
 }
