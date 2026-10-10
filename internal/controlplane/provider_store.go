@@ -532,7 +532,7 @@ func (s *MemoryStore) QueueProviderClusterChange(_ context.Context, id string, e
 	v.UpdatedAt = nowUTC(s.now)
 	s.providerClusters[id] = v
 	s.appendAuditLocked(actor, "provider_cluster."+strings.ToLower(action)+".approval_requested", "providerCluster", id, v.Revision, nil)
-	s.appendOutboxLocked("providerCluster", id, "provider_cluster.approval_requested", v)
+	s.appendOutboxLocked("providerCluster", id, "provider_cluster.approval.requested", v)
 	return v, nil
 }
 
@@ -611,7 +611,7 @@ func (s *MemoryStore) QueueTargetNodeProviderMutation(_ context.Context, id stri
 	v.UpdatedAt = nowUTC(s.now)
 	s.providerClusters[id] = v
 	s.appendAuditLocked(actor, "provider_cluster.target_node_"+strings.ToLower(string(action))+".approval_requested", "providerCluster", id, v.Revision, map[string]any{"targetClusterId": mutation.TargetClusterID, "nodeName": mutation.NodeName, "nodeUid": mutation.NodeUID, "inventoryDigest": mutation.InventoryDigest, "windowId": mutation.WindowID})
-	s.appendOutboxLocked("providerCluster", id, "provider_cluster.approval_requested", v)
+	s.appendOutboxLocked("providerCluster", id, "provider_cluster.approval.requested", v)
 	return v, nil
 }
 
@@ -729,7 +729,7 @@ func (s *MemoryStore) NextProviderClusterTask(_ context.Context, clusterID, toke
 		s.appendAuditLocked("cluster-agent", "provider_cluster.apply.lease_expired_readback", "providerCluster", v.ID, v.Revision, map[string]any{"pendingAction": v.PendingAction, "taskFenceToken": v.TaskFenceToken})
 		s.appendOutboxLocked("providerCluster", v.ID, "provider_cluster.state.changed", v)
 	}
-	if ProviderClusterTargetNodeMutationRequiresClaimFence(v) {
+	if IsTargetNodeProviderPendingAction(v.PendingAction) {
 		m := v.TargetNodeMutation
 		inv, ok := s.clusterInventories[m.TargetClusterID]
 		window, wok := s.clusterMaintenanceWindows[m.WindowID]
@@ -837,6 +837,7 @@ func (s *MemoryStore) ReportProviderClusterTask(_ context.Context, clusterID, to
 			if v.LastError == "" {
 				v.LastError = "provider cluster task failed"
 			}
+		}
 	} else {
 		switch action {
 		case "APPLY":
