@@ -20,6 +20,7 @@ func TestClusterWorkloadExplorerRejectsCursorFromChangedInventorySnapshot(t *tes
 	now := time.Now().UTC()
 	store := controlplane.NewMemoryStoreWith(func() time.Time { return now }, nil)
 	_, _, cluster := seedFleetSupportCluster(t, store, "owner-cursor-snapshot", "resource-explorer-cursor-snapshot", now)
+	const agentTokenDigest = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 
 	inv, err := store.GetLatestClusterInventory(context.Background(), cluster.ID)
 	if err != nil {
@@ -38,7 +39,7 @@ func TestClusterWorkloadExplorerRejectsCursorFromChangedInventorySnapshot(t *tes
 		t.Fatal(err)
 	}
 	inv.Digest = ""
-	_, firstStored, err := store.UpsertClusterInventory(context.Background(), cluster.ID, "sha256:1111111111111111111111111111111111111111111111111111111111111111", cluster.ExternalUID, inv)
+	_, firstStored, err := store.UpsertClusterInventory(context.Background(), cluster.ID, agentTokenDigest, cluster.ExternalUID, inv)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +86,7 @@ func TestClusterWorkloadExplorerRejectsCursorFromChangedInventorySnapshot(t *tes
 		t.Fatal(err)
 	}
 	latest.Digest = ""
-	_, secondStored, err := store.UpsertClusterInventory(context.Background(), cluster.ID, "sha256:2222222222222222222222222222222222222222222222222222222222222222", cluster.ExternalUID, latest)
+	_, secondStored, err := store.UpsertClusterInventory(context.Background(), cluster.ID, agentTokenDigest, cluster.ExternalUID, latest)
 	if err != nil {
 		t.Fatal(err)
 	}
