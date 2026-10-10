@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS application_managed_resource_instances (
   revision bigint NOT NULL CHECK (revision > 0),
   type_id text NOT NULL REFERENCES application_platform_authorities(id) ON DELETE RESTRICT,
   type_digest text NOT NULL CHECK (type_digest ~ '^sha256:[0-9a-f]{64}$'),
-  name text NOT NULL CHECK (name ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  name text NOT NULL CHECK (name ~ '^[a-z][a-z0-9]*([._-][a-z0-9]+)*$'),
   input_digest text NOT NULL CHECK (input_digest ~ '^sha256:[0-9a-f]{64}$'),
   plan_digest text NOT NULL CHECK (plan_digest ~ '^sha256:[0-9a-f]{64}$'),
   dependency_instance_ids jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(dependency_instance_ids)='array'),
