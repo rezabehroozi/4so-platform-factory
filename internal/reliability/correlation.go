@@ -15,10 +15,13 @@ const (
 	SignalCorrelationAuthority = "FLEET_SIGNAL_CORRELATION_AUTHORITY_V1"
 	RepairProposalAuthority     = "DURABLE_REPAIR_PROPOSAL_AUTHORITY_V1"
 	Day2ExecutionAuthority      = "GENERALIZED_DAY2_CAMPAIGN_ENGINE_V1"
+	RepairAdapterNodeMaintenance = "node-maintenance"
 
 	CorrelationMedium = "MEDIUM"
 	CorrelationHigh   = "HIGH"
 )
+
+const RepairCorrelationTTL = 15 * time.Minute
 
 type SignalKind string
 
@@ -142,20 +145,11 @@ func CorrelateSignals(signals []SignalObservation, now time.Time, window time.Du
 		WindowStartedAt: windowStart.UTC(),
 		ObservedAt: now.UTC(),
 		Confidence: confidence,
-		RemediationEligible: maxSeverity >= 4 && len(kinds) >= 2,
+		RemediationEligible: maxSeverity >= 4,
 		EvidenceDigests: sortedCorrelationKeys(evidenceSet),
 		SignalFingerprints: sortedCorrelationKeys(fingerprintSet),
 	}
-	out.Digest = correlationDigest(struct {
-		Authority           string              `json:"authority"`
-		OrganizationID      string              `json:"organizationId"`
-		ProjectID           string              `json:"projectId"`
-		ClusterID           string              `json:"clusterId"`
-		Service             string              `json:"service"`
-		Signals             []SignalObservation `json:"signals"`
-		Confidence          string              `json:"confidence"`
-		RemediationEligible bool                `json:"remediationEligible"`
-	}{out.Authority, out.OrganizationID, out.ProjectID, out.ClusterID, out.Service, canonical, out.Confidence, out.RemediationEligible})
+	out.Digest = digestSignalCorrelation(out)
 	return out, nil
 }
 
@@ -186,16 +180,22 @@ type RepairProposal struct {
 	IncidentID                  string       `json:"incidentId"`
 	IncidentRevision            int64        `json:"incidentRevision"`
 	CorrelationDigest           string       `json:"correlationDigest"`
+	CorrelationObservedAt       time.Time    `json:"correlationObservedAt"`
 	Action                      RepairAction `json:"action"`
 	TargetIDs                   []string     `json:"targetIds"`
 	IndependentApprovalRequired bool         `json:"independentApprovalRequired"`
 	Impact                      string       `json:"impact"`
+	CreatedAt                   time.Time    `json:"createdAt"`
+	ValidUntil                  time.Time    `json:"validUntil"`
 	Digest                      string       `json:"digest"`
 }
 
-func BuildRepairProposal(correlation SignalCorrelation, incident Incident, action RepairAction, targetIDs []string) (RepairProposal, error) {
-	if correlation.Authority != SignalCorrelationAuthority || !isCorrelationDigest(correlation.Digest) || !correlation.RemediationEligible {
+func BuildRepairProposal(correlation SignalCorrelation, incident Incident, action RepairAction, targetIDs []string, now time.Time) (RepairProposal, error) {
+	if err := ValidateSignalCorrelation(correlation); err != nil || !correlation.RemediationEligible {
 		return RepairProposal{}, errors.New("correlation is not eligible for remediation")
+	}
+	if now.IsZero() || now.Before(correlation.ObservedAt) || !now.Before(correlation.ObservedAt.Add(RepairCorrelationTTL)) {
+		return RepairProposal{}, errors.New("correlation is stale or repair proposal time is invalid")
 	}
 	if strings.TrimSpace(incident.ID) == "" || incident.Revision <= 0 || (incident.State != IncidentOpen && incident.State != IncidentAcknowledged) {
 		return RepairProposal{}, errors.New("incident must be open/acknowledged with a valid revision")
@@ -213,7 +213,7 @@ func BuildRepairProposal(correlation SignalCorrelation, incident Incident, actio
 	proposal := RepairProposal{
 		Authority: RepairProposalAuthority,
 		ExecutionAuthority: Day2ExecutionAuthority,
-		AdapterID: "kubernetes-node-maintenance-v1",
+		AdapterID: RepairAdapterNodeMaintenance,
 		OrganizationID: correlation.OrganizationID,
 		ProjectID: correlation.ProjectID,
 		ClusterID: correlation.ClusterID,
@@ -221,12 +221,15 @@ func BuildRepairProposal(correlation SignalCorrelation, incident Incident, actio
 		IncidentID: strings.TrimSpace(incident.ID),
 		IncidentRevision: incident.Revision,
 		CorrelationDigest: correlation.Digest,
+		CorrelationObservedAt: correlation.ObservedAt,
 		Action: action,
 		TargetIDs: targets,
 		IndependentApprovalRequired: true,
 		Impact: "targeted",
+		CreatedAt: now.UTC(),
+		ValidUntil: correlation.ObservedAt.UTC().Add(RepairCorrelationTTL),
 	}
-	proposal.Digest = correlationDigest(proposal)
+	proposal.Digest = digestRepairProposal(proposal)
 	return proposal, nil
 }
 
@@ -255,6 +258,18 @@ func sortedCorrelationKeys(values map[string]bool) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+func digestSignalCorrelation(value SignalCorrelation) string {
+	copy := value
+	copy.Digest = ""
+	return correlationDigest(copy)
+}
+
+func digestRepairProposal(value RepairProposal) string {
+	copy := value
+	copy.Digest = ""
+	return correlationDigest(copy)
 }
 
 func correlationDigest(value any) string {
