@@ -93,7 +93,7 @@ func ApplyVirtualClusterTaskDispatch(v VirtualCluster, expected, fence int64, ac
 	if !VirtualClusterMutationTaskAction(action) {
 		return VirtualCluster{}, false, ErrValidation
 	}
-	if v.TaskFenceToken == fence && v.TaskAction == action && v.TaskDispatchedAt != nil {
+	if v.TaskFenceToken == fence && v.TaskAction == action && v.TaskDispatchedAt != nil && AgentTaskLeaseActive(v.TaskLeaseExpiresAt, now) {
 		return cloneVirtualCluster(v), true, nil
 	}
 	if expected <= 0 || v.Revision != expected || fence <= 0 || v.TaskFenceToken != fence || v.TaskAction != action || !AgentTaskLeaseActive(v.TaskLeaseExpiresAt, now) {

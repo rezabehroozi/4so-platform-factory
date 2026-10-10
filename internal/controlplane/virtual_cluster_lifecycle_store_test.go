@@ -36,4 +36,7 @@ func TestVirtualClusterDispatchAckIsDurableAndIdempotent(t *testing.T) {
 	if err != nil || !replay || retry.Revision != acked.Revision {
 		t.Fatalf("dispatch replay=%#v replay=%v err=%v", retry, replay, err)
 	}
+	if _, replay, err := ApplyVirtualClusterTaskDispatch(acked, 11, 4, "SUSPEND", lease.Add(time.Nanosecond)); err != ErrConflict || replay {
+		t.Fatalf("expired dispatch replay must fail closed: replay=%v err=%v", replay, err)
+	}
 }
