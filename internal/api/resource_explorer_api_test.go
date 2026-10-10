@@ -63,10 +63,10 @@ func TestClusterWorkloadExplorerAddsBoundedUnknownSafeResourcePageWithoutBreakin
 		t.Fatalf("first page status=%d body=%s", first.Code, first.Body.String())
 	}
 	var payload struct {
-		Workloads []controlplane.ClusterWorkloadObservation `json:"workloads"`
-		ResourcePage resourceexplorer.ResourcePage `json:"resourcePage"`
-		ResourceReadOnly bool `json:"resourceReadOnly"`
-		RawKubernetesMutation bool `json:"rawKubernetesMutation"`
+		Workloads             []controlplane.ClusterWorkloadObservation `json:"workloads"`
+		ResourcePage          resourceexplorer.ResourcePage             `json:"resourcePage"`
+		ResourceReadOnly      bool                                      `json:"resourceReadOnly"`
+		RawKubernetesMutation bool                                      `json:"rawKubernetesMutation"`
 	}
 	if err = json.Unmarshal(first.Body.Bytes(), &payload); err != nil {
 		t.Fatal(err)
@@ -90,7 +90,9 @@ func TestClusterWorkloadExplorerAddsBoundedUnknownSafeResourcePageWithoutBreakin
 	if second.Code != http.StatusOK {
 		t.Fatalf("second page status=%d body=%s", second.Code, second.Body.String())
 	}
-	var next struct { ResourcePage resourceexplorer.ResourcePage `json:"resourcePage"` }
+	var next struct {
+		ResourcePage resourceexplorer.ResourcePage `json:"resourcePage"`
+	}
 	if err = json.Unmarshal(second.Body.Bytes(), &next); err != nil {
 		t.Fatal(err)
 	}
