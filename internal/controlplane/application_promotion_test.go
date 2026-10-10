@@ -57,7 +57,7 @@ func TestPromotionUnknownOutcomeRequiresExactTargetAndGitOpsReadbackWithoutRepla
 	if err != nil { t.Fatal(err) }
 	unknown := ResolveApplicationPromotionOutcome(op, PromotionOutcomeUnknown, PromotionReadback{})
 	if unknown.State != PromotionRecoveryRequired || !unknown.RecoveryRequired || unknown.RetryAllowed { t.Fatalf("unknown promotion outcome must require recovery: %#v", unknown) }
-	withoutGitOps := PromotionReadback{Observed: true, EnvironmentBindingID: "dst", Revision: 8, ReleaseID: "rel-new", ReleaseDigest: promotionDigest('a'), BindingDigest: promotionDigest('d'), EvidenceDigest: promotionDigest('e')}
+	withoutGitOps := PromotionReadback{Observed: true, OperationID: op.OperationID, FenceToken: op.FenceToken, PlanDigest: op.PlanDigest, VerificationDigest: op.VerificationDigest, EnvironmentBindingID: "dst", Revision: 8, ReleaseID: "rel-new", ReleaseDigest: promotionDigest('a'), BindingDigest: promotionDigest('d'), EvidenceDigest: promotionDigest('e')}
 	if got := ResolveApplicationPromotionOutcome(op, PromotionOutcomeUnknown, withoutGitOps); got.State != PromotionRecoveryRequired { t.Fatalf("binding readback without exact GitOps reconciliation must stay recovery-required: %#v", got) }
 	resolvedReadback := withoutGitOps
 	resolvedReadback.ReconciliationObserved = true
