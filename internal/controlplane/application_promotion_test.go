@@ -29,10 +29,12 @@ func TestPromotionVerificationReusesExactDeploymentEvidenceAndHealthWindow(t *te
 	deployedAt := now.Add(-31*time.Minute)
 	evidence := promotionDeploymentEvidence(source, release, deployedAt)
 	health := PromotionHealthObservation{Authority: PromotionHealthAuthority, ProjectID: "project-a", EnvironmentBindingID: source.ID, EnvironmentBindingRevision: source.Revision, EnvironmentBindingDigest: source.Digest, Complete: true, Healthy: true, WindowStartedAt: now.Add(-30*time.Minute), ObservedAt: now, EvidenceDigest: promotionDigest('d')}
-	approval := PromotionApprovalEvidence{Granted: true, RequesterID: "user-requester", ApproverID: "user-approver", EvidenceDigest: promotionDigest('e')}
+	approval := PromotionApprovalEvidence{Granted: true, PlanDigest: plan.PlanDigest, RequesterID: "user-requester", ApproverID: "user-approver", EvidenceDigest: promotionDigest('e')}
 	verification, err := VerifyApplicationPromotion(plan, evidence, health, approval)
 	if err != nil { t.Fatal(err) }
 	if verification.Authority != PromotionVerificationAuthority || !verification.Verified || verification.RequesterID != approval.RequesterID || verification.ApproverID != approval.ApproverID || !verification.ValidUntil.After(now) || verification.DeploymentEvidenceDigest == "" || verification.HealthEvidenceDigest == "" || verification.ApprovalEvidenceDigest == "" || verification.VerificationDigest == "" { t.Fatalf("promotion verification drift: %#v", verification) }
+	foreignApproval := approval; foreignApproval.PlanDigest = promotionDigest('9')
+	if _, err := VerifyApplicationPromotion(plan, evidence, health, foreignApproval); err == nil { t.Fatal("approval evidence from another promotion plan must not authorize this promotion") }
 	wrongScope := evidence; wrongScope.ClusterID = "cluster-other"
 	if _, err := VerifyApplicationPromotion(plan, wrongScope, health, approval); err == nil { t.Fatal("deployment evidence from another cluster must not verify promotion") }
 	staleHealth := health; staleHealth.WindowStartedAt = now.Add(-5*time.Minute)

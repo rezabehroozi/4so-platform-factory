@@ -131,7 +131,7 @@ type PromotionHealthObservation struct {
 	Complete bool `json:"complete"`; Healthy bool `json:"healthy"`; WindowStartedAt time.Time `json:"windowStartedAt"`; ObservedAt time.Time `json:"observedAt"`; EvidenceDigest string `json:"evidenceDigest"`
 }
 
-type PromotionApprovalEvidence struct { Granted bool `json:"granted"`; RequesterID string `json:"requesterId"`; ApproverID string `json:"approverId"`; EvidenceDigest string `json:"evidenceDigest"` }
+type PromotionApprovalEvidence struct { Granted bool `json:"granted"`; PlanDigest string `json:"planDigest,omitempty"`; RequesterID string `json:"requesterId"`; ApproverID string `json:"approverId"`; EvidenceDigest string `json:"evidenceDigest"` }
 
 type PromotionVerification struct {
 	Authority string `json:"authority"`; PlanDigest string `json:"planDigest"`; Verified bool `json:"verified"`; RequesterID string `json:"requesterId"`; ApproverID string `json:"approverId,omitempty"`
@@ -148,13 +148,13 @@ func VerifyApplicationPromotion(plan ApplicationPromotionPlan, deployment Applic
 		return PromotionVerification{}, fmt.Errorf("%w: promotion health evidence is incomplete, unhealthy, stale or predates deployment evidence", ErrPrerequisite)
 	}
 	if health.ObservedAt.Sub(health.WindowStartedAt) < time.Duration(plan.MinHealthyMinutes)*time.Minute { return PromotionVerification{}, fmt.Errorf("%w: promotion health window is shorter than policy minimum", ErrPrerequisite) }
-	approval.RequesterID = strings.TrimSpace(approval.RequesterID); approval.ApproverID = strings.TrimSpace(approval.ApproverID); approval.EvidenceDigest = strings.ToLower(strings.TrimSpace(approval.EvidenceDigest))
+	approval.PlanDigest = strings.ToLower(strings.TrimSpace(approval.PlanDigest)); approval.RequesterID = strings.TrimSpace(approval.RequesterID); approval.ApproverID = strings.TrimSpace(approval.ApproverID); approval.EvidenceDigest = strings.ToLower(strings.TrimSpace(approval.EvidenceDigest))
 	if approval.RequesterID == "" { return PromotionVerification{}, fmt.Errorf("%w: promotion requester identity is required", ErrValidation) }
 	approvalDigest, approverID := "", ""
 	if plan.RequiresApproval {
-		if !approval.Granted || approval.ApproverID == "" || approval.RequesterID == approval.ApproverID || !applicationPlatformDigestPattern.MatchString(approval.EvidenceDigest) { return PromotionVerification{}, fmt.Errorf("%w: independent promotion approval is required", ErrPrerequisite) }
+		if !approval.Granted || approval.PlanDigest != plan.PlanDigest || !applicationPlatformDigestPattern.MatchString(approval.PlanDigest) || approval.ApproverID == "" || approval.RequesterID == approval.ApproverID || !applicationPlatformDigestPattern.MatchString(approval.EvidenceDigest) { return PromotionVerification{}, fmt.Errorf("%w: independent promotion approval must bind the exact promotion plan", ErrPrerequisite) }
 		approvalDigest, approverID = approval.EvidenceDigest, approval.ApproverID
-	} else if approval.Granted || approval.ApproverID != "" || approval.EvidenceDigest != "" { return PromotionVerification{}, fmt.Errorf("%w: approval evidence is not admitted when policy does not require approval", ErrValidation) }
+	} else if approval.Granted || approval.PlanDigest != "" || approval.ApproverID != "" || approval.EvidenceDigest != "" { return PromotionVerification{}, fmt.Errorf("%w: approval evidence is not admitted when policy does not require approval", ErrValidation) }
 	verification := PromotionVerification{Authority: PromotionVerificationAuthority, PlanDigest: plan.PlanDigest, Verified: true, RequesterID: approval.RequesterID, ApproverID: approverID, DeploymentEvidenceDigest: digestApplicationPlatformMaterial(deployment), HealthEvidenceDigest: health.EvidenceDigest, ApprovalEvidenceDigest: approvalDigest, VerifiedAt: health.ObservedAt.UTC(), ValidUntil: health.ObservedAt.UTC().Add(PromotionVerificationTTL)}
 	verification.VerificationDigest = digestPromotionVerification(verification)
 	return verification, nil
