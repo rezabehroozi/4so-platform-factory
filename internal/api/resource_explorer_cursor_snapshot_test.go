@@ -16,7 +16,7 @@ import (
 	"platform.4so.io/factory/internal/resourceexplorer"
 )
 
-func TestClusterWorkloadExplorerRejectsCursorFromChangedInventorySnapshot(t *testing.T) {
+func TestClusterWorkloadExplorerRejectsCursorFromChangedInventoryEpoch(t *testing.T) {
 	now := time.Now().UTC()
 	store := controlplane.NewMemoryStoreWith(func() time.Time { return now }, nil)
 	_, _, cluster := seedFleetSupportCluster(t, store, "owner-cursor-snapshot", "resource-explorer-cursor-snapshot", now)
@@ -72,26 +72,25 @@ func TestClusterWorkloadExplorerRejectsCursorFromChangedInventorySnapshot(t *tes
 		t.Fatalf("expected a continuation cursor from first inventory snapshot: %#v", firstPayload.ResourcePage)
 	}
 
+	// ClusterInventoryDigest deliberately excludes ObservedAt. A new observation
+	// epoch with identical content must therefore keep the same content digest,
+	// while the workload cursor must still fail closed instead of mixing epochs.
 	now = now.Add(time.Second)
 	latest, err := store.GetLatestClusterInventory(context.Background(), cluster.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	latest.ObservedAt = now
-	latest.WorkloadExplorer.Workloads = append(latest.WorkloadExplorer.Workloads,
-		controlplane.ClusterWorkloadObservation{Kind: "Deployment", Namespace: "apps", Name: "web-c", DesiredReplicas: 1, ReadyReplicas: 1},
-	)
-	latest.WorkloadExplorer, err = controlplane.NormalizeClusterWorkloadExplorer(latest.WorkloadExplorer)
-	if err != nil {
-		t.Fatal(err)
-	}
 	latest.Digest = ""
 	_, secondStored, err := store.UpsertClusterInventory(context.Background(), cluster.ID, agentTokenDigest, cluster.ExternalUID, latest)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if secondStored.Digest == firstStored.Digest {
-		t.Fatalf("inventory snapshot digest did not change: %s", secondStored.Digest)
+	if secondStored.Digest != firstStored.Digest {
+		t.Fatalf("same-content inventory epoch unexpectedly changed digest: first=%s second=%s", firstStored.Digest, secondStored.Digest)
+	}
+	if !secondStored.ObservedAt.After(firstStored.ObservedAt) {
+		t.Fatalf("inventory observation epoch did not advance: first=%s second=%s", firstStored.ObservedAt, secondStored.ObservedAt)
 	}
 
 	query := url.Values{
@@ -103,7 +102,7 @@ func TestClusterWorkloadExplorerRejectsCursorFromChangedInventorySnapshot(t *tes
 	}
 	second := request(query.Encode())
 	if second.Code != http.StatusBadRequest {
-		t.Fatalf("cursor from changed inventory snapshot must fail closed: status=%d body=%s", second.Code, second.Body.String())
+		t.Fatalf("cursor from changed inventory epoch must fail closed: status=%d body=%s", second.Code, second.Body.String())
 	}
 	var problem struct {
 		Error struct {
@@ -114,6 +113,6 @@ func TestClusterWorkloadExplorerRejectsCursorFromChangedInventorySnapshot(t *tes
 		t.Fatal(err)
 	}
 	if problem.Error.Code != "RESOURCE_EXPLORER_QUERY_INVALID" {
-		t.Fatalf("unexpected changed-snapshot cursor error: %#v body=%s", problem, second.Body.String())
+		t.Fatalf("unexpected changed-epoch cursor error: %#v body=%s", problem, second.Body.String())
 	}
 }
